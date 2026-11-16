@@ -8,6 +8,7 @@ import { COPY } from '../copy.ts';
 import { RecipeTitle } from '../game/Chrome.tsx';
 import { BackIcon } from '../icons.tsx';
 import { ToolStars } from '../ornaments.tsx';
+import { radioOption } from '../radio-group.ts';
 import '../book/book-screen.css';
 import './practice-picker.css';
 
@@ -39,6 +40,8 @@ export const PracticePicker = ({ initial, onBack, onMarble, onPrefetch }: Props)
     setRecipeId(null);
     localPrefs.setPracticeStars(next);
   };
+  const levelRadio = radioOption(STARS, stars, pickStars);
+  const recipeRadio = radioOption([null, ...recipes.map((r) => r.id)], chosen?.id ?? null, setRecipeId);
 
   return (
     <main className="book practice">
@@ -62,14 +65,7 @@ export const PracticePicker = ({ initial, onBack, onMarble, onPrefetch }: Props)
         </h2>
         <div className="practice__levels" role="radiogroup" aria-labelledby="practice-difficulty">
           {STARS.map((level) => (
-            <button
-              key={level}
-              type="button"
-              role="radio"
-              aria-checked={level === stars}
-              className="practice__level"
-              onClick={() => pickStars(level)}
-            >
+            <button key={level} type="button" className="practice__level" {...levelRadio(level)}>
               <span className="practice__level-stars">
                 <ToolStars count={level} label={COPY.stars(level)} />
               </span>
@@ -84,24 +80,11 @@ export const PracticePicker = ({ initial, onBack, onMarble, onPrefetch }: Props)
           {COPY.practice.recipe}
         </h2>
         <div className="practice__recipes" role="radiogroup" aria-labelledby="practice-recipe">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={chosen === null}
-            className="practice__recipe"
-            onClick={() => setRecipeId(null)}
-          >
+          <button type="button" className="practice__recipe" {...recipeRadio(null)}>
             {COPY.practice.anyRecipe}
           </button>
           {recipes.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              role="radio"
-              aria-checked={chosen?.id === r.id}
-              className="practice__recipe"
-              onClick={() => setRecipeId(r.id)}
-            >
+            <button key={r.id} type="button" className="practice__recipe" {...recipeRadio(r.id)}>
               <RecipeTitle recipe={r} />
             </button>
           ))}

@@ -41,10 +41,20 @@ const nextTask = (() => {
   };
 })();
 
-/** When the page is idle: for sheets marbled ahead, which must never compete with play. */
-const whenIdle = (task: Task): void => {
-  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(task);
-  else window.setTimeout(task, PRACTICE.idleFallbackMs);
+/** A slice of search, given how long it may run (ms). */
+type Slice = (budgetMs: number) => void;
+
+/**
+ * When the page is idle: for sheets marbled ahead, which must never compete
+ * with play. The slice gets what is left of the idle period, never more than
+ * a hurried slice, so it ends before the next frame is due.
+ */
+const whenIdle = (slice: Slice): void => {
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback((deadline) => slice(Math.min(PRACTICE.sliceMs, deadline.timeRemaining())));
+  } else {
+    window.setTimeout(() => slice(PRACTICE.idleFallbackSliceMs), PRACTICE.idleFallbackMs);
+  }
 };
 
 /** One practice sheet being marbled, slice by slice. */
@@ -60,7 +70,7 @@ export class PracticeJob {
   #done = false;
   #failed = false;
   /** The next slice of the search, set once the search has begun. */
-  #slice: Task = () => undefined;
+  #slice: Slice = () => undefined;
   /** Bumped on every scheduling: only the latest scheduled slice runs, so a job hurried out of idle time runs once. */
   #ticket = 0;
 
@@ -77,11 +87,16 @@ export class PracticeJob {
         request = { ...choice, seed: nextSeed };
         search = searchPractice(request, practiceRecipe(request, avoid), today);
       };
-      const slice = (): void => {
+      const slice = (budgetMs: number): void => {
         if (this.#cancelled) return;
+        // An idle period already used up by the page: wait for the next one rather than overrun the frame.
+        if (budgetMs <= 0) {
+          this.#schedule();
+          return;
+        }
         let found: SheetDescriptor | null = null;
         try {
-          found = search.step(PRACTICE.sliceMs);
+          found = search.step(budgetMs);
         } catch (error) {
           if (!(error instanceof GenerationError) || retries === 0) {
             this.#done = true;
@@ -140,10 +155,10 @@ export class PracticeJob {
 
   #schedule(): void {
     const ticket = ++this.#ticket;
-    const run = (): void => {
-      if (ticket === this.#ticket) this.#slice();
+    const run = (budgetMs: number): void => {
+      if (ticket === this.#ticket) this.#slice(budgetMs);
     };
-    if (this.#urgent) nextTask(run);
+    if (this.#urgent) nextTask(() => run(PRACTICE.sliceMs));
     else whenIdle(run);
   }
 }

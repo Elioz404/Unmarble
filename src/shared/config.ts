@@ -120,7 +120,7 @@ export const ROTATION = Object.freeze({
 export const PRACTICE = Object.freeze({
   /** Random bytes in a practice seed: 64 bits, so two players never share a sheet by chance. */
   seedBytes: 8,
-  /** Search time per slice (ms) on the main thread: half a 60 Hz frame, so the page keeps drawing. */
+  /** Search time per hurried slice (ms) on the main thread: half a 60 Hz frame, so the page keeps drawing. */
   sliceMs: 8,
   /** The "marbling…" notice waits this long (ms): most sheets are ready before it would show. */
   noticeMs: 150,
@@ -128,6 +128,8 @@ export const PRACTICE = Object.freeze({
   retries: 1,
   /** Without idle callbacks, a prefetch slice waits this long (ms), leaving the frame to the page. */
   idleFallbackMs: 50,
+  /** Without idle callbacks, a prefetch slice runs this long (ms): a quarter of a 60 Hz frame, as nobody is waiting. */
+  idleFallbackSliceMs: 4,
   /** The difficulty the picker opens on the first time. */
   defaultStars: 2,
 });
