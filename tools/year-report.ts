@@ -3,9 +3,10 @@
  * and checks it. For each secret, every day's sheet is generated as the
  * server would make it, then re-checked independently: the full contract,
  * the recipe's signature, the move band and a JSON round trip. It reports
- * the rotation rules (no weekday repeat within 3 weeks; specials: share,
- * spacing, never on Sunday, never twice in a row), generation time against
- * the budget, and the variety each weekday gets.
+ * the rotation rules (no weekday shows a sheet twice within 3 weeks, specials
+ * included; specials: share, spread over weekdays, spacing, never on Sunday,
+ * never twice in a row), generation time against the budget, and the
+ * variety each weekday gets.
  *
  *   npm run year                       365 days, three sample secrets
  *   npm run year -- 730 <secret> ...   any length, your own secrets
@@ -30,6 +31,8 @@ const BUDGET_MS = 150;
 /** The calendar's no-repeat window, in weeks: the recent picks excluded, plus the week itself. */
 const NO_REPEAT_WEEKS = ROTATION.noRepeat + 1;
 const SHARE = Object.freeze({ min: 0.08, max: 0.12 });
+/** No weekday takes more than this share of the specials. */
+const MAX_WEEKDAY_SPECIALS = 1 / 3;
 const SUNDAY = 0;
 
 const [daysArg, ...secretArgs] = process.argv.slice(2);
@@ -107,13 +110,13 @@ for (const secret of secrets) {
     run.push({ key, recipe, ms, shape: `${shape}:${sheet.spec.ground.family}` });
   }
 
-  // Rotation: a weekday never repeats a recipe within 3 consecutive weeks (specials aside).
+  // Rotation: a weekday never shows the same sheet within 3 consecutive weeks, specials included.
   let repeats = 0;
   for (let weekday = 0; weekday < 7; weekday++) {
-    const ids = run.filter((d) => weekdayOf(d.key) === weekday).map((d) => (d.recipe.special ? null : d.recipe.id));
+    const ids = run.filter((d) => weekdayOf(d.key) === weekday).map((d) => d.recipe.id);
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < Math.min(ids.length, i + NO_REPEAT_WEEKS); j++) {
-        if (ids[i] !== null && ids[i] === ids[j]) {
+        if (ids[i] === ids[j]) {
           repeats++;
           fail(`${WEEKDAY_NAMES[weekday]} repeats ${ids[i]} within ${NO_REPEAT_WEEKS} weeks`);
         }
@@ -133,6 +136,11 @@ for (const secret of secrets) {
   if (gaps.some((g) => g < ROTATION.specialGap)) fail(`specials closer than ${ROTATION.specialGap} days`);
   const bySpecial = new Map<string, number>();
   for (const d of specials) bySpecial.set(d.recipe.id, (bySpecial.get(d.recipe.id) ?? 0) + 1);
+  // Specials spread over their weekdays: none takes more than a third.
+  for (let weekday = 0; weekday < 7; weekday++) {
+    const own = specials.filter((d) => weekdayOf(d.key) === weekday).length;
+    if (own > specials.length * MAX_WEEKDAY_SPECIALS) fail(`${WEEKDAY_NAMES[weekday]} has ${own} of ${specials.length} specials`);
+  }
 
   // Time.
   const times = run.map((d) => d.ms).sort((a, b) => a - b);

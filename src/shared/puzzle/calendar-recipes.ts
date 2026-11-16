@@ -15,8 +15,11 @@ import { recipeById, specialTier, type Recipe, type SpecialId } from './recipes.
  *    has not seen for longest.
  *  - Special days fall one per block of 8–12 days (the lengths come from the
  *    seed), never on a Sunday, never on a block's first or last day (so at
- *    least 3 days apart), and never the same special twice in a row. A
- *    special overrides its day without consuming the weekday's chain.
+ *    least 3 days apart), never the same special twice in a row, and never
+ *    on a weekday that showed the same special within 3 weeks. Weekdays
+ *    behind on specials are favoured, so specials spread evenly over their
+ *    weekdays. A special overrides its day without consuming the weekday's
+ *    chain.
  *
  * The catalogue can change without breaking those rules: a change appends a
  * version starting at least two days after its deploy (so an announced
@@ -32,7 +35,11 @@ export type CalendarVersion = {
   readonly specials: readonly SpecialId[];
 };
 
-/** Sorted by `from`. Frozen once a version's `from` has passed: append, never edit. */
+/**
+ * Sorted by `from`. Frozen once a version's `from` has passed: append, never edit.
+ * A new version's `from` is its deploy day + `ROTATION.versionLeadDays` or later;
+ * `npm run deploy` refuses to upload one that starts sooner (`tools/check-calendar.ts`).
+ */
 export const CALENDAR_VERSIONS: readonly CalendarVersion[] = [
   {
     from: '2026-11-18',
@@ -89,15 +96,15 @@ const versionEnd = (versions: readonly CalendarVersion[], k: number): number =>
 const versionAt = (versions: readonly CalendarVersion[], day: number): number =>
   versions.reduce((found, _, k) => (versionStart(versions, k) <= day ? k : found), -1);
 
-/** Weighted pick: each candidate's weight is its weight in `weights`, at the same index. */
-const weightedPick = (rng: Random, candidates: readonly string[], weights: readonly number[]): string => {
-  const total = weights.reduce((sum, w) => sum + w, 0);
+/** Weighted pick of one of `candidates` (never empty): each weighs `weightOf` it. */
+const weightedPick = <T>(rng: Random, candidates: readonly T[], weightOf: (candidate: T) => number): T => {
+  const total = candidates.reduce((sum, c) => sum + weightOf(c), 0);
   let u = rng.next() * total;
-  for (let i = 0; i < candidates.length; i++) {
-    u -= weights[i] as number;
-    if (u < 0) return candidates[i] as string;
+  for (const candidate of candidates) {
+    u -= weightOf(candidate);
+    if (u < 0) return candidate;
   }
-  return candidates[candidates.length - 1] as string;
+  return candidates[candidates.length - 1] as T;
 };
 
 const weekdayOfDay = (day: number): number => weekdayOf(dateKeyOfDay(day));
@@ -133,11 +140,11 @@ const historyOf = (
     const recent = history.slice(-ROTATION.noRepeat);
     const candidates = ids.filter((id) => !recent.includes(id));
     // The longer a recipe has rested, the likelier it returns.
-    const weights = candidates.map((id) => {
+    const age = (id: string) => {
       const lastUse = history.lastIndexOf(id);
       return lastUse < 0 ? ROTATION.maxAgeWeight : Math.min(ROTATION.maxAgeWeight, history.length - lastUse);
-    });
-    chain.push(weightedPick(new Random(`${seed}:recipe:${k}:${weekday}:${chain.length}`), candidates, weights));
+    };
+    chain.push(weightedPick(new Random(`${seed}:recipe:${k}:${weekday}:${chain.length}`), candidates, age));
   }
   const weeks = Math.max(0, Math.floor((until - first) / WEEK) + 1);
   return [...handoff, ...chain.slice(0, weeks)];
@@ -145,22 +152,57 @@ const historyOf = (
 
 type SpecialDay = NonNullable<Block['special']>;
 
-/** The latest special among `blocks`, or else among the previous versions' blocks. */
-const previousSpecial = (
+/**
+ * The specials of version `k`'s `blocks` (newest first), then the previous
+ * versions', back to the first one that falls before `since` (a day number).
+ * That one is still included, so the newest special is always there.
+ */
+const specialsSince = (
   seed: string,
   versions: readonly CalendarVersion[],
   k: number,
   blocks: readonly Block[],
-): SpecialDay | null => {
+  since: number,
+): SpecialDay[] => {
+  const found: SpecialDay[] = [];
   for (let b = blocks.length - 1; b >= 0; b--) {
     const special = blocks[b]?.special;
-    if (special) return special;
+    if (!special) continue;
+    found.push(special);
+    if (special.day < since) return found;
   }
-  return k > 0 ? previousSpecial(seed, versions, k - 1, blocksOf(seed, versions, k - 1, versionStart(versions, k) - 1)) : null;
+  if (k === 0) return found;
+  const earlier = blocksOf(seed, versions, k - 1, versionStart(versions, k) - 1);
+  return [...found, ...specialsSince(seed, versions, k - 1, earlier, since)];
+};
+
+/** A day that may hold a special, and a special it may hold. */
+type SpecialOption = { readonly day: number; readonly kind: SpecialId };
+
+/** How many specials each weekday has shown in `blocks`, counting every weekday some special of `kinds` can fall on. */
+const specialsPerWeekday = (blocks: readonly Block[], kinds: readonly SpecialId[]): Map<number, number> => {
+  const shown = new Map<number, number>();
+  for (let weekday = 0; weekday < WEEK; weekday++) {
+    if (kinds.some((kind) => specialTier(kind, weekday) !== null)) shown.set(weekday, 0);
+  }
+  for (const { special } of blocks) {
+    if (!special) continue;
+    const weekday = weekdayOfDay(special.day);
+    shown.set(weekday, (shown.get(weekday) ?? 0) + 1);
+  }
+  return shown;
 };
 
 /**
  * Version `k`'s special blocks, up to the one holding `until` (a day number).
+ * Each block draws a day and a special with a tier on it together, favouring
+ * the weekdays that have shown the fewest specials so far in the version, so
+ * specials spread evenly over every weekday that has one (a special with a
+ * single tier would otherwise crowd its weekday, since no special may follow
+ * itself). A special never repeats the one before, nor falls on a weekday
+ * that showed the same special in the previous `ROTATION.noRepeat` weeks: a
+ * weekday never shows any sheet twice within 3 consecutive weeks.
+ *
  * A block's draws never depend on where the version ends, so appending a
  * version changes no day before it: a special that would fall past the end
  * is simply dropped, and the next version's first special keeps its distance.
@@ -177,28 +219,35 @@ const blocksOf = (seed: string, versions: readonly CalendarVersion[], k: number,
     const last = blocks.at(-1);
     return last ? last.start + last.length : versionStart(versions, k);
   };
+  const window = WEEK * ROTATION.noRepeat;
+  const { specials } = versions[k] as CalendarVersion;
   while (nextStart() <= until && nextStart() < end) {
     const start = nextStart();
     const rng = new Random(`${seed}:specials:${k}:${blocks.length}`);
     const length = rng.int(ROTATION.specialBlock.min, ROTATION.specialBlock.max);
-    const previous = previousSpecial(seed, versions, k, blocks);
-    const days = (kind: SpecialId) => {
-      const out: { day: number; recipeId: string }[] = [];
-      for (let offset = ROTATION.specialInset; offset < length - ROTATION.specialInset; offset++) {
-        const day = start + offset;
-        const tier = specialTier(kind, weekdayOfDay(day));
-        const spaced = !previous || day - previous.day >= ROTATION.specialGap;
-        if (weekdayOfDay(day) !== SUNDAY && tier && spaced) out.push({ day, recipeId: tier.id });
+    const recent = specialsSince(seed, versions, k, blocks, start - window);
+    const previous = recent[0] ?? null;
+    const options: SpecialOption[] = [];
+    for (let offset = ROTATION.specialInset; offset < length - ROTATION.specialInset; offset++) {
+      const day = start + offset;
+      const weekday = weekdayOfDay(day);
+      if (weekday === SUNDAY || (previous && day - previous.day < ROTATION.specialGap)) continue;
+      const shownLately = (kind: SpecialId) =>
+        recent.some((r) => r.kind === kind && weekdayOfDay(r.day) === weekday && day - r.day <= window);
+      for (const kind of specials) {
+        if (kind !== previous?.kind && specialTier(kind, weekday) !== null && !shownLately(kind)) options.push({ day, kind });
       }
-      return out;
-    };
-    const options = (versions[k] as CalendarVersion).specials.filter((s) => s !== previous?.kind && days(s).length > 0);
+    }
     if (options.length === 0) {
       blocks.push({ start, length, special: null });
       continue;
     }
-    const kind = rng.pick(options);
-    const { day, recipeId } = rng.pick(days(kind));
+    // Weekdays behind on specials catch up: each special a weekday has shown beyond the fewest lowers its odds.
+    const shown = specialsPerWeekday(blocks, specials);
+    const fewest = Math.min(...shown.values());
+    const odds = (o: SpecialOption) => ROTATION.specialCatchUp ** ((shown.get(weekdayOfDay(o.day)) ?? 0) - fewest);
+    const { day, kind } = weightedPick(rng, options, odds);
+    const recipeId = (specialTier(kind, weekdayOfDay(day)) as Recipe).id;
     blocks.push({ start, length, special: day < end ? { kind, day, recipeId } : null });
   }
   return blocks;

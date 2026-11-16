@@ -13,6 +13,8 @@ const SEEDS = SECRETS.map(seedOf);
 const YEAR = 365;
 /** Specials land on about one day in ten. */
 const SPECIAL_SHARE = Object.freeze({ min: 0.08, max: 0.12 });
+/** Today's specials spread over the four weekdays that have them: none takes more than a third. */
+const MAX_WEEKDAY_SPECIALS = 1 / 3;
 
 const FIRST = CALENDAR_VERSIONS[0] as CalendarVersion;
 
@@ -34,15 +36,16 @@ const isSpecial = (id: string): boolean => {
 
 /** Every rule of the rotation, checked over a run of days. */
 const assertRotation = (days: readonly Day[], label: string): void => {
+  const specials = days.filter((d) => isSpecial(d.id));
   for (let weekday = 0; weekday < 7; weekday++) {
+    // What players see, specials included: no sheet comes back within 3 weeks on its weekday.
     const ids = days.filter((d) => weekdayOf(d.key) === weekday).map((d) => d.id);
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j <= i + ROTATION.noRepeat && j < ids.length; j++) {
-        if (!isSpecial(ids[i] as string)) assert.notEqual(ids[i], ids[j], `${label}: weekday ${weekday} repeats within 3 weeks`);
+        assert.notEqual(ids[i], ids[j], `${label}: weekday ${weekday} repeats ${ids[i]} within 3 weeks`);
       }
     }
   }
-  const specials = days.filter((d) => isSpecial(d.id));
   const share = specials.length / days.length;
   assert.ok(share >= SPECIAL_SHARE.min && share <= SPECIAL_SHARE.max, `${label}: special share ${share}`);
   for (const [i, day] of specials.entries()) {
@@ -73,7 +76,15 @@ test('versions are sorted, and every id they list is a weekday recipe of its day
 });
 
 test('a year of recipes keeps every rotation rule, for each secret', () => {
-  for (const [i, seed] of SEEDS.entries()) assertRotation(daysFrom(seed, FIRST.from, YEAR), `secret ${i}`);
+  for (const [i, seed] of SEEDS.entries()) {
+    const days = daysFrom(seed, FIRST.from, YEAR);
+    assertRotation(days, `secret ${i}`);
+    const specials = days.filter((d) => isSpecial(d.id));
+    for (let weekday = 0; weekday < 7; weekday++) {
+      const own = specials.filter((d) => weekdayOf(d.key) === weekday).length;
+      assert.ok(own <= specials.length * MAX_WEEKDAY_SPECIALS, `secret ${i}: weekday ${weekday} has ${own} of ${specials.length} specials`);
+    }
+  }
 });
 
 test('the calendar is deterministic in its seed, and differs between seeds', () => {

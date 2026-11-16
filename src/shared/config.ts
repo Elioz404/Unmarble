@@ -101,8 +101,35 @@ export const ROTATION = Object.freeze({
   specialBlock: Object.freeze({ min: 8, max: 12 }),
   /** A special never falls on its block's first or last day, which keeps specials `specialGap` days apart. */
   specialInset: 1,
+  /**
+   * A new calendar version starts at least this many days after its deploy: the server announces
+   * tomorrow a day ahead, so the day after a deploy must still be the old version's.
+   */
+  versionLeadDays: 2,
   /** Fewest days from one special to the next, also across a catalogue change. */
   specialGap: 3,
+  /**
+   * Each special a weekday has shown beyond the fewest any special weekday has
+   * multiplies its odds of the next one by this: specials spread evenly over
+   * Mon, Thu, Fri and Sat instead of piling onto single-tier Mondays and Thursdays.
+   */
+  specialCatchUp: 0.25,
+});
+
+/** Practice sheets, marbled on the player's device (`practice.ts`, `practice-shelf.ts`). */
+export const PRACTICE = Object.freeze({
+  /** Random bytes in a practice seed: 64 bits, so two players never share a sheet by chance. */
+  seedBytes: 8,
+  /** Search time per slice (ms) on the main thread: half a 60 Hz frame, so the page keeps drawing. */
+  sliceMs: 8,
+  /** The "marbling…" notice waits this long (ms): most sheets are ready before it would show. */
+  noticeMs: 150,
+  /** A search that gives up starts over once with a new seed before the player is told. */
+  retries: 1,
+  /** Without idle callbacks, a prefetch slice waits this long (ms), leaving the frame to the page. */
+  idleFallbackMs: 50,
+  /** The difficulty the picker opens on the first time. */
+  defaultStars: 2,
 });
 
 export const GROUND_STYLE = Object.freeze({
