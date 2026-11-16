@@ -20,8 +20,12 @@ export const API = Object.freeze({
   flair: '/api/flair',
 });
 
-/** A daily sheet (made by the bindery) or a trap (made by a player for others). */
-export type SheetKind = 'daily' | 'trap';
+/**
+ * A daily sheet (made by the bindery), a trap (made by a player for others)
+ * or a practice sheet (made on the player's device, never sent to or
+ * accepted by the server).
+ */
+export type SheetKind = 'daily' | 'trap' | 'practice';
 
 /** One sheet as presented to players. */
 export type SheetDescriptor = {

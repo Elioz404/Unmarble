@@ -248,6 +248,11 @@
   flex: none;
 }
 
+/* Beside the spine label, a plain button: opaque, so the ledger never shows through it as it scrolls by. */
+.book__practice {
+  background: var(--room);
+}
+
 /* The trap that would become Sunday's sheet if the week ended now. */
 .book__running {
   justify-self: start;

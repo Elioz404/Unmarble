@@ -14,6 +14,7 @@ import type {
 import { templatePreview } from '../../../shared/puzzle/templates.ts';
 import { getPalette } from '../../../shared/sheet/palettes.ts';
 import { dateKeyOf, msUntilNextDay } from '../../../shared/time/calendar.ts';
+import { assertNever } from '../../lib/assert-never.ts';
 import type { ShareOutcome } from '../../platform/platform.ts';
 import { COPY } from '../copy.ts';
 import { CheckIcon, CopyIcon, QuillIcon } from '../icons.tsx';
@@ -47,6 +48,16 @@ type Props = {
   readonly onJoin: () => void;
   readonly onLogin: () => void;
   readonly onFlair: (enabled: boolean) => Promise<boolean>;
+  readonly practice: PracticeActions;
+};
+
+/** Ways on to practice sheets: the picker from any result, and from a practice result another sheet. */
+export type PracticeActions = {
+  readonly pickPractice: () => void;
+  readonly anotherPractice: () => void;
+  /** Marbles that next sheet ahead while the card is on screen, so "Another" is instant. */
+  readonly prefetchAnother: () => void;
+  readonly today: () => void;
 };
 
 const formatDuration = (ms: number): string => {
@@ -80,8 +91,18 @@ const standingLine = (standing: Standing): string =>
     : COPY.result.rank(standing.rank, standing.stats.hands);
 
 /** How the sheet names itself when shared: its number, or its maker for a trap. */
-const shareHeading = (sheet: SheetDescriptor): string =>
-  sheet.kind === 'trap' ? `· a trap by u/${sheet.author ?? 'someone'}` : `No.${sheet.number} · ${sheet.weekday}`;
+const shareHeading = (sheet: SheetDescriptor): string => {
+  switch (sheet.kind) {
+    case 'trap':
+      return `· a trap by u/${sheet.author ?? 'someone'}`;
+    case 'daily':
+      return `No.${sheet.number} · ${sheet.weekday}`;
+    case 'practice':
+      return `· ${COPY.practice.eyebrow}`;
+    default:
+      return assertNever(sheet.kind);
+  }
+};
 
 /** The plate's stamp row: the same seals as the footer's, a size up for the screenshot. */
 const MARK_SIZE = 16;
@@ -103,23 +124,49 @@ const TORN_CLIP = (() => {
   return `polygon(-${SHADOW_ROOM} ${TORN_EDGE.depth}px, ${top.join(', ')}, ${outside} ${TORN_EDGE.depth}px, ${outside} ${outside}, -${SHADOW_ROOM} ${outside})`;
 })();
 
-/** The plate's colophon: the sheet by number, day and colourway, or a trap by its maker. */
-const Colophon = ({ sheet }: { readonly sheet: SheetDescriptor }) => (
-  <p className="result__colophon label">
-    {sheet.kind === 'trap' ? (
-      COPY.trap.by(sheet.author ?? 'someone')
-    ) : (
-      // Each part stays whole on narrow screens; a line breaks only after a dot.
-      <>
-        <span className="result__colophon-part">
-          {COPY.result.sheet} <Numero /> <span className="figures">{sheet.number}</span> ·
-        </span>{' '}
-        <span className="result__colophon-part">{sheet.weekday} ·</span>{' '}
-        <span className="result__colophon-part">{sheet.paletteName}</span>
-      </>
-    )}
-  </p>
-);
+/**
+ * The plate's colophon: the sheet by number, day and colourway, a trap by its
+ * maker, or a practice sheet by its difficulty and recipe. Each part stays
+ * whole on narrow screens; a line breaks only after a dot.
+ */
+const Colophon = ({ sheet }: { readonly sheet: SheetDescriptor }) => {
+  const body = (() => {
+    switch (sheet.kind) {
+      case 'trap':
+        return COPY.trap.by(sheet.author ?? 'someone');
+      case 'daily':
+        return (
+          <>
+            <span className="result__colophon-part">
+              {COPY.result.sheet} <Numero /> <span className="figures">{sheet.number}</span> ·
+            </span>{' '}
+            <span className="result__colophon-part">{sheet.weekday} ·</span>{' '}
+            <span className="result__colophon-part">{sheet.paletteName}</span>
+          </>
+        );
+      case 'practice':
+        return (
+          <>
+            <span className="result__colophon-part">{COPY.practice.eyebrow} ·</span>{' '}
+            <span className="result__colophon-part">
+              <span className="result__stars">
+                <ToolStars count={sheet.spec.stars} label={COPY.stars(sheet.spec.stars)} />
+              </span>
+              {sheet.recipe ? ' ·' : null}
+            </span>{' '}
+            {sheet.recipe ? (
+              <span className="result__colophon-part">
+                <RecipeTitle recipe={sheet.recipe} />
+              </span>
+            ) : null}
+          </>
+        );
+      default:
+        return assertNever(sheet.kind);
+    }
+  })();
+  return <p className="result__colophon label">{body}</p>;
+};
 
 /**
  * "Tomorrow, Tuesday ★★: an early fold, bent by three drops." A special day
@@ -173,10 +220,35 @@ const CommunityScars = ({ sheet, scars }: { readonly sheet: SheetDescriptor; rea
   );
 };
 
+/** After a practice sheet: another like it, other settings, or back to the day's real sheet. Nothing is shared or counted. */
+const PracticeNext = ({ practice }: { readonly practice: PracticeActions }) => {
+  useEffect(() => practice.prefetchAnother(), [practice]);
+  return (
+    <>
+      <div className="result__primary">
+        <div className="actions">
+          <button type="button" className="button button--primary" onClick={practice.anotherPractice}>
+            {COPY.practice.another}
+          </button>
+          <button type="button" className="button" onClick={practice.pickPractice}>
+            {COPY.practice.change}
+          </button>
+        </div>
+      </div>
+      <div className="result__secondary">
+        <button type="button" className="result__link" onClick={practice.today}>
+          {COPY.goToToday}
+        </button>
+      </div>
+    </>
+  );
+};
+
 /**
  * The single end card: what you did, how it compares, and the next steps —
- * share it, set a trap, name the sheet, spring someone's trap. Play, comment,
- * join and flair are always separate actions, never bundled.
+ * share it, set a trap, name the sheet, spring someone's trap, practise. Play,
+ * comment, join and flair are always separate actions, never bundled. A
+ * practice sheet's card keeps only the time, the marks and what comes next.
  */
 export const ResultCard = ({
   sheet,
@@ -197,14 +269,16 @@ export const ResultCard = ({
   onJoin,
   onLogin,
   onFlair,
+  practice,
 }: Props) => {
   const [shared, setShared] = useState<ShareOutcome | null>(null);
   const [flair, setFlair] = useState(player.flair);
   const countdown = useCountdown();
   const isTrap = sheet.kind === 'trap';
   const marks = state.history.filter((h) => h.action.type !== 'magnify');
-  // The next daily, whatever sheet this is (an old one from the Book, or a trap).
-  const preview = tomorrow ?? templatePreview(dateKeyOf(nextSheetAt));
+  // The next daily, whatever sheet this is (an old one from the Book, a trap, practice).
+  // Without an announcement, the weekly template stands in; practice, made offline, shows none.
+  const preview = tomorrow ?? (sheet.kind === 'practice' ? null : templatePreview(dateKeyOf(nextSheetAt)));
   const duration = standing?.result.durationMs ?? state.history[state.history.length - 1]?.at ?? 0;
 
   const share = async (): Promise<void> => {
@@ -283,74 +357,91 @@ export const ResultCard = ({
       </article>
 
       <div className="result__after">
-        <div className="result__primary">
-          <div className="actions">
-            <button type="button" className="button button--primary" onClick={() => void share()}>
-              {shared === 'shared' || shared === 'copied' ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
-              {COPY.result.share}
-            </button>
-            <button type="button" className="button" onClick={onCompose}>
-              <QuillIcon size={18} />
-              {COPY.trap.set}
-            </button>
-          </div>
-          <p className="result__note" role="status">
-            {shared ? SHARE_LABEL[shared] : COPY.book.sundayRule}
-          </p>
-        </div>
+        {(() => {
+          switch (sheet.kind) {
+            case 'practice':
+              return <PracticeNext practice={practice} />;
+            case 'daily':
+            case 'trap':
+              return (
+                <>
+                  <div className="result__primary">
+                    <div className="actions">
+                      <button type="button" className="button button--primary" onClick={() => void share()}>
+                        {shared === 'shared' || shared === 'copied' ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
+                        {COPY.result.share}
+                      </button>
+                      <button type="button" className="button" onClick={onCompose}>
+                        <QuillIcon size={18} />
+                        {COPY.trap.set}
+                      </button>
+                    </div>
+                    <p className="result__note" role="status">
+                      {shared ? SHARE_LABEL[shared] : COPY.book.sundayRule}
+                    </p>
+                  </div>
 
-        {thread ? (
-          <div className="result__thread">
-            <button type="button" className="result__thread-button" onClick={() => onOpenThread(thread.url)}>
-              {thread.naming && !isTrap
-                ? COPY.result.nameIt
-                : isTrap
-                  ? COPY.result.tellMaker(sheet.author ?? 'someone')
-                  : COPY.result.comments}
-            </button>
-            {thread.naming && !isTrap ? <p className="result__note">{COPY.result.nameHow}</p> : null}
-          </div>
-        ) : null}
+                  {thread ? (
+                    <div className="result__thread">
+                      <button type="button" className="result__thread-button" onClick={() => onOpenThread(thread.url)}>
+                        {thread.naming && !isTrap
+                          ? COPY.result.nameIt
+                          : isTrap
+                            ? COPY.result.tellMaker(sheet.author ?? 'someone')
+                            : COPY.result.comments}
+                      </button>
+                      {thread.naming && !isTrap ? <p className="result__note">{COPY.result.nameHow}</p> : null}
+                    </div>
+                  ) : null}
 
-        {nextTrap ? (
-          <button type="button" className="result__next-trap" onClick={() => onPlay(nextTrap.id)}>
-            <span>{COPY.trap.next(nextTrap.author ?? 'someone')}</span>
-            <span className="result__stars">
-              <ToolStars count={nextTrap.spec.stars} label={COPY.stars(nextTrap.spec.stars)} />
-            </span>
-          </button>
-        ) : null}
+                  {nextTrap ? (
+                    <button type="button" className="result__next-trap" onClick={() => onPlay(nextTrap.id)}>
+                      <span>{COPY.trap.next(nextTrap.author ?? 'someone')}</span>
+                      <span className="result__stars">
+                        <ToolStars count={nextTrap.spec.stars} label={COPY.stars(nextTrap.spec.stars)} />
+                      </span>
+                    </button>
+                  ) : null}
 
-        {yourTrap && yourTrap.sheetId !== sheet.id ? (
-          <p className="result__your-trap">{COPY.result.yourTrap(yourTrap.caught, yourTrap.hands)}</p>
-        ) : null}
+                  {yourTrap && yourTrap.sheetId !== sheet.id ? (
+                    <p className="result__your-trap">{COPY.result.yourTrap(yourTrap.caught, yourTrap.hands)}</p>
+                  ) : null}
 
-        <div className="result__secondary">
-          {community ? (
-            <button type="button" className="result__link" onClick={onJoin}>
-              {COPY.result.join(community)}
-            </button>
-          ) : null}
-          {player.signedIn && !isTrap ? (
-            <label className="result__flair">
-              <input type="checkbox" checked={flair} onChange={toggleFlair} />
-              <span>
-                {COPY.flair.toggle}
-                <small>{COPY.flair.note}</small>
-              </span>
-            </label>
-          ) : null}
-          {!player.signedIn ? (
-            <button type="button" className="result__link" onClick={onLogin}>
-              {COPY.result.login}
-            </button>
-          ) : null}
-        </div>
+                  <div className="result__secondary">
+                    <button type="button" className="result__link" onClick={practice.pickPractice}>
+                      {COPY.practice.entry}
+                    </button>
+                    {community ? (
+                      <button type="button" className="result__link" onClick={onJoin}>
+                        {COPY.result.join(community)}
+                      </button>
+                    ) : null}
+                    {player.signedIn && !isTrap ? (
+                      <label className="result__flair">
+                        <input type="checkbox" checked={flair} onChange={toggleFlair} />
+                        <span>
+                          {COPY.flair.toggle}
+                          <small>{COPY.flair.note}</small>
+                        </span>
+                      </label>
+                    ) : null}
+                    {!player.signedIn ? (
+                      <button type="button" className="result__link" onClick={onLogin}>
+                        {COPY.result.login}
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              );
+            default:
+              return assertNever(sheet.kind);
+          }
+        })()}
 
         <footer className="result__next">
           <span className="label">{COPY.result.next}</span>
           <span className="figures result__countdown">{countdown}</span>
-          <Teaser preview={preview} />
+          {preview ? <Teaser preview={preview} /> : null}
         </footer>
       </div>
     </section>

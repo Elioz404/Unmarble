@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BookEntry, BookResponse } from '../../../shared/protocol/api.ts';
 import { addDays, weekdayOf, type DateKey } from '../../../shared/time/calendar.ts';
+import { assertNever } from '../../lib/assert-never.ts';
 import type { Platform } from '../../platform/platform.ts';
 import { COPY } from '../copy.ts';
 import { Numero, SheetDetail } from '../game/Chrome.tsx';
@@ -65,6 +66,25 @@ const metaOf = (entry: BookEntry): string => {
   return parts.join(' · ');
 };
 
+/** How a row names its sheet: a daily by its day (and number), a trap by its maker. */
+const rowNames = (sheet: BookEntry['sheet']): { readonly title: ReactNode; readonly subtitle: ReactNode; readonly numbered: boolean } => {
+  switch (sheet.kind) {
+    case 'daily':
+      return {
+        title: sheet.weekday,
+        subtitle: sheet.author ? COPY.trap.sheetOfWeek(sheet.author) : <SheetDetail sheet={sheet} />,
+        numbered: true,
+      };
+    case 'trap':
+      return { title: COPY.trap.by(sheet.author ?? 'someone'), subtitle: <SheetDetail sheet={sheet} />, numbered: false };
+    // The server never lists one; named as its plaque names it, should one ever be shown.
+    case 'practice':
+      return { title: COPY.practice.eyebrow, subtitle: <SheetDetail sheet={sheet} />, numbered: false };
+    default:
+      return assertNever(sheet.kind);
+  }
+};
+
 /** One ledger entry: Nº in the gutter, the specimen, the day in italic, and a dotted leader to its seal. */
 const Row = ({
   entry,
@@ -76,9 +96,7 @@ const Row = ({
   readonly onPlay: (id: string) => void;
 }) => {
   const { sheet, status } = entry;
-  const daily = sheet.kind === 'daily';
-  const title = daily ? sheet.weekday : COPY.trap.by(sheet.author ?? 'someone');
-  const subtitle = sheet.author && daily ? COPY.trap.sheetOfWeek(sheet.author) : <SheetDetail sheet={sheet} />;
+  const { title, subtitle, numbered } = rowNames(sheet);
   return (
     <li>
       <button
@@ -90,7 +108,7 @@ const Row = ({
         data-today={today || undefined}
       >
         {today ? <span className="visually-hidden">{COPY.book.today}</span> : null}
-        {daily ? (
+        {numbered ? (
           <span className="book__no">
             <span className="book__no-sign">
               <Numero />
@@ -124,10 +142,11 @@ type Props = {
   readonly onBack: () => void;
   readonly onPlay: (sheetId: string) => void;
   readonly onCompose: () => void;
+  readonly onPractice: () => void;
 };
 
-/** The Book: every past sheet and every recent trap, each playable again. */
-export const BookScreen = ({ platform, onBack, onPlay, onCompose }: Props) => {
+/** The Book: every past sheet and every recent trap, each playable again; and the way to practice sheets. */
+export const BookScreen = ({ platform, onBack, onPlay, onCompose, onPractice }: Props) => {
   const [book, setBook] = useState<BookResponse | null>(null);
   const [failed, setFailed] = useState(false);
   const [shelf, setShelf] = useState<Shelf>('dailies');
@@ -201,10 +220,15 @@ export const BookScreen = ({ platform, onBack, onPlay, onCompose }: Props) => {
         ))
       )}
 
-      <button type="button" className="button button--primary book__compose" onClick={onCompose}>
-        <QuillIcon size={18} />
-        {COPY.trap.set}
-      </button>
+      <div className="actions book__compose">
+        <button type="button" className="button button--primary" onClick={onCompose}>
+          <QuillIcon size={18} />
+          {COPY.trap.set}
+        </button>
+        <button type="button" className="button book__practice" onClick={onPractice}>
+          {COPY.practice.open}
+        </button>
+      </div>
     </main>
   );
 };

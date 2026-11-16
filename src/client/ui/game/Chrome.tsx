@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { RULES } from '../../../shared/config.ts';
+import { assertNever } from '../../lib/assert-never.ts';
 import type { SheetDescriptor } from '../../../shared/protocol/api.ts';
 import type { RecipeTag } from '../../../shared/puzzle/recipes.ts';
 import { COPY } from '../copy.ts';
@@ -45,7 +46,8 @@ export const Plaque = ({
   eyebrow,
 }: {
   readonly number: number | null;
-  readonly weekday: string;
+  /** The plaque's title: the day, or what stands in for one. */
+  readonly weekday: ReactNode;
   readonly stars: number;
   readonly detail: ReactNode;
   readonly eyebrow?: string;
@@ -76,27 +78,46 @@ export const Plaque = ({
 );
 
 /**
- * The sheet's plaque: a daily sheet by number and day, a trap by its maker.
+ * The sheet's plaque: a daily sheet by number and day, a trap by its maker, a
+ * practice sheet by its recipe, under "Practice" and with no number.
  * `eyebrow` replaces the wordmark over a daily sheet that nobody set.
  */
-export const SheetPlaque = ({ sheet, eyebrow }: { readonly sheet: SheetDescriptor; readonly eyebrow?: string }) =>
-  sheet.kind === 'trap' ? (
-    <Plaque
-      number={null}
-      weekday={sheet.name ?? COPY.trap.title}
-      stars={sheet.spec.stars}
-      detail={sheet.paletteName}
-      eyebrow={COPY.trap.by(sheet.author ?? 'someone')}
-    />
-  ) : (
-    <Plaque
-      number={sheet.number}
-      weekday={sheet.weekday}
-      stars={sheet.spec.stars}
-      detail={<SheetDetail sheet={sheet} />}
-      {...(sheet.author ? { eyebrow: COPY.trap.sheetOfWeek(sheet.author) } : eyebrow ? { eyebrow } : {})}
-    />
-  );
+export const SheetPlaque = ({ sheet, eyebrow }: { readonly sheet: SheetDescriptor; readonly eyebrow?: string }) => {
+  switch (sheet.kind) {
+    case 'trap':
+      return (
+        <Plaque
+          number={null}
+          weekday={sheet.name ?? COPY.trap.title}
+          stars={sheet.spec.stars}
+          detail={sheet.paletteName}
+          eyebrow={COPY.trap.by(sheet.author ?? 'someone')}
+        />
+      );
+    case 'daily':
+      return (
+        <Plaque
+          number={sheet.number}
+          weekday={sheet.weekday}
+          stars={sheet.spec.stars}
+          detail={<SheetDetail sheet={sheet} />}
+          {...(sheet.author ? { eyebrow: COPY.trap.sheetOfWeek(sheet.author) } : eyebrow ? { eyebrow } : {})}
+        />
+      );
+    case 'practice':
+      return (
+        <Plaque
+          number={null}
+          weekday={sheet.recipe ? <RecipeTitle recipe={sheet.recipe} /> : COPY.practice.title}
+          stars={sheet.spec.stars}
+          detail={sheet.paletteName}
+          eyebrow={COPY.practice.eyebrow}
+        />
+      );
+    default:
+      return assertNever(sheet.kind);
+  }
+};
 
 export const SoundToggle = ({ muted, onToggle }: { readonly muted: boolean; readonly onToggle: () => void }) => (
   <button

@@ -2,10 +2,11 @@ import '../ui/styles/base.css';
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { isStars } from '../../shared/puzzle/sheet.ts';
 import { createLabPlatform } from '../platform/lab-platform.ts';
 import { CardApp } from '../ui/card/CardApp.tsx';
 import { probeSmallCaps } from '../ui/fonts.ts';
-import { GameApp } from '../ui/GameApp.tsx';
+import { GameApp, type PracticeLink } from '../ui/GameApp.tsx';
 import { FeedBoard } from '../ui/lab/FeedBoard.tsx';
 import { LabControls } from '../ui/lab/LabControls.tsx';
 import { ParityBoard } from '../ui/lab/ParityBoard.tsx';
@@ -21,6 +22,8 @@ import { mountRoot } from './mount.ts';
  *   lab.html?view=card&post=atelier   the card as the pinned hub post
  *   lab.html?view=board      the card at several feed widths
  *   lab.html?view=parity     the WebGL and CPU renderers side by side, and how far apart they are
+ *   lab.html?practice=3      a ★★★ practice sheet, any recipe
+ *   lab.html?practice=4&recipe=storm-4&seed=ab12   one recipe, and one sheet of it
  *
  * The game and the card carry lab controls to restart or start over.
  */
@@ -31,6 +34,13 @@ const navigate = (nextView: string): void => {
   const next = new URLSearchParams(search);
   next.set('view', nextView);
   window.location.assign(`?${next.toString()}`);
+};
+
+/** `?practice=<stars>[&recipe=<id>][&seed=<hex>]`: open straight on a practice sheet. */
+const practiceLink = (): PracticeLink | null => {
+  const stars = Number(search.get('practice'));
+  if (!isStars(stars)) return null;
+  return { choice: { stars, recipeId: search.get('recipe') }, seed: search.get('seed') };
 };
 
 const platform = createLabPlatform(search, {
@@ -46,7 +56,7 @@ const app =
   ) : view === 'card' ? (
     <CardApp platform={platform} initial={null} atelier={search.get('post') === 'atelier'} />
   ) : (
-    <GameApp platform={platform} />
+    <GameApp platform={platform} practice={practiceLink()} />
   );
 
 probeSmallCaps();

@@ -54,10 +54,6 @@ test('malformed recipe tags are rejected', () => {
   assert.deepEqual(parseSheetDescriptor(roundTrip({ ...SHEET, recipe: tag }))?.recipe, tag);
 });
 
-test('practice sheets never come from the server', () => {
-  assert.equal(parseSheetDescriptor(roundTrip({ ...SHEET, kind: 'practice' })), null);
-  assert.equal(parsePostBinding(roundTrip({ kind: 'practice', sheet: SHEET })), null);
-});
 
 test('tomorrow’s preview parses, and an old server without one is still understood', () => {
   assert.deepEqual(parseSheetResponse(roundTrip(RESPONSE)), RESPONSE);

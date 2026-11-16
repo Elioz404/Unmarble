@@ -168,6 +168,32 @@ export const COPY = Object.freeze({
   },
   oldSheet: 'This is an earlier sheet.',
   goToToday: 'Today’s sheet',
+  loading: 'Laying out the sheet…',
+  loadFailed: 'The bath is unsettled. Try again in a moment.',
+  practice: {
+    /** Over the plaque, and the colophon's first word. */
+    eyebrow: 'Practice',
+    /** The way in, from a result card. */
+    entry: 'Practice sheets · unlimited, unranked',
+    /** The way in, from the Book. */
+    open: 'Practice',
+    title: 'Practice sheets',
+    pickerEyebrow: 'Unlimited · unranked',
+    lead: 'Marbled on your device, as many as you like. No rank, no streak.',
+    difficulty: 'Difficulty',
+    recipe: 'Recipe',
+    /** Under each difficulty: the weekdays that have it ("Thursdays · Sundays"). */
+    days: (weekdays: readonly string[]) => weekdays.map((day) => `${day}s`).join(' · '),
+    anyRecipe: 'Any recipe',
+    anyPromise: 'one of its recipes, drawn at random',
+    marble: 'Marble a sheet',
+    marbling: 'Marbling a practice sheet…',
+    failed: 'Couldn’t marble a sheet. Try again',
+    banner: 'Practice sheet: unranked, no streak.',
+    another: 'Another',
+    change: 'Change',
+    warmUp: 'Warm up on a ★ practice sheet',
+  },
 });
 
 export const blotLine = (reason: BlotReason | null): string =>

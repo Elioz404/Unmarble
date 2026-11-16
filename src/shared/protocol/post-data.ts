@@ -1,6 +1,6 @@
 import type { DayPreview, SheetDescriptor } from './api.ts';
 import { RECIPE_TEXT, SPECIAL_IDS, type RecipeTag } from '../puzzle/recipes.ts';
-import { parseSheetSpec, type Stars } from '../puzzle/sheet.ts';
+import { isStars, parseSheetSpec } from '../puzzle/sheet.ts';
 import { isDateKey } from '../time/calendar.ts';
 
 /**
@@ -35,8 +35,6 @@ const parseRecipeTag = (value: unknown): RecipeTag | null => {
   return { id, title, promise, special: parsedSpecial };
 };
 
-const isStars = (value: unknown): value is Stars => value === 1 || value === 2 || value === 3 || value === 4 || value === 5;
-
 /** Tomorrow's preview as the server sends it; undefined when malformed. */
 export const parseDayPreview = (value: unknown): DayPreview | undefined => {
   if (!isRecord(value)) return undefined;
@@ -52,6 +50,7 @@ export const parseSheetDescriptor = (value: unknown): SheetDescriptor | null => 
   if (!isRecord(value)) return null;
   const { id, kind, author, number, dateKey, weekday, paletteName, spec, name, recipe } = value;
   const parsedSpec = parseSheetSpec(spec);
+  // Practice sheets exist only on the device that made them: no payload may carry one.
   if (kind !== 'daily' && kind !== 'trap') return null;
   if (typeof id !== 'string' || typeof number !== 'number' || !isDateKey(dateKey)) return null;
   if (typeof weekday !== 'string' || typeof paletteName !== 'string' || !parsedSpec) return null;

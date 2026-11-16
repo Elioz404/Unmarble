@@ -1,3 +1,6 @@
+import { PRACTICE } from '../../shared/config.ts';
+import { isStars, type Stars } from '../../shared/puzzle/sheet.ts';
+
 /**
  * Per-viewer conveniences (mute, hints already seen). Browser storage can be
  * missing or wiped on every app upload, so every access is guarded and the
@@ -46,4 +49,10 @@ export const localPrefs = {
   },
   lessonSeen: (lessonId: string): boolean => read(`lesson:${lessonId}`) === '1',
   markLessonSeen: (lessonId: string): void => write(`lesson:${lessonId}`, '1'),
+  /** The difficulty last chosen for practice sheets. */
+  practiceStars: (): Stars => {
+    const stars = Number(read('practice-stars'));
+    return isStars(stars) ? stars : PRACTICE.defaultStars;
+  },
+  setPracticeStars: (stars: Stars): void => write('practice-stars', String(stars)),
 };

@@ -5,7 +5,9 @@ import { lessonsFor } from '../../../shared/puzzle/tutorial.ts';
 import type { SoundBank } from '../../audio/sound.ts';
 import { NOWHERE } from '../../game/attempt-sink.ts';
 import type { Feedback, GameView, HintKind } from '../../game/controller.ts';
+import type { PracticeChoice } from '../../game/practice-shelf.ts';
 import type { StageMood } from '../../game/stage.ts';
+import { assertNever } from '../../lib/assert-never.ts';
 import { localPrefs } from '../../lib/local-prefs.ts';
 import type { Platform } from '../../platform/platform.ts';
 import { blotLine, COPY } from '../copy.ts';
@@ -21,6 +23,16 @@ export type GameNavigation = {
   readonly openBook: () => void;
   readonly compose: () => void;
   readonly play: (sheetId: string) => void;
+  /** Today's daily sheet. */
+  readonly today: () => void;
+  /** The practice picker. */
+  readonly pickPractice: () => void;
+  /** Marbles a practice sheet for `choice` (the warm-up's). */
+  readonly practise: (choice: PracticeChoice) => void;
+  /** Another practice sheet like the one on screen; "any" skips its recipe. */
+  readonly anotherPractice: () => void;
+  /** Marbles that next practice sheet ahead, in idle time. */
+  readonly prefetchAnother: () => void;
 };
 
 type Props = {
@@ -40,6 +52,13 @@ type Message = { text: string; tone: 'quiet' | 'alert' | 'gilt' };
 const LESSON_PAUSE_MS = 900;
 /** Sheets at or above this many stars suggest a warm-up to newcomers; at or below the other, they make one. */
 const WARM_UP = { hardFrom: 4, easyUpTo: 2 } as const;
+/** With no easy sheet left in the Book, the warm-up is a practice sheet of the easiest kind. */
+const WARM_UP_PRACTICE: PracticeChoice = { stars: 1, recipeId: null };
+/**
+ * Every finished practice sheet is remembered under this one id: practice counts
+ * once toward no longer being a newcomer, and never crowds real sheets out.
+ */
+const PRACTICE_FINISHED_ID = 'p-any';
 
 /** The most recent easy daily sheet this player has not finished, to warm up on. */
 const easySheetIn = (dailies: readonly BookEntry[], today: string): SheetDescriptor | null =>
@@ -49,6 +68,9 @@ const easySheetIn = (dailies: readonly BookEntry[], today: string): SheetDescrip
       entry.sheet.spec.stars <= WARM_UP.easyUpTo &&
       (entry.status === 'unplayed' || entry.status === 'playing'),
   )?.sheet ?? null;
+
+/** What a newcomer warms up on: an easy sheet from the Book, else a practice sheet. */
+type WarmUp = { readonly kind: 'sheet'; readonly sheet: SheetDescriptor } | { readonly kind: 'practice' };
 
 const HINT_COPY: Record<HintKind, string> = {
   round: COPY.hintRound,
@@ -83,6 +105,39 @@ const moodOf = ({ ending, settled, status }: GameView): StageMood => {
   return status === 'clean' ? 'lifted' : status === 'torn' ? 'torn' : 'floating';
 };
 
+/**
+ * The line under the plaque: an earlier daily sheet points to today's; a
+ * practice sheet says it counts for nothing, and where the real one is.
+ */
+const Banner = ({
+  sheet,
+  todayId,
+  navigation,
+}: {
+  readonly sheet: SheetDescriptor;
+  readonly todayId: string;
+  readonly navigation: GameNavigation;
+}) => {
+  const note = (text: string, onToday: () => void) => (
+    <p className="game__banner">
+      {text}{' '}
+      <button type="button" className="game__banner-link" onClick={onToday}>
+        {COPY.goToToday}
+      </button>
+    </p>
+  );
+  switch (sheet.kind) {
+    case 'daily':
+      return sheet.id === todayId ? null : note(COPY.oldSheet, () => navigation.play(todayId));
+    case 'practice':
+      return note(COPY.practice.banner, navigation.today);
+    case 'trap':
+      return null;
+    default:
+      return assertNever(sheet.kind);
+  }
+};
+
 /** The full game: a lesson for each form the player has not met yet, then the sheet. */
 export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onReload, navigation }: Props) => {
   const { sheet } = response;
@@ -94,6 +149,18 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
   const [lessonAttempt, setLessonAttempt] = useState(0);
   const currentLesson = lessons[lessonIndex] ?? null;
 
+  // Practice sheets are recorded nowhere: no server, no resume.
+  const sink = useMemo(() => {
+    switch (sheet.kind) {
+      case 'practice':
+        return NOWHERE;
+      case 'daily':
+      case 'trap':
+        return platform.sinkFor(sheet.id, response.player.log.length);
+      default:
+        return assertNever(sheet.kind);
+    }
+  }, [platform, sheet.kind, sheet.id, response.player.log.length]);
   const setup = useMemo(
     () =>
       currentLesson
@@ -110,12 +177,12 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
             key: sheet.id,
             spec: sheet.spec,
             log: response.player.log,
-            sink: platform.sinkFor(sheet.id, response.player.log.length),
+            sink,
             hints: true,
             demonstrate: false,
             standing: response.standing,
           },
-    [currentLesson, lessonAttempt, sheet, response.player.log, response.standing, platform],
+    [currentLesson, lessonAttempt, sheet, response.player.log, response.standing, sink],
   );
   const controller = useGame(setup, sound);
   const view = useStore(controller.view);
@@ -144,13 +211,23 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
     if (view.desynced) onReload();
   }, [view.desynced, onReload]);
 
-  // Once finished: where everyone tore it, and a trap to try next.
+  // Once finished: where everyone tore it, and a trap to try next. A practice sheet has neither.
   const finished = currentLesson === null && view.settled;
   const [nextTrap, setNextTrap] = useState<BookEntry | null>(null);
   const [scars, setScars] = useState<ScarMap | null>(null);
   useEffect(() => {
     if (!finished) return;
-    localPrefs.markFinished(sheet.id);
+    switch (sheet.kind) {
+      case 'practice':
+        localPrefs.markFinished(PRACTICE_FINISHED_ID);
+        return;
+      case 'daily':
+      case 'trap':
+        localPrefs.markFinished(sheet.id);
+        break;
+      default:
+        return assertNever(sheet.kind);
+    }
     let cancelled = false;
     void platform.fetchScars(sheet.id).then((map) => {
       if (cancelled || !map) return;
@@ -167,7 +244,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
     return () => {
       cancelled = true;
     };
-  }, [finished, platform, sheet.id, controller]);
+  }, [finished, platform, sheet.kind, sheet.id, controller]);
 
   // A newcomer facing a hard sheet is offered an easier one from the Book first.
   const untouched = response.player.log.length === 0 && view.remaining === view.total && view.blots === 0;
@@ -178,23 +255,23 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
     sheet.id === response.todayId &&
     sheet.spec.stars >= WARM_UP.hardFrom &&
     localPrefs.finishedCount() < ONBOARDING.newcomerSheets;
-  const [warmUp, setWarmUp] = useState<SheetDescriptor | null>(null);
+  const [warmUp, setWarmUp] = useState<WarmUp | null>(null);
   const [warmUpDismissed, setWarmUpDismissed] = useState(false);
   useEffect(() => {
     if (!wantsWarmUp) return;
     let cancelled = false;
+    const offer = (easy: SheetDescriptor | null) => {
+      if (!cancelled) setWarmUp(easy ? { kind: 'sheet', sheet: easy } : { kind: 'practice' });
+    };
     platform
       .loadBook()
-      .then((book) => {
-        if (!cancelled) setWarmUp(easySheetIn(book.dailies, response.todayId));
-      })
-      .catch(() => undefined);
+      .then((book) => offer(easySheetIn(book.dailies, response.todayId)))
+      .catch(() => offer(null));
     return () => {
       cancelled = true;
     };
   }, [wantsWarmUp, platform, response.todayId]);
-  const offerWarmUp = wantsWarmUp && !warmUpDismissed && warmUp !== null ? warmUp : null;
-  const earlierSheet = currentLesson === null && sheet.kind === 'daily' && sheet.id !== response.todayId;
+  const offerWarmUp = wantsWarmUp && !warmUpDismissed ? warmUp : null;
 
   const special = sheet.recipe?.special ? sheet.recipe : null;
   const opening = special ? COPY.specialPrompt(special.title, special.promise) : COPY.dailyPrompt;
@@ -234,14 +311,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
         </div>
       </header>
 
-      {earlierSheet ? (
-        <p className="game__banner">
-          {COPY.oldSheet}{' '}
-          <button type="button" className="game__banner-link" onClick={() => navigation.play(response.todayId)}>
-            {COPY.goToToday}
-          </button>
-        </p>
-      ) : null}
+      {currentLesson === null ? <Banner sheet={sheet} todayId={response.todayId} navigation={navigation} /> : null}
 
       {finished ? null : <MessageLine text={message.text} tone={message.tone} />}
 
@@ -256,9 +326,15 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           <div className="game__warm-up" role="note">
             <p>{COPY.warmUp.note(sheet.spec.stars)}</p>
             <div className="actions">
-              <button type="button" className="button button--primary" onClick={() => navigation.play(offerWarmUp.id)}>
-                {COPY.warmUp.action(offerWarmUp.weekday)}
-              </button>
+              {offerWarmUp.kind === 'sheet' ? (
+                <button type="button" className="button button--primary" onClick={() => navigation.play(offerWarmUp.sheet.id)}>
+                  {COPY.warmUp.action(offerWarmUp.sheet.weekday)}
+                </button>
+              ) : (
+                <button type="button" className="button button--primary" onClick={() => navigation.practise(WARM_UP_PRACTICE)}>
+                  {COPY.practice.warmUp}
+                </button>
+              )}
               <button type="button" className="button" onClick={() => setWarmUpDismissed(true)}>
                 {COPY.warmUp.dismiss}
               </button>
@@ -282,6 +358,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           community={platform.community}
           onPlay={navigation.play}
           onCompose={navigation.compose}
+          practice={navigation}
           onShare={(text, postId) => platform.share(text, postId)}
           onOpenThread={(url) => platform.openPost(url)}
           onJoin={() => platform.openCommunity()}

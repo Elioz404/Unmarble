@@ -22,26 +22,28 @@ Misread the sheet and the paper tears: you keep a small scar, and the sheet show
 
 - Open today's post (or the pinned **Atelier** post, which always shows today's sheet).
 - The first time you meet a form, a ten-second lesson teaches it — the first visit covers drops and folds, and the first sheet with a swirl teaches swirls. A ghost finger shows each gesture until you try it.
-- New here and today's sheet is a ★★★★ or ★★★★★? The game offers an easier sheet from the Book to warm up on first, and its hints come sooner for your first few sheets.
+- New here and today's sheet is a ★★★★ or ★★★★★? The game offers an easier sheet from the Book to warm up on first (or a ★ practice sheet), and its hints come sooner for your first few sheets.
 - **Tap** a drop to draw it back. **Drag** along a fold to undo it. **Circle** a swirl's eye, against its turn.
 - The **Lens** (once per sheet) briefly shows where the water moved. Using it is marked on your result.
 - A clean sheet lifts out of the bath and marbles itself again, quickly: what you just undid. Your result card shows your marks (● correct, ○ tear), your time, your standing among everyone who played today, your streak, and what tomorrow's sheet will ask (its recipe, or on Sunday: a mixed sheet or the week's best trap).
 
 ## The daily rhythm
 
-The week has a shape, like a crossword's: every weekday keeps its difficulty and its number of moves.
+The week has a shape, like a crossword's: every weekday keeps its difficulty and its band of moves.
 
 | Day | Moves | Folds | Swirls | Paper |
 |---|---|---|---|---|
 | Monday ★ | 4 | 1 | — | calm: bands or combed |
-| Tuesday ★★ | 5 | 1 | — | ruled: bands, combed or a grid |
+| Tuesday ★★ | 5 | 1 | 0–1 | ruled: bands, combed or a grid |
 | Wednesday ★★ | 5 | 2 | — | ruled |
-| Thursday ★★★ | 6 | 1–2 | — | any |
+| Thursday ★★★ | 6 | 1–2 | 0–1 | any |
 | Friday ★★★★ | 6–7 | 1–2 | 1 | any |
 | Saturday ★★★★★ | 7–8 | 2 | 1 | lively: waves, chevrons or rings |
 | Sunday ★★★ | 5–6 | 1 | 1 | any — or **the week's best community trap**, credited to its maker |
 
-What changes is what each day features. Each weekday rotates 4 recipes (Sunday 5) — a buried fold or an early one, a fold or a swirl on top, crossed or parallel folds, a drop that only *looks* round, twins — and never repeats one within three weeks. About one day in ten is a **special** with its own rule: *Ink Only* (a Monday rest day), *Folds Only* (a Thursday) or *Storm* (two swirls turning opposite ways, on a Friday or Saturday), shown with its own stars. The post title names the day's recipe, and the result card says what tomorrow will ask.
+What changes is what each day features. Each weekday rotates 4 recipes (Sunday 5) — a buried fold or an early one, a fold or a swirl on top, crossed or parallel folds, a drop that only *looks* round, twins — and never shows the same sheet twice within three weeks. About one day in ten is a **special** with its own rule, shown with its own stars, that leaves the band: *Ink Only* (a Monday rest day of 6 drops and no fold), *Folds Only* (a Thursday whose ink fell first, then 3 folds) or *Storm* (2 swirls turning opposite ways, on a Friday or Saturday). The post title names the day's recipe, and the result card says what tomorrow will ask.
+
+**Practice sheets.** Want more? From any result card or from the Book, marble practice sheets on your device: pick a difficulty and, if you like, one of its recipes (specials included), then play as many as you want with *Another*. They are labelled *Practice*, unranked, count toward no streak and never touch the server.
 
 Sheet No. 1 is the day the app was installed in your community; the colourway of the day is the same everywhere. The paper itself changes too: plain bands, finely combed stripes, a grid (a ruler in both directions), chevrons, waves and concentric rings, across 28 colourways that never repeat within four weeks.
 
@@ -83,7 +85,8 @@ src/
   shared/      Pure TypeScript, no platform APIs. Runs on client, server and in tests.
     marbling/    Exact marbling transforms (Lu & Jaffer, "Mathematical Marbling"): drops, folds, swirls
     puzzle/      Moves, evidence (marks), analysis bots, the sheet contract and its diagnoses,
-                 gesture separability, recipes and their calendar, generator, lessons, traps
+                 gesture separability, recipes and their calendar, generator, lessons, traps,
+                 practice sheets
     game/        Rules as a pure reducer, gesture resolution, blot explanations, scoring
     render/      The shading model shared by the CPU rasteriser and the GLSL shader
     sheet/       Ground patterns, colour science (OKLab, CVD simulation), the palette catalogue
@@ -91,7 +94,8 @@ src/
     config.ts    Every tunable number, in one place
   client/
     render/      WebGL2 fragment-shader renderer, CPU renderer, static painter
-    game/        GameController and ComposerController (presentation models), scene, overlay, specimen
+    game/        GameController and ComposerController (presentation models), scene, overlay, specimen,
+                 and the practice shelf (practice sheets marbled in slices, one ahead)
     platform/    Platform port, with reddit-platform (Devvit) and lab-platform (browser only)
     ui/          React views and the design system (tokens.css)
   server/
@@ -99,7 +103,8 @@ src/
     app-services.ts  The service graph, pure (tests compose it over in-memory fakes)
     reddit/      The Reddit port: every Devvit Reddit call the app makes
     routes/      /api (public, validated) and /internal (triggers, scheduler, menu)
-tools/         Sheet preview tool (PNG strips of every solving step) and the icon renderer
+tools/         Sheet preview tool (PNG strips of every solving step), the year report, the pre-deploy
+               calendar check and the icon renderer
 assets/        The app icon, rendered by tools/render-icon.ts
 ```
 
@@ -124,12 +129,13 @@ npm run check      # types, lint, unit tests
 npm run lab        # the game in a plain browser at http://localhost:5199/lab.html
 npm run sheets -- 2026-11-25 7   # print and render a week of sheets to previews/
 npm run year       # play out a year of the calendar for three secrets and check every sheet and rule
+npm run check:calendar   # a new calendar version must start at least two days after its deploy (run by deploy)
 npm run icon       # render the app icon (assets/icon.png) with the marbling engine
 npm run dev        # devvit playtest (requires `npm run login` first)
-npm run deploy     # checks, then devvit upload
+npm run deploy     # checks (calendar included), then devvit upload
 ```
 
-**Lab URLs:** `lab.html?date=2026-12-03` (a specific day), `?fresh` (forget local progress), `?view=card` (the feed card), `?view=board` (the card at 288/400/720 px). In the lab you play as a local "lab-player": traps, the Book and flair all work offline in the browser.
+**Lab URLs:** `lab.html?date=2026-12-03` (a specific day), `?fresh` (forget local progress), `?view=card` (the feed card), `?view=board` (the card at 288/400/720 px), `?practice=3` (a ★★★ practice sheet), `?practice=4&recipe=storm-4&seed=ab12` (one recipe, one sheet of it). In the lab you play as a local "lab-player": traps, the Book and flair all work offline in the browser.
 
 ### Platform notes
 

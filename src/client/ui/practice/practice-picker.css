@@ -1,0 +1,89 @@
+/* The practice picker: a page of the Book, with the difficulties as blind-tooled tiles and the recipes as labels. */
+.practice__section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Five across where they fit; on a phone, two rows, so every weekday name stays whole. */
+.practice__levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  gap: var(--space-1);
+}
+
+/* Blind until chosen; the chosen difficulty is struck in gilt, like the tool in hand. */
+.practice__level {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: var(--space-1);
+  min-height: calc(var(--touch-target) + var(--space-5));
+  padding: var(--space-2) var(--space-1);
+  border: var(--hairline) solid var(--rule);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color var(--duration-quick), color var(--duration-quick), background var(--duration-quick);
+}
+
+.practice__level:hover {
+  border-color: var(--gilt);
+}
+
+.practice__level[aria-checked='true'] {
+  border-color: var(--gilt);
+  background: color-mix(in oklab, var(--gilt) 10%, transparent);
+  color: var(--ink);
+}
+
+.practice__level-stars {
+  display: inline-flex;
+  font-size: var(--text-xs);
+  color: var(--gilt-ink);
+}
+
+.practice__level-days {
+  font-size: var(--text-xs);
+  font-style: italic;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.practice__recipes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A recipe as a lettering-piece label: hairline until chosen, then on flat foil. */
+.practice__recipe {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  font-style: italic;
+  cursor: pointer;
+  transition: border-color var(--duration-quick), color var(--duration-quick), background var(--duration-quick);
+}
+
+.practice__recipe:hover {
+  border-color: var(--gilt);
+}
+
+.practice__recipe[aria-checked='true'] {
+  border-color: transparent;
+  background: var(--gilt-foil-flat);
+  color: var(--foil-ink);
+}
+
+.practice__promise {
+  min-height: calc(var(--text-md) * var(--leading));
+  margin: 0;
+  color: var(--ink-soft);
+  font-style: italic;
+  text-align: center;
+}

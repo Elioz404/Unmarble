@@ -10,6 +10,11 @@ import { isDropSize, isInkSlot, type Move } from './moves.ts';
  */
 export type Stars = 1 | 2 | 3 | 4 | 5;
 
+/** Every difficulty, easiest first. */
+export const STARS: readonly Stars[] = [1, 2, 3, 4, 5];
+
+export const isStars = (value: unknown): value is Stars => STARS.some((stars) => stars === value);
+
 export type SheetSpec = {
   readonly paletteId: string;
   readonly ground: Ground;
@@ -78,6 +83,6 @@ export const parseSheetSpec = (value: unknown): SheetSpec | null => {
     if (!parsed) return null;
     parsedMoves.push(parsed);
   }
-  if (stars !== 1 && stars !== 2 && stars !== 3 && stars !== 4 && stars !== 5) return null;
+  if (!isStars(stars)) return null;
   return { paletteId, ground: parsedGround, moves: parsedMoves, stars };
 };
