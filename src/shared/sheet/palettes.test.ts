@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { CALENDAR } from '../config.ts';
 import { addDays, paletteIdForDay } from '../time/calendar.ts';
 import { getPalette, GROUND_VALUES, PALETTES } from './palettes.ts';
-import { colorDistance, lightness, VISION_MODES } from './color.ts';
+import { colorDistance, lightness, linearDistance, VISION_MODES, type Rgb } from './color.ts';
+import { inkAtDensity, inkBodyOf, LOOK, shadingPaletteOf } from '../render/shading.ts';
 
 /** Legibility contract for every palette, in OKLab ΔE. */
 const MIN_INK_SEPARATION = 0.14;
@@ -66,5 +67,26 @@ for (const palette of PALETTES) {
       const offset = Math.abs(lightness(palette[tone]) - GROUND_VALUES[tone]);
       assert.ok(offset <= GROUND_LIGHTNESS_TOLERANCE, `${tone} L is off by ${offset.toFixed(4)}`);
     }
+  });
+
+  test(`${palette.id}: the contract holds where the ink is thinnest, as rendered`, () => {
+    // The lightest wash: a drop's centre, with the mottle at its lightest.
+    const shading = shadingPaletteOf(palette);
+    const inks = palette.inks.map((_, slot) => inkAtDensity(shading, slot, inkBodyOf(slot) * (1 - LOOK.mottle)));
+    for (const mode of VISION_MODES) {
+      const floor = mode === 'normal' ? MIN_INK_SEPARATION : MIN_INK_SEPARATION_CVD;
+      for (let i = 0; i < inks.length; i++) {
+        for (let j = i + 1; j < inks.length; j++) {
+          const d = linearDistance(inks[i] as Rgb, inks[j] as Rgb, mode);
+          assert.ok(d >= floor, `${mode}: ink ${i} vs ${j} ΔE ${d.toFixed(3)} < ${floor}`);
+        }
+      }
+    }
+    inks.forEach((ink, slot) => {
+      for (const ground of [shading.paper, shading.band]) {
+        const d = linearDistance(ink, ground);
+        assert.ok(d >= MIN_INK_TO_GROUND, `ink ${slot} vs ground ΔE ${d.toFixed(3)}`);
+      }
+    });
   });
 }

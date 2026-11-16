@@ -64,12 +64,16 @@ export const linearToOklab = ([r, g, b]: Rgb): Oklab => {
   ];
 };
 
-/** Perceptual distance (ΔE in OKLab) between two hex colours under a vision mode. */
-export const colorDistance = (a: string, b: string, mode: VisionMode = 'normal'): number => {
-  const la = linearToOklab(simulateVision(srgbToLinear(parseHex(a)), mode));
-  const lb = linearToOklab(simulateVision(srgbToLinear(parseHex(b)), mode));
+/** Perceptual distance (ΔE in OKLab) between two linear-RGB colours under a vision mode. */
+export const linearDistance = (a: Rgb, b: Rgb, mode: VisionMode = 'normal'): number => {
+  const la = linearToOklab(simulateVision(a, mode));
+  const lb = linearToOklab(simulateVision(b, mode));
   return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]);
 };
+
+/** Perceptual distance (ΔE in OKLab) between two hex colours under a vision mode. */
+export const colorDistance = (a: string, b: string, mode: VisionMode = 'normal'): number =>
+  linearDistance(srgbToLinear(parseHex(a)), srgbToLinear(parseHex(b)), mode);
 
 /** Perceived lightness (OKLab L) of a hex colour. */
 export const lightness = (hex: string): number => linearToOklab(srgbToLinear(parseHex(hex)))[0];

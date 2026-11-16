@@ -20,7 +20,7 @@ const UNIFORMS = [
   'uBand',
   'uRule',
   'uGhostColor',
-  'uInks',
+  'uInkLog',
   'uGhost',
   'uGroundFamily',
   'uGroundPeriod',
@@ -60,7 +60,7 @@ export class WebGlSheetRenderer implements SheetRenderer {
   readonly #uniforms = new Map<UniformName, WebGLUniformLocation | null>();
   readonly #opA = new Float32Array(MAX_RENDER_OPS * 4);
   readonly #opB = new Float32Array(MAX_RENDER_OPS * 4);
-  readonly #inks = new Float32Array(12);
+  readonly #inkLog = new Float32Array(12);
 
   constructor(canvas: HTMLCanvasElement) {
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: false });
@@ -117,7 +117,7 @@ export class WebGlSheetRenderer implements SheetRenderer {
       }
     }
     const { palette, ground } = frame;
-    palette.inks.slice(0, 4).forEach((ink, i) => this.#inks.set(ink, i * 3));
+    palette.inkLog.slice(0, 4).forEach((log, i) => this.#inkLog.set(log, i * 3));
     const angle = (ground.angle * Math.PI) / 180;
 
     gl.useProgram(this.#program);
@@ -130,7 +130,7 @@ export class WebGlSheetRenderer implements SheetRenderer {
     gl.uniform3fv(u('uBand'), palette.band);
     gl.uniform3fv(u('uRule'), palette.rule);
     gl.uniform3fv(u('uGhostColor'), palette.ghost);
-    gl.uniform3fv(u('uInks'), this.#inks);
+    gl.uniform3fv(u('uInkLog'), this.#inkLog);
     gl.uniform1f(u('uGhost'), frame.ghost);
     gl.uniform1i(u('uGroundFamily'), GROUND_FAMILY_CODES[ground.family]);
     gl.uniform1f(u('uGroundPeriod'), ground.period);

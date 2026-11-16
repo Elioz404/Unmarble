@@ -23,6 +23,11 @@ export type FieldSample =
       ink: number;
       /** Radial position inside the drop at the time it fell: 0 centre … 1 rim. */
       depth: number;
+      /** Offset (cells) from the drop's centre when it fell: coordinates that travel with the ink. */
+      lx: number;
+      ly: number;
+      /** Radius (cells) of the drop. */
+      r: number;
     }
   | { kind: 'ground'; x: number; y: number };
 
@@ -40,7 +45,7 @@ export const sampleField = (ops: readonly FieldOp[], x: number, y: number): Fiel
         const dy = p.y - op.cy;
         if (!pullDrop(op.cx, op.cy, op.r, p)) {
           const depth = op.r > 0 ? Math.sqrt(dx * dx + dy * dy) / op.r : 1;
-          return { kind: 'ink', opIndex: i, source: op.source, ink: op.ink, depth };
+          return { kind: 'ink', opIndex: i, source: op.source, ink: op.ink, depth, lx: dx, ly: dy, r: op.r };
         }
         break;
       }

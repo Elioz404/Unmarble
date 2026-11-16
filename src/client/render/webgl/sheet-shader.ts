@@ -26,6 +26,7 @@ void main() {
 
 export const FRAGMENT_SHADER = /* glsl */ `#version 300 es
 precision highp float;
+precision highp int;
 
 #define MAX_OPS ${MAX_RENDER_OPS}
 #define TAU 6.283185307179586
@@ -43,7 +44,7 @@ uniform vec3 uPaper;
 uniform vec3 uBand;
 uniform vec3 uRule;
 uniform vec3 uGhostColor;
-uniform vec3 uInks[4];
+uniform vec3 uInkLog[4];      // per ink, ln(ink / paper)
 uniform float uGhost;
 
 uniform int uGroundFamily;    // 0 bands/combed, 1 chevron, 2 waves, 3 grid, 4 rings
@@ -52,16 +53,24 @@ uniform vec2 uGroundRot;      // (cos, sin) of the stripe angle
 uniform float uGroundAmplitude;
 uniform float uGroundWavelength;
 
-float hash(vec2 p) { return fract(sin(p.x * 12.9898 + p.y * 78.233) * 43758.5453); }
+// Integer lattice hash (lowbias32), bit-identical to the CPU's.
+float hash(ivec2 i) {
+  uint h = uint(i.x) * 0x8DA6B343u ^ uint(i.y) * 0xD8163841u;
+  h = (h ^ (h >> 16u)) * 0x7FEB352Du;
+  h = (h ^ (h >> 15u)) * 0x846CA68Bu;
+  h ^= h >> 16u;
+  return float(h >> 8u) / 16777216.0;
+}
 
 float valueNoise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = p - i;
+  vec2 fl = floor(p);
+  ivec2 i = ivec2(fl);
+  vec2 f = p - fl;
   vec2 u = f * f * (3.0 - 2.0 * f);
   float a = hash(i);
-  float b = hash(i + vec2(1.0, 0.0));
-  float c = hash(i + vec2(0.0, 1.0));
-  float d = hash(i + vec2(1.0, 1.0));
+  float b = hash(i + ivec2(1, 0));
+  float c = hash(i + ivec2(0, 1));
+  float d = hash(i + ivec2(1, 1));
   return a + (b - a) * u.x + (c - a) * u.y + (a - b - c + d) * u.x * u.y;
 }
 
@@ -89,15 +98,21 @@ float crossLineW(vec2 p, float width) {
 }
 float crossLine(vec2 p) { return crossLineW(p, ${f(LOOK.ruleWidth)}); }
 
-float paperTexture(vec2 p) {
-  float fibre = valueNoise(vec2(p.x * ${f(LOOK.paperFibreScale)}, p.y * ${f(LOOK.paperFibreScale)} * 0.35)) - 0.5;
-  float laid = cos(p.y / ${f(LOOK.laidSpacing)} * TAU) * 0.5;
-  float cx = fract(p.x / ${f(LOOK.chainSpacing)}) - 0.5;
-  float chain = exp(-cx * cx * 900.0);
-  return 1.0 + fibre * ${f(LOOK.paperFibre)} * 2.0 + laid * ${f(LOOK.laidStrength)} - chain * ${f(LOOK.chainStrength)};
+const float INK_BODY[4] = float[4](${LOOK.inkBody.map(f).join(', ')});
+
+/** Ink laid over the paper (Beer–Lambert): wash, tide line and mottle, in the drop's own coordinates. */
+vec3 inkColor(int slot, vec2 l, float r, float source, float px) {
+  float depth = r > 0.0 ? length(l) / r : 1.0;
+  float body = mix(INK_BODY[slot], 1.0, smoothstep(${f(LOOK.inkBodyFrom)}, ${f(LOOK.inkBodyTo)}, depth));
+  float t = min(0.0, depth - ${f(LOOK.tideAt)}) / ${f(LOOK.tideWidth)};
+  float tide = ${f(LOOK.tide)} * smoothstep(${f(LOOK.tideFromPx)}, ${f(LOOK.tideToPx)}, ${f(LOOK.tideWidth)} * r / px) * exp(-t * t);
+  float blotch = valueNoise(l * ${f(LOOK.mottleScale)} + vec2(${f(LOOK.mottleSeedX)}, ${f(LOOK.mottleSeedY)}) * source);
+  float mottle = 2.0 * ${f(LOOK.mottle)} * (blotch - 0.5) * (1.0 - smoothstep(${f(LOOK.mottleMaskFrom)}, ${f(LOOK.mottleMaskTo)}, depth));
+  return uPaper * exp((body + tide) * (1.0 + mottle) * uInkLog[slot]);
 }
 
-vec3 shade(vec2 q) {
+/** One sample before the paper finish: rgb, and ink coverage in w. */
+vec4 shade(vec2 q, float px) {
   vec2 p = q;
   for (int i = MAX_OPS - 1; i >= 0; i--) {
     if (i >= uOpCount) continue;
@@ -108,13 +123,7 @@ vec3 shade(vec2 q) {
       vec2 d = p - a.yz;
       float l2 = dot(d, d);
       float r2 = a.w * a.w;
-      if (l2 <= r2) {
-        float depth = a.w > 0.0 ? sqrt(l2) / a.w : 1.0;
-        vec3 ink = uInks[clamp(int(b.x + 0.5), 0, 3)];
-        float rim = 1.0 - ${f(LOOK.rimStrength)} * smoothstep(${f(LOOK.rimStart)}, 1.0, depth);
-        float grain = 1.0 + (valueNoise(vec2(depth * ${f(LOOK.inkGrainScale)} * 6.0, b.y * 7.31)) - 0.5) * ${f(LOOK.inkGrain)} * 2.0;
-        return mix(uPaper, ink * rim * grain, ${f(LOOK.inkOpacity)});
-      }
+      if (l2 <= r2) return vec4(inkColor(clamp(int(b.x + 0.5), 0, 3), d, a.w, b.y, px), 1.0);
       p = a.yz + d * sqrt(1.0 - r2 / l2);
     } else if (type == ${OP_STROKE}) {
       vec2 u = b.xy;
@@ -134,7 +143,20 @@ vec3 shade(vec2 q) {
   }
   float phase = groundPhase(p);
   vec3 band = mod(floor(phase), 2.0) < 0.5 ? uPaper : uBand;
-  return mix(band, uRule, max(hairline(phase, ${f(LOOK.ruleWidth)}), crossLine(p)));
+  return vec4(mix(band, uRule, max(hairline(phase, ${f(LOOK.ruleWidth)}), crossLine(p))), 0.0);
+}
+
+/** Paper finish at a pixel centre: tooth through ink, laid and chain lines on bare paper, prefiltered by pixel size. */
+float paperFinish(vec2 p, float coverage, float px) {
+  float fine = 1.0 - smoothstep(0.5 / ${f(LOOK.toothFineX)}, 1.0 / ${f(LOOK.toothFineX)}, px);
+  float tooth = ${f(LOOK.toothCoarse)} * (valueNoise(p * vec2(${f(LOOK.toothCoarseX)}, ${f(LOOK.toothCoarseY)})) - 0.5)
+    + (1.0 - ${f(LOOK.toothCoarse)}) * (valueNoise(p * vec2(${f(LOOK.toothFineX)}, ${f(LOOK.toothFineY)})) - 0.5) * fine;
+  float laid = cos(p.y / ${f(LOOK.laidSpacing)} * TAU) * 0.5 * (1.0 - smoothstep(${f(LOOK.laidSpacing)} / 4.0, ${f(LOOK.laidSpacing)} / 2.0, px));
+  float sigma = length(vec2(${f(LOOK.chainWidth)}, ${f(LOOK.pixelFootprint)} * px));
+  float offset = (fract(p.x / ${f(LOOK.chainSpacing)}) - 0.5) * ${f(LOOK.chainSpacing)};
+  float chain = ${f(LOOK.chainWidth)} / sigma * exp(-offset * offset / (2.0 * sigma * sigma));
+  return 1.0 + 2.0 * ${f(LOOK.toothStrength)} * tooth * mix(1.0, ${f(LOOK.toothThroughInk)}, coverage)
+    + (1.0 - coverage) * (laid * ${f(LOOK.laidStrength)} - chain * ${f(LOOK.chainStrength)});
 }
 
 vec3 toSrgb(vec3 c) {
@@ -145,14 +167,14 @@ vec3 toSrgb(vec3 c) {
 
 void main() {
   vec2 cell = uSheet / uResolution;
+  float px = cell.x;
   vec2 base = vUv * uSheet;
   // 4-sample rotated grid: crisp ink edges at any device pixel ratio.
-  vec3 color = vec3(0.0);
-  color += shade(base + cell * vec2(-0.125, -0.375));
-  color += shade(base + cell * vec2(0.375, -0.125));
-  color += shade(base + cell * vec2(0.125, 0.375));
-  color += shade(base + cell * vec2(-0.375, 0.125));
-  color *= 0.25 * paperTexture(base);
+  vec4 sum = shade(base + cell * vec2(-0.125, -0.375), px)
+    + shade(base + cell * vec2(0.375, -0.125), px)
+    + shade(base + cell * vec2(0.125, 0.375), px)
+    + shade(base + cell * vec2(-0.375, 0.125), px);
+  vec3 color = sum.rgb * 0.25 * paperFinish(base, sum.w * 0.25, px);
   if (uGhost > 0.0) {
     float line = max(hairline(groundPhase(base), ${f(LOOK.ghostWidth)}), crossLineW(base, ${f(LOOK.ghostWidth)})) * uGhost * 0.7;
     color = mix(color, uGhostColor, line);

@@ -2,7 +2,7 @@ import { SHEET } from '../config.ts';
 import { sampleField } from '../marbling/field.ts';
 import type { FieldOp } from '../marbling/field-ops.ts';
 import type { Ground } from '../sheet/ground.ts';
-import { shadePoint, toSrgbByte, type ShadingPalette } from './shading.ts';
+import { applyGhost, paperFinish, shadeSample, toSrgbByte, type ShadingPalette } from './shading.ts';
 
 export type RasterOptions = {
   readonly width: number;
@@ -13,6 +13,23 @@ export type RasterOptions = {
   readonly ghost: number;
   /** Optional row range for incremental rendering. */
   readonly rows?: readonly [from: number, to: number];
+};
+
+/** The GPU's rotated-grid pattern (offsets in pixels): the CPU uses it too at 2 × 2, so both agree. */
+const RGSS: readonly (readonly [number, number])[] = [
+  [-0.125, -0.375],
+  [0.375, -0.125],
+  [0.125, 0.375],
+  [-0.375, 0.125],
+];
+
+/** Sample offsets (pixels, from the centre) for `n` samples per axis: centre, rotated grid, or a regular grid. */
+const samplePattern = (n: number): readonly (readonly [number, number])[] => {
+  if (n === 1) return [[0, 0]];
+  if (n === 2) return RGSS;
+  const grid: [number, number][] = [];
+  for (let v = 0; v < n; v++) for (let u = 0; u < n; u++) grid.push([(u + 0.5) / n - 0.5, (v + 0.5) / n - 0.5]);
+  return grid;
 };
 
 /**
@@ -31,28 +48,33 @@ export const rasterizeSheet = (
   const [rowFrom, rowTo] = options.rows ?? [0, height];
   const sx = SHEET.cols / width;
   const sy = SHEET.rows / height;
-  const n = Math.max(1, Math.floor(supersample));
-  const weight = 1 / (n * n);
+  const pattern = samplePattern(Math.max(1, Math.floor(supersample)));
+  const weight = 1 / pattern.length;
+  const sample: [number, number, number] = [0, 0, 0];
   const color: [number, number, number] = [0, 0, 0];
   for (let j = rowFrom; j < rowTo; j++) {
     for (let i = 0; i < width; i++) {
-      let r = 0;
-      let g = 0;
-      let b = 0;
-      for (let v = 0; v < n; v++) {
-        for (let u = 0; u < n; u++) {
-          const x = (i + (u + 0.5) / n) * sx;
-          const y = (j + (v + 0.5) / n) * sy;
-          shadePoint(sampleField(ops, x, y), x, y, ground, palette, ghost, color);
-          r += color[0];
-          g += color[1];
-          b += color[2];
-        }
+      const x = (i + 0.5) * sx;
+      const y = (j + 0.5) * sy;
+      color[0] = 0;
+      color[1] = 0;
+      color[2] = 0;
+      let coverage = 0;
+      for (const [u, v] of pattern) {
+        coverage += shadeSample(sampleField(ops, x + u * sx, y + v * sy), ground, palette, sx, sample);
+        color[0] += sample[0];
+        color[1] += sample[1];
+        color[2] += sample[2];
       }
+      const finish = paperFinish(x, y, coverage * weight, sx) * weight;
+      color[0] *= finish;
+      color[1] *= finish;
+      color[2] *= finish;
+      if (ghost > 0) applyGhost(x, y, ground, palette, ghost, color);
       const o = (j * width + i) * 4;
-      target[o] = toSrgbByte(r * weight);
-      target[o + 1] = toSrgbByte(g * weight);
-      target[o + 2] = toSrgbByte(b * weight);
+      target[o] = toSrgbByte(color[0]);
+      target[o + 1] = toSrgbByte(color[1]);
+      target[o + 2] = toSrgbByte(color[2]);
       target[o + 3] = 255;
     }
   }

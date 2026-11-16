@@ -6,6 +6,7 @@ import { createLabPlatform } from '../platform/lab-platform.ts';
 import { CardApp } from '../ui/card/CardApp.tsx';
 import { GameApp } from '../ui/GameApp.tsx';
 import { FeedBoard } from '../ui/lab/FeedBoard.tsx';
+import { ParityBoard } from '../ui/lab/ParityBoard.tsx';
 import { mountRoot } from './mount.ts';
 
 /**
@@ -15,6 +16,7 @@ import { mountRoot } from './mount.ts';
  *   lab.html                 the full game (default)
  *   lab.html?view=card       the in-feed card alone
  *   lab.html?view=board      the card at several feed widths
+ *   lab.html?view=parity     the WebGL and CPU renderers side by side, and how far apart they are
  */
 const search = new URLSearchParams(window.location.search);
 const view = search.get('view') ?? 'game';
@@ -33,6 +35,8 @@ const platform = createLabPlatform(search, {
 const app =
   view === 'board' ? (
     <FeedBoard search={search} />
+  ) : view === 'parity' ? (
+    <ParityBoard />
   ) : view === 'card' ? (
     <CardApp platform={platform} initial={null} />
   ) : (
