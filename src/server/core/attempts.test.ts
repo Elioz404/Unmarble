@@ -18,13 +18,13 @@ const setup = async () => {
   return { clock, store, sheets, attempts, sheet };
 };
 
-/** The rule bot's solution: undo the top move each time, seams against their grain. */
+/** The rule bot's solution: undo the top move each time, seams and swirls against their grain. */
 const solution = (sheet: SheetDescriptor): PlayerAction[] =>
   readSheet(sheet.spec.moves).steps.map((step) => {
     const move = sheet.spec.moves[step.top];
-    return move?.kind === 'stroke'
-      ? { type: 'unstroke', move: step.top, against: true }
-      : { type: 'absorb', move: step.top };
+    if (move?.kind === 'stroke') return { type: 'unstroke', move: step.top, against: true };
+    if (move?.kind === 'swirl') return { type: 'unswirl', move: step.top, against: true };
+    return { type: 'absorb', move: step.top };
   });
 
 const applied = (response: ActionResponse) => {
@@ -111,4 +111,25 @@ test('a sheet begun on its day keeps the streak even if finished after midnight'
     await attempts.record(sheet, 'late', i, { action, at: (i + 1) * 1000, point: null });
   }
   assert.equal((await attempts.progress('late')).lastDay, '2026-12-03');
+});
+
+test('finishing an earlier sheet late never rewinds a newer streak day', async () => {
+  const { attempts, sheets, sheet, clock } = await setup();
+  const steps = solution(sheet);
+  clock.now = Date.parse('2026-12-03T23:59:00Z');
+  // Begun on its day, left one move short.
+  for (const [i, action] of steps.slice(0, -1).entries()) {
+    await attempts.record(sheet, 'both', i, { action, at: (i + 1) * 1000, point: null });
+  }
+  clock.now = Date.parse('2026-12-04T00:02:00Z');
+  const next = await sheets.todaySheet();
+  for (const [i, action] of solution(next).entries()) {
+    await attempts.record(next, 'both', i, { action, at: (i + 1) * 1000, point: null });
+  }
+  assert.equal((await attempts.progress('both')).lastDay, '2026-12-04');
+  const last = steps[steps.length - 1];
+  if (!last) throw new Error('empty solution');
+  await attempts.record(sheet, 'both', steps.length - 1, { action: last, at: steps.length * 1000, point: null });
+  assert.equal((await attempts.progress('both')).lastDay, '2026-12-04');
+  assert.equal(await attempts.streak('both'), 1);
 });

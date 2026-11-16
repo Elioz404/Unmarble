@@ -22,6 +22,11 @@
   color: var(--ink-soft);
 }
 
+.status__actions {
+  margin-top: var(--space-3);
+  width: min(320px, 100%);
+}
+
 @keyframes status-breathe {
   from {
     opacity: 0.45;

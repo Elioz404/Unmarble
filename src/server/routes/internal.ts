@@ -3,6 +3,7 @@ import { context } from '@devvit/web/server';
 import type {
   OnCommentCreateRequest,
   OnCommentDeleteRequest,
+  OnModActionRequest,
   OnPostDeleteRequest,
   TriggerResponse,
   UiResponse,
@@ -57,6 +58,24 @@ internal.post('/triggers/post-delete', async (c) => {
   const event = await c.req.json<OnPostDeleteRequest>();
   const sheetId = await services.posts.sheetIdOfPost(event.postId);
   if (sheetId && isTrapId(sheetId)) await services.traps.withdraw(sheetId);
+  return c.json<TriggerResponse>({});
+});
+
+/** Moderator actions on a trap post: removing it withdraws the trap, approving it brings it back. */
+const TRAP_REMOVALS = new Set(['removelink', 'spamlink']);
+const TRAP_APPROVALS = new Set(['approvelink']);
+
+internal.post('/triggers/mod-action', async (c) => {
+  const event = await c.req.json<OnModActionRequest>();
+  const postId = event.targetPost?.id;
+  const action = event.action ?? '';
+  if (postId && (TRAP_REMOVALS.has(action) || TRAP_APPROVALS.has(action))) {
+    const sheetId = await services.posts.sheetIdOfPost(postId);
+    if (sheetId && isTrapId(sheetId)) {
+      if (TRAP_REMOVALS.has(action)) await services.traps.withdraw(sheetId);
+      else await services.traps.reinstate(sheetId);
+    }
+  }
   return c.json<TriggerResponse>({});
 });
 

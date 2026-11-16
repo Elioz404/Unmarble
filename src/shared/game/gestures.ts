@@ -1,7 +1,7 @@
 import { INPUT } from '../config.ts';
 import { pushThrough, sampleField } from '../marbling/field.ts';
 import type { FieldOp } from '../marbling/field-ops.ts';
-import { seamSegment, swirlEyeCentre } from '../puzzle/evidence.ts';
+import { seamSegment, straightnessDeviation, swirlEyeCentre } from '../puzzle/evidence.ts';
 import { opsForPrefix } from '../puzzle/moves.ts';
 import type { SheetSpec } from '../puzzle/sheet.ts';
 import type { PlayerAction, SheetPoint } from './session.ts';
@@ -128,14 +128,28 @@ const sweepAround = (path: readonly SheetPoint[], centre: SheetPoint): number =>
   return sweep;
 };
 
+/** Diagonal of a path's bounding box: how far it reaches, whatever its shape. */
+const extentOf = (path: readonly SheetPoint[]): number => {
+  const xs = path.map((p) => p.x);
+  const ys = path.map((p) => p.y);
+  return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+};
+
+/** Whether a drag bows enough to be a circle at all (a straight swipe does not). */
+const isCurved = (path: readonly SheetPoint[]): boolean => {
+  const extent = extentOf(path);
+  return extent > 1e-9 && straightnessDeviation(path) >= INPUT.circleMinCurvature * extent;
+};
+
 /**
  * The swirl a circling drag addresses, and whether it turns against the
  * swirl, or null when the drag does not circle any eye. A drag counts only if
- * it really circles: it turns far enough around the eye at a nearly constant
- * distance, so a straight swipe passing close to an eye never reads as one.
+ * it really circles: it bows away from a straight line and turns far enough
+ * around the eye at a nearly constant distance, so a straight swipe passing
+ * close to an eye, covered or not, never reads as one.
  */
 export const resolveCircle = (spec: SheetSpec, remaining: number, path: readonly SheetPoint[]): PlayerAction | null => {
-  if (path.length < 4) return null;
+  if (path.length < 4 || !isCurved(path)) return null;
   const ops = opsForPrefix(spec.moves, remaining);
   const minSweep = (INPUT.minSwirlSweep * Math.PI) / 180;
   let best: { move: number; spread: number; against: boolean } | null = null;

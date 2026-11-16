@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServices } from '../app-services.ts';
 import { MemoryStore } from './store.ts';
-import type { RedditPort } from '../reddit/reddit-port.ts';
+import type { FlairLabel, RedditPort } from '../reddit/reddit-port.ts';
 import type { Move } from '../../shared/puzzle/moves.ts';
 import { readSheet } from '../../shared/puzzle/analysis.ts';
 import type { PlayerAction } from '../../shared/game/session.ts';
@@ -11,7 +11,8 @@ import type { SheetDescriptor } from '../../shared/protocol/api.ts';
 /** A Reddit stand-in that records what the app asked it to do. */
 const fakeReddit = () => {
   let posts = 0;
-  const flair = new Map<string, string>();
+  const flair = new Map<string, FlairLabel>();
+  const banned = new Set<string>();
   const port: RedditPort = {
     submitSheetPost: async () => `t3_post${++posts}`,
     suggestTopComments: async () => undefined,
@@ -22,10 +23,12 @@ const fakeReddit = () => {
     editComment: async () => undefined,
     liveCommentScore: async () => 0,
     subscribeCurrentUser: async () => undefined,
-    setUserFlair: async (username, text) => void flair.set(username, text),
+    userFlair: async (username) => flair.get(username) ?? null,
+    setUserFlair: async (username, label) => void flair.set(username, label),
     removeUserFlair: async (username) => void flair.delete(username),
+    isBanned: async (username) => banned.has(username),
   };
-  return { port, flair, posts: () => posts };
+  return { port, flair, banned, posts: () => posts, flairText: (username: string) => flair.get(username)?.text };
 };
 
 /** A small trap that is fair on any paper: three drops, each pushing the last (no folds to depend on the stripes). */
@@ -120,7 +123,56 @@ test('streak flair is written only for players who opt in, and follows the strea
   assert.equal(reddit.flair.size, 0);
   await services.flair.setEnabled('t2_proud', 'proud', true, 0);
   await solve(services, today, 't2_proud', true);
-  assert.equal(reddit.flair.get('proud'), 'Unmarbled 1 day running');
+  assert.equal(reddit.flairText('proud'), 'Unmarbled 1 day running');
   await services.flair.setEnabled('t2_proud', 'proud', false, 1);
   assert.equal(reddit.flair.has('proud'), false);
+});
+
+test('banned users cannot set traps through the app', async () => {
+  const { services, today, reddit } = await setup();
+  reddit.banned.add('outcast');
+  const response = await services.traps.publish({ playerId: 't2_out', username: 'outcast' }, FAIR_TRAP, today, 'unmarble');
+  assert.deepEqual(response, { kind: 'rejected', reason: 'banned' });
+  assert.equal(reddit.posts(), 0);
+});
+
+test('a trap a moderator removes leaves circulation, and comes back if approved', async () => {
+  const { services, today } = await setup();
+  const published = await services.traps.publish({ playerId: 't2_m', username: 'm' }, FAIR_TRAP, today, 'unmarble');
+  if (published.kind !== 'published') throw new Error('trap not published');
+  await services.traps.withdraw(published.sheet.id);
+  assert.deepEqual(await services.traps.recent(10), []);
+  await services.traps.reinstate(published.sheet.id);
+  assert.deepEqual((await services.traps.recent(10)).map((trap) => trap.id), [published.sheet.id]);
+});
+
+test('featuring counts signed-in hands only, and never the maker’s own run', async () => {
+  const { services, today, clock } = await setup('2026-12-03T15:00:00Z');
+  const published = await services.traps.publish({ playerId: 't2_m', username: 'mossmaker' }, FAIR_TRAP, today, 'unmarble');
+  if (published.kind !== 'published') throw new Error('trap not published');
+  // The maker and a crowd of logged-out devices play it; only two real players do.
+  await solve(services, published.sheet, 't2_m', true);
+  for (const i of [0, 1, 2, 3, 4]) await solve(services, published.sheet, `anon:device${i}`, i % 2 === 0);
+  for (const [i, clean] of [true, false].entries()) await solve(services, published.sheet, `t2_p${i}`, clean);
+  clock.now = Date.parse('2026-12-06T00:05:00Z'); // Sunday
+  const sunday = await services.sheets.todaySheet();
+  assert.equal(sunday.author, null, 'two fair hands are not enough to feature it');
+});
+
+test('streak flair gives back the flair it replaced, and yields to a moderator', async () => {
+  const { services, today, reddit } = await setup();
+  reddit.flair.set('proud', { text: 'Marbler since 2020', cssClass: 'veteran' });
+  await solve(services, today, 't2_proud', true);
+  await services.flair.setEnabled('t2_proud', 'proud', true, 1);
+  assert.equal(reddit.flairText('proud'), 'Unmarbled 1 day running');
+  await services.flair.setEnabled('t2_proud', 'proud', false, 1);
+  assert.deepEqual(reddit.flair.get('proud'), { text: 'Marbler since 2020', cssClass: 'veteran' });
+
+  // Opted in again, then a moderator assigns a flair: the app steps aside for good.
+  await services.flair.setEnabled('t2_proud', 'proud', true, 1);
+  reddit.flair.set('proud', { text: 'Moderator pick', cssClass: 'mod' });
+  await services.flair.onStreak('t2_proud', 2);
+  assert.deepEqual(reddit.flair.get('proud'), { text: 'Moderator pick', cssClass: 'mod' });
+  await services.flair.setEnabled('t2_proud', 'proud', false, 2);
+  assert.deepEqual(reddit.flair.get('proud'), { text: 'Moderator pick', cssClass: 'mod' });
 });

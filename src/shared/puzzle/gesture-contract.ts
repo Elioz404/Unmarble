@@ -2,6 +2,7 @@ import { INPUT, SHEET } from '../config.ts';
 import { resolveDrag } from '../game/gestures.ts';
 import type { PlayerAction, SheetPoint } from '../game/session.ts';
 import { seamSegment } from './evidence.ts';
+import type { StrokeOp } from '../marbling/field-ops.ts';
 import { strokeOp, type Move } from './moves.ts';
 import type { SheetSpec } from './sheet.ts';
 
@@ -9,8 +10,11 @@ import type { SheetSpec } from './sheet.ts';
 const SEAM_POSITIONS = [0.25, 0.5, 0.75] as const;
 /** Perpendicular offsets probed, as fractions of the swipe tolerance. */
 const SEAM_OFFSETS = [-0.75, -0.4, 0, 0.4, 0.75] as const;
-/** Length (cells) of a probing swipe; comfortably above the minimum. */
-const SWIPE_LENGTH = INPUT.minSwipeLength + 1;
+/**
+ * Lengths (cells) of probing swipes, from a short flick to a long pull; the
+ * full seam, end to end, is probed as well. Each swipe stays on the seam.
+ */
+const SWIPE_LENGTHS = [INPUT.minSwipeLength + 1, INPUT.minSwipeLength + 3, INPUT.minSwipeLength + 5] as const;
 /** Points sampled along a probing drag, like a finger reports them. */
 const PATH_POINTS = 16;
 
@@ -20,6 +24,16 @@ const CIRCLE_RADII = [1, 1.6, 2.2] as const;
 const CIRCLE_STARTS = [0, 2.1, 4.2] as const;
 /** How far a probing circle turns, in radians (comfortably above the minimum). */
 const CIRCLE_SWEEP = ((INPUT.minSwirlSweep + 80) * Math.PI) / 180;
+/**
+ * Hand-drawn circles are rarely centred or round: each probe is also drawn
+ * off-centre (cells, as a share of its radius) and squashed into an ellipse.
+ */
+const CIRCLE_SHAPES = [
+  { dx: 0, dy: 0, squash: 1 },
+  { dx: 0.15, dy: -0.1, squash: 1 },
+  { dx: -0.1, dy: 0.15, squash: 1 },
+  { dx: 0, dy: 0, squash: 0.75 },
+] as const;
 
 const straightPath = (from: SheetPoint, to: SheetPoint): SheetPoint[] =>
   Array.from({ length: PATH_POINTS }, (_, i) => {
@@ -27,14 +41,47 @@ const straightPath = (from: SheetPoint, to: SheetPoint): SheetPoint[] =>
     return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
   });
 
-const arcPath = (centre: SheetPoint, radius: number, start: number, sweep: number): SheetPoint[] =>
-  Array.from({ length: PATH_POINTS * 2 }, (_, i) => {
-    const a = start + (sweep * i) / (PATH_POINTS * 2 - 1);
-    return { x: centre.x + radius * Math.cos(a), y: centre.y + radius * Math.sin(a) };
-  });
-
 const insideSheet = (path: readonly SheetPoint[]): boolean =>
   path.every((p) => p.x >= 0 && p.x <= SHEET.cols && p.y >= 0 && p.y <= SHEET.rows);
+
+type CircleShape = (typeof CIRCLE_SHAPES)[number];
+
+const arcPath = (centre: SheetPoint, radius: number, start: number, sweep: number, shape: CircleShape): SheetPoint[] =>
+  Array.from({ length: PATH_POINTS * 2 }, (_, i) => {
+    const a = start + (sweep * i) / (PATH_POINTS * 2 - 1);
+    return {
+      x: centre.x + radius * (shape.dx + Math.cos(a)),
+      y: centre.y + radius * (shape.dy + shape.squash * Math.sin(a)),
+    };
+  });
+
+/** Every probing swipe against a stroke: several lengths at several places, plus the whole seam. */
+const seamProbes = (op: StrokeOp, segment: { from: SheetPoint; to: SheetPoint }): SheetPoint[][] => {
+  const seamLength = Math.hypot(segment.to.x - segment.from.x, segment.to.y - segment.from.y);
+  const along = (t: number): SheetPoint => ({ x: segment.from.x + op.ux * t, y: segment.from.y + op.uy * t });
+  // Spans along the seam, as [start, end] distances from its first end.
+  const spans: [number, number][] = [[0, seamLength]];
+  for (const length of SWIPE_LENGTHS) {
+    if (length > seamLength) continue;
+    for (const position of SEAM_POSITIONS) {
+      const centre = Math.min(Math.max(position * seamLength, length / 2), seamLength - length / 2);
+      spans.push([centre - length / 2, centre + length / 2]);
+    }
+  }
+  const probes: SheetPoint[][] = [];
+  for (const [start, end] of spans) {
+    for (const offset of SEAM_OFFSETS) {
+      const shift = offset * INPUT.swipeSeamTolerance;
+      const a = along(end);
+      const b = along(start);
+      // Against the stroke: from ahead of the span back past it, kept on the paper.
+      const path = straightPath({ x: a.x - op.uy * shift, y: a.y + op.ux * shift }, { x: b.x - op.uy * shift, y: b.y + op.ux * shift });
+      if (insideSheet(path)) probes.push(path);
+    }
+  }
+  return probes;
+};
+
 
 const undoesTop = (action: PlayerAction | null, top: number, type: 'unstroke' | 'unswirl'): boolean =>
   action?.type === type && action.move === top && action.against;
@@ -60,27 +107,19 @@ export const firstAmbiguousGesture = (moves: readonly Move[]): number | null => 
       const op = strokeOp(top, prefix - 1);
       const segment = seamSegment(op);
       if (!segment) return prefix - 1;
-      for (const position of SEAM_POSITIONS) {
-        const cx = segment.from.x + (segment.to.x - segment.from.x) * position;
-        const cy = segment.from.y + (segment.to.y - segment.from.y) * position;
-        for (const offset of SEAM_OFFSETS) {
-          const shift = offset * INPUT.swipeSeamTolerance;
-          const ox = cx - op.uy * shift;
-          const oy = cy + op.ux * shift;
-          const half = SWIPE_LENGTH / 2;
-          // Against the stroke: from ahead of the point back past it.
-          const path = straightPath({ x: ox + op.ux * half, y: oy + op.uy * half }, { x: ox - op.ux * half, y: oy - op.uy * half });
-          if (!undoesTop(resolveDrag(probe, prefix, path), prefix - 1, 'unstroke')) return prefix - 1;
-        }
+      for (const path of seamProbes(op, segment)) {
+        if (!undoesTop(resolveDrag(probe, prefix, path), prefix - 1, 'unstroke')) return prefix - 1;
       }
     } else if (top?.kind === 'swirl') {
       // Against the turn: a swirl with turn +1 is undone by circling the other way.
       const sweep = -top.turn * CIRCLE_SWEEP;
       for (const radius of CIRCLE_RADII) {
         for (const start of CIRCLE_STARTS) {
-          const path = arcPath({ x: top.x, y: top.y }, radius, start, sweep);
-          if (!insideSheet(path)) continue;
-          if (!undoesTop(resolveDrag(probe, prefix, path), prefix - 1, 'unswirl')) return prefix - 1;
+          for (const shape of CIRCLE_SHAPES) {
+            const path = arcPath({ x: top.x, y: top.y }, radius, start, sweep, shape);
+            if (!insideSheet(path)) continue;
+            if (!undoesTop(resolveDrag(probe, prefix, path), prefix - 1, 'unswirl')) return prefix - 1;
+          }
         }
       }
     }

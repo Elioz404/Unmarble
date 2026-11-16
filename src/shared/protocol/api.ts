@@ -128,7 +128,7 @@ export type TrapResponse =
   | { readonly kind: 'published'; readonly sheet: SheetDescriptor; readonly postUrl: string | null }
   | { readonly kind: 'rejected'; readonly reason: TrapRejection };
 
-export type TrapRejection = 'invalid' | 'unfair' | 'signed-out' | 'daily-limit';
+export type TrapRejection = 'invalid' | 'unfair' | 'signed-out' | 'daily-limit' | 'banned';
 
 export type FlairRequest = { readonly enabled: boolean };
 export type FlairResponse = { readonly enabled: boolean };

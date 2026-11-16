@@ -60,9 +60,11 @@ export class TrapService {
 
   /**
    * Publishes a trap on today's paper. One per player per day; signed-in
-   * players only, because a trap carries its maker's name.
+   * players only, because a trap carries its maker's name. The post goes out
+   * as the app, so the app itself keeps banned users from posting through it.
    */
   async publish(maker: TrapMaker, moves: readonly Move[], today: SheetDescriptor, subreddit: string): Promise<TrapResponse> {
+    if (await this.#reddit.isBanned(maker.username)) return { kind: 'rejected', reason: 'banned' };
     const check = checkTrap(moves, today.spec.ground);
     if (check.problem) return { kind: 'rejected', reason: 'unfair' };
 
@@ -94,9 +96,11 @@ export class TrapService {
       await this.#store.hDel(keys.trapsSetOn(today.dateKey), [maker.playerId]);
       throw error;
     }
+    const publishedAt = this.#now();
+    await this.#store.hSet(keys.trapMeta(id), { maker: maker.playerId, publishedAt: String(publishedAt) });
     await this.#store.hSet(keys.trapPosts(), { [id]: postId });
     await this.#store.hSet(keys.postSheets(), { [postId]: id });
-    await this.#store.zAdd(keys.recentTraps(), { member: id, score: this.#now() });
+    await this.#store.zAdd(keys.recentTraps(), { member: id, score: publishedAt });
     const postUrl = `https://www.reddit.com/r/${subreddit}/comments/${postId.replace(/^t3_/, '')}`;
     return { kind: 'published', sheet, postUrl };
   }
@@ -104,6 +108,27 @@ export class TrapService {
   /** A removed or deleted trap post takes its trap out of circulation. */
   async withdraw(trapId: string): Promise<void> {
     await this.#store.zRem(keys.recentTraps(), [trapId]);
+  }
+
+  /** A trap post a moderator approved again comes back, in its original place. */
+  async reinstate(trapId: string): Promise<void> {
+    const meta = await this.#store.hGetAll(keys.trapMeta(trapId));
+    const publishedAt = Number(meta.publishedAt);
+    if (!Number.isFinite(publishedAt) || !(await this.byId(trapId))) return;
+    await this.#store.zAdd(keys.recentTraps(), { member: trapId, score: publishedAt });
+  }
+
+  /**
+   * How a trap fared with everyone but its maker: only signed-in hands count,
+   * so neither logged-out devices nor the maker's own run can lift it.
+   */
+  async #fairStats(trapId: string): Promise<{ hands: number; cleans: number }> {
+    const [signed, meta] = await Promise.all([
+      this.#attempts.signedStats(trapId),
+      this.#store.hGetAll(keys.trapMeta(trapId)),
+    ]);
+    const own = meta.maker ? await this.#attempts.resultOf(trapId, meta.maker) : null;
+    return own ? { hands: signed.hands - 1, cleans: signed.cleans - (own.clean ? 1 : 0) } : signed;
   }
 
   /**
@@ -118,7 +143,7 @@ export class TrapService {
     for (const { member } of window) {
       const trap = await this.byId(member);
       if (!trap || trap.dateKey >= sunday) continue;
-      const stats = await this.#attempts.stats(trap.id);
+      const stats = await this.#fairStats(trap.id);
       if (stats.hands < FEATURE.minHands) continue;
       const share = stats.cleans / stats.hands;
       if (share < FEATURE.cleanShare.min || share > FEATURE.cleanShare.max) continue;

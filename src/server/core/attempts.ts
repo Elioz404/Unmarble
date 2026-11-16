@@ -15,6 +15,7 @@ import { parseActionLog, parseResult } from '../../shared/protocol/parse.ts';
 import { addDays, dateKeyOf, type DateKey } from '../../shared/time/calendar.ts';
 import { readJson } from './json.ts';
 import { keys, RETENTION_SECONDS } from './keys.ts';
+import { isSignedIn } from './players.ts';
 import type { Store } from './store.ts';
 
 /** Grid (cells) on which scars are pooled for the scar map. */
@@ -26,6 +27,9 @@ const MAX_TX_ATTEMPTS = 4;
 export type StreakListener = (playerId: string, streak: number) => Promise<void>;
 
 type Progress = { readonly lastDay: string | null; readonly streak: number; readonly best: number };
+
+/** Hands that count when the community picks sheets: signed-in players only, so devices can't vote. */
+export type SignedStats = { readonly hands: number; readonly cleans: number };
 
 const sameEntry = (a: LoggedAction | undefined, b: LoggedAction): boolean =>
   a !== undefined && JSON.stringify(a) === JSON.stringify(b);
@@ -72,6 +76,17 @@ export class AttemptService {
     return { hands: Number(raw.hands ?? 0), cleans: Number(raw.cleans ?? 0), caught: Number(raw.caught ?? 0) };
   }
 
+  /** Finished attempts by signed-in players (the only ones that weigh in on featuring). */
+  async signedStats(sheetId: string): Promise<SignedStats> {
+    const raw = await this.#store.hGetAll(keys.stats(sheetId));
+    return { hands: Number(raw.signedHands ?? 0), cleans: Number(raw.signedCleans ?? 0) };
+  }
+
+  /** A player's stored result on a sheet, or null if they have not finished it. */
+  async resultOf(sheetId: string, playerId: string): Promise<Result | null> {
+    return parseResult(readJson(await this.#store.hGet(keys.results(sheetId), playerId)));
+  }
+
   async progress(playerId: string): Promise<Progress> {
     const raw = await this.#store.hGetAll(keys.player(playerId));
     return { lastDay: raw.lastDay ?? null, streak: Number(raw.streak ?? 0), best: Number(raw.best ?? 0) };
@@ -91,13 +106,13 @@ export class AttemptService {
       this.streak(playerId),
       this.#store.hGet(keys.player(playerId), 'flair'),
     ]);
-    return { signedIn: !playerId.startsWith('anon:'), log, streak, flair: flair === '1' };
+    return { signedIn: isSignedIn(playerId), log, streak, flair: flair === '1' };
   }
 
   /** How a player stands with a sheet, for the Book. */
   async statusOf(sheetId: string, playerId: string | null): Promise<BookStatus> {
     if (!playerId) return 'unplayed';
-    const result = parseResult(readJson(await this.#store.hGet(keys.results(sheetId), playerId)));
+    const result = await this.resultOf(sheetId, playerId);
     if (result) return result.clean ? 'clean' : 'torn';
     return (await this.#store.hGet(keys.attempts(sheetId), playerId)) ? 'playing' : 'unplayed';
   }
@@ -148,7 +163,7 @@ export class AttemptService {
 
   /** The standing of a finished attempt, or null while it is still in play. */
   async standing(sheet: SheetDescriptor, playerId: string): Promise<Standing | null> {
-    const stored = parseResult(readJson(await this.#store.hGet(keys.results(sheet.id), playerId)));
+    const stored = await this.resultOf(sheet.id, playerId);
     return stored ? this.#standingOf(sheet.id, playerId, stored) : null;
   }
 
@@ -217,19 +232,33 @@ export class AttemptService {
       await this.#store.zAdd(keys.board(sheet.id), { member: playerId, score: rankScore(result) });
       await this.#store.hIncrBy(keys.stats(sheet.id), 'hands', 1);
       if (result.clean) await this.#store.hIncrBy(keys.stats(sheet.id), 'cleans', 1);
+      if (isSignedIn(playerId)) {
+        await this.#store.hIncrBy(keys.stats(sheet.id), 'signedHands', 1);
+        if (result.clean) await this.#store.hIncrBy(keys.stats(sheet.id), 'signedCleans', 1);
+      }
       // A daily sheet counts for the streak when it was begun on its own day.
       if (sheet.kind === 'daily' && sheet.dateKey === startDay) {
         const streak = await this.#advanceStreak(playerId, sheet.dateKey);
-        if (streak !== null) await this.#onStreak(playerId, streak);
+        // Listeners (flair) are a courtesy: their failure never fails the finish.
+        if (streak !== null) {
+          await this.#onStreak(playerId, streak).catch((error: unknown) => {
+            console.error('Streak listener failed', error);
+          });
+        }
       }
     }
     return (await this.standing(sheet, playerId)) ?? this.#standingOf(sheet.id, playerId, result);
   }
 
-  /** Advances the streak for `day`; returns the new streak, or null if the day was already counted. */
+  /**
+   * Advances the streak for `day`; returns the new streak, or null when the
+   * day was already counted or is older than the run's newest day (an old
+   * sheet finished late never rewinds a streak).
+   */
   async #advanceStreak(playerId: string, day: DateKey): Promise<number | null> {
     const { lastDay, streak, best } = await this.progress(playerId);
-    if (lastDay === day) return null;
+    // Date keys are ISO dates, so string order is calendar order.
+    if (lastDay !== null && day <= lastDay) return null;
     const next = lastDay === addDays(day, -1) ? streak + 1 : 1;
     await this.#store.hSet(keys.player(playerId), {
       lastDay: day,

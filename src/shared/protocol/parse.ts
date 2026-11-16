@@ -193,7 +193,7 @@ export const parseTrapRequest = (value: unknown): TrapRequest | null => {
   return probe ? { moves: probe.moves } : null;
 };
 
-const TRAP_REJECTIONS: readonly TrapRejection[] = ['invalid', 'unfair', 'signed-out', 'daily-limit'];
+const TRAP_REJECTIONS: readonly TrapRejection[] = ['invalid', 'unfair', 'signed-out', 'daily-limit', 'banned'];
 
 export const parseTrapResponse = (value: unknown): TrapResponse | null => {
   if (!isRecord(value)) return null;

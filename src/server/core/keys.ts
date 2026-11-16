@@ -37,6 +37,8 @@ export const keys = Object.freeze({
   atelierPost: () => 'atelier:post',
   /** A trap's descriptor (JSON). */
   trap: (trapId: string) => `trap:${trapId}`,
+  /** Hash: a trap's maker (player id) and publish time (ms). */
+  trapMeta: (trapId: string) => `trap:${trapId}:meta`,
   /** Hash: trap id → post id. */
   trapPosts: () => 'trap-posts',
   /** Sorted set: trap id → creation time (ms); newest last. */

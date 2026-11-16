@@ -21,7 +21,8 @@
     "onAppUpgrade": "/internal/triggers/app-upgrade",
     "onCommentCreate": "/internal/triggers/comment-create",
     "onCommentDelete": "/internal/triggers/comment-delete",
-    "onPostDelete": "/internal/triggers/post-delete"
+    "onPostDelete": "/internal/triggers/post-delete",
+    "onModAction": "/internal/triggers/mod-action"
   },
   "scheduler": {
     "tasks": {

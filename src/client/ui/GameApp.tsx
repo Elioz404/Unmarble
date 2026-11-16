@@ -21,7 +21,8 @@ type Load = { kind: 'loading' } | { kind: 'ready'; response: SheetResponse } | {
 /**
  * Loads one sheet (by id, or the post's own) and reloads when `generation`
  * changes. Results are tagged with the request they answer, so a stale answer
- * simply reads as "still loading" for the new request.
+ * simply reads as "still loading" for the new request. Every visit to a screen
+ * is a new generation, so coming back always shows the attempt as it is now.
  */
 const useSheet = (
   platform: Platform,
@@ -67,15 +68,21 @@ export const GameApp = ({ platform }: { readonly platform: Platform }) => {
   const load = useSheet(platform, wanted, generation, rememberToday);
 
   const reload = useCallback(() => setGeneration((n) => n + 1), []);
+  /** Each visit loads afresh: a sheet played since (here or in the Book) shows as it is now. */
+  const go = useCallback((next: Route) => {
+    setRoute(next);
+    setGeneration((n) => n + 1);
+  }, []);
   const navigation = useMemo<GameNavigation>(
     () => ({
-      openBook: () => setRoute({ screen: 'book' }),
-      compose: () => setRoute({ screen: 'compose' }),
-      play: (sheetId: string) => setRoute({ screen: 'sheet', sheetId }),
+      openBook: () => go({ screen: 'book' }),
+      compose: () => go({ screen: 'compose' }),
+      play: (sheetId: string) => go({ screen: 'sheet', sheetId }),
     }),
-    [],
+    [go],
   );
-  const home = useCallback(() => setRoute({ screen: 'sheet', sheetId: null }), []);
+  const home = useCallback(() => go({ screen: 'sheet', sheetId: null }), [go]);
+  const atHome = route.screen === 'sheet' && route.sheetId === null;
 
   const toggleMute = (): void => {
     sound.unlock();
@@ -87,9 +94,17 @@ export const GameApp = ({ platform }: { readonly platform: Platform }) => {
     return <BookScreen platform={platform} onBack={home} onPlay={navigation.play} onCompose={navigation.compose} />;
   }
   if (load.kind === 'loading') return <StatusScreen kind="loading" />;
-  if (load.kind === 'failed') return <StatusScreen kind="failed" />;
+  if (load.kind === 'failed') return <StatusScreen kind="failed" onRetry={reload} onBack={atHome ? undefined : home} />;
   if (route.screen === 'compose') {
-    return <ComposerScreen platform={platform} paper={load.response.sheet} sound={sound} onBack={home} />;
+    return (
+      <ComposerScreen
+        platform={platform}
+        paper={load.response.sheet}
+        signedIn={load.response.player.signedIn}
+        sound={sound}
+        onBack={home}
+      />
+    );
   }
   return (
     <GameScreen

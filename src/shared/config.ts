@@ -131,6 +131,11 @@ export const INPUT = Object.freeze({
   swirlRadius: Object.freeze({ min: 0.4, max: 4.5 }),
   /** Max spread of a circling drag's distance to the eye, relative to its mean. */
   swirlRoundness: 0.4,
+  /**
+   * A circling drag must bow away from a straight line by at least this share
+   * of its extent; a straight swipe passing an eye is never read as a circle.
+   */
+  circleMinCurvature: 0.08,
 });
 
 export const RULES = Object.freeze({

@@ -3,7 +3,7 @@ import { isPerfect, shareLine } from '../../../shared/game/scoring.ts';
 import type { SessionState } from '../../../shared/game/session.ts';
 import type { PlayerView, SheetDescriptor, Standing } from '../../../shared/protocol/api.ts';
 import { getPalette } from '../../../shared/sheet/palettes.ts';
-import { msUntilNextDay, paletteIdFor } from '../../../shared/time/calendar.ts';
+import { dateKeyOf, msUntilNextDay, paletteIdFor, sheetNumberOf } from '../../../shared/time/calendar.ts';
 import { COPY } from '../copy.ts';
 import { CheckIcon, CopyIcon, QuillIcon } from '../icons.tsx';
 import './result-card.css';
@@ -15,6 +15,8 @@ type Props = {
   readonly player: PlayerView;
   /** A trap this player has not tried yet, offered as the next step. */
   readonly nextTrap: SheetDescriptor | null;
+  /** When the next daily sheet appears (server time, ms). */
+  readonly nextSheetAt: number;
   readonly onPlay: (sheetId: string) => void;
   readonly onCompose: () => void;
   readonly onSubscribe: () => Promise<boolean>;
@@ -51,14 +53,27 @@ const headlineOf = (state: SessionState, standing: Standing | null): string => {
  * step — a trap to spring, or one to set. Play, comment, subscribe and flair
  * are always separate actions, never bundled.
  */
-export const ResultCard = ({ sheet, state, standing, player, nextTrap, onPlay, onCompose, onSubscribe, onLogin, onFlair }: Props) => {
+export const ResultCard = ({
+  sheet,
+  state,
+  standing,
+  player,
+  nextTrap,
+  nextSheetAt,
+  onPlay,
+  onCompose,
+  onSubscribe,
+  onLogin,
+  onFlair,
+}: Props) => {
   const [copied, setCopied] = useState(false);
   const [joined, setJoined] = useState(false);
   const [flair, setFlair] = useState(player.flair);
   const countdown = useCountdown();
   const isTrap = sheet.kind === 'trap';
   const marks = state.history.filter((h) => h.action.type !== 'magnify');
-  const tomorrow = getPalette(paletteIdFor(sheet.number + 1)).name;
+  // The next daily, whatever sheet this is (an old one from the Book, or a trap).
+  const tomorrow = getPalette(paletteIdFor(sheetNumberOf(dateKeyOf(nextSheetAt)))).name;
   const duration = standing?.result.durationMs ?? state.history[state.history.length - 1]?.at ?? 0;
 
   const copy = async (): Promise<void> => {

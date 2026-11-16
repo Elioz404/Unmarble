@@ -80,13 +80,14 @@ float groundPhase(vec2 p) {
   return t / uGroundPeriod;
 }
 
-/** A grid's crossing lines; 0 everywhere else. */
-float crossLine(vec2 p) {
+/** A grid's crossing lines at a given line width; 0 everywhere else. */
+float crossLineW(vec2 p, float width) {
   if (uGroundFamily != 3) return 0.0;
   vec2 d = p - uSheet * 0.5;
   float s = d.x * uGroundRot.x + d.y * uGroundRot.y;
-  return hairline(s / uGroundPeriod, ${f(LOOK.ruleWidth)});
+  return hairline(s / uGroundPeriod, width);
 }
+float crossLine(vec2 p) { return crossLineW(p, ${f(LOOK.ruleWidth)}); }
 
 float paperTexture(vec2 p) {
   float fibre = valueNoise(vec2(p.x * ${f(LOOK.paperFibreScale)}, p.y * ${f(LOOK.paperFibreScale)} * 0.35)) - 0.5;
@@ -153,7 +154,7 @@ void main() {
   color += shade(base + cell * vec2(-0.375, 0.125));
   color *= 0.25 * paperTexture(base);
   if (uGhost > 0.0) {
-    float line = hairline(groundPhase(base), ${f(LOOK.ghostWidth)}) * uGhost * 0.7;
+    float line = max(hairline(groundPhase(base), ${f(LOOK.ghostWidth)}), crossLineW(base, ${f(LOOK.ghostWidth)})) * uGhost * 0.7;
     color = mix(color, uGhostColor, line);
   }
   outColor = vec4(toSrgb(color), 1.0);

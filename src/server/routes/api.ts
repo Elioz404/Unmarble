@@ -15,6 +15,7 @@ import { parsePostBinding } from '../../shared/protocol/post-data.ts';
 import { dailySheetId } from '../../shared/puzzle/daily.ts';
 import { msUntilNextDay } from '../../shared/time/calendar.ts';
 import { services } from '../app.ts';
+import { anonymousPlayerId } from '../core/players.ts';
 
 /**
  * Public client API. Every route is callable by anyone who can load the post,
@@ -24,7 +25,7 @@ import { services } from '../app.ts';
 export const api = new Hono();
 
 /** Stable id of the player: their account, or the logged-out device id. */
-const playerId = (): string | null => context.userId ?? (context.loid ? `anon:${context.loid}` : null);
+const playerId = (): string | null => context.userId ?? (context.loid ? anonymousPlayerId(context.loid) : null);
 
 /** The sheet this post is bound to: a daily or trap post's own sheet, or today's. */
 const boundSheet = async (): Promise<SheetDescriptor> => {

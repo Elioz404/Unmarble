@@ -135,7 +135,15 @@ export const shadePoint = (
   g *= paper;
   b *= paper;
   if (ghost > 0) {
-    const line = hairline(groundPhase(ground, x, y), LOOK.ghostWidth) * ghost * 0.7;
+    // The ghost shows where the water moved: every ruling of the untouched ground.
+    const crossGhost = groundCrossPhase(ground, x, y);
+    const line =
+      Math.max(
+        hairline(groundPhase(ground, x, y), LOOK.ghostWidth),
+        crossGhost === null ? 0 : hairline(crossGhost, LOOK.ghostWidth),
+      ) *
+      ghost *
+      0.7;
     r = mix(r, palette.ghost[0], line);
     g = mix(g, palette.ghost[1], line);
     b = mix(b, palette.ghost[2], line);

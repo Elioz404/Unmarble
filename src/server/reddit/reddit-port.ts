@@ -7,6 +7,9 @@ type PostData = NonNullable<Parameters<typeof reddit.submitCustomPost>[0]['postD
 /** Serialises a binding into plain JSON post data (the 2 KB public payload). */
 const toPostData = (binding: PostBinding): PostData => JSON.parse(JSON.stringify(binding));
 
+/** A user's flair in the subreddit, as far as the app reads or restores it. */
+export type FlairLabel = { readonly text: string; readonly cssClass: string };
+
 /**
  * The Reddit operations the app performs, behind one narrow port so the
  * services stay testable and the Devvit surface is visible in one file.
@@ -23,9 +26,13 @@ export type RedditPort = {
   /** Current score of a comment, or null if it was removed or marked spam. Throws when the lookup fails. */
   liveCommentScore(commentId: string): Promise<number | null>;
   subscribeCurrentUser(): Promise<void>;
+  /** A user's flair in the current subreddit, or null when they have none. */
+  userFlair(username: string): Promise<FlairLabel | null>;
   /** Sets a user's flair in the current subreddit (replacing what they had). */
-  setUserFlair(username: string, text: string): Promise<void>;
+  setUserFlair(username: string, flair: FlairLabel): Promise<void>;
   removeUserFlair(username: string): Promise<void>;
+  /** Whether the user is banned from the current subreddit. */
+  isBanned(username: string): Promise<boolean>;
 };
 
 type T1 = `t1_${string}`;
@@ -85,10 +92,21 @@ export const devvitReddit: RedditPort = {
   async subscribeCurrentUser() {
     await reddit.subscribeToCurrentSubreddit();
   },
-  async setUserFlair(username, text) {
-    await reddit.setUserFlair({ subredditName: context.subredditName, username, text });
+  async userFlair(username) {
+    const user = await reddit.getUserByUsername(username);
+    const flair = await user?.getUserFlairBySubreddit(context.subredditName);
+    const text = flair?.flairText ?? '';
+    const cssClass = flair?.flairCssClass ?? '';
+    return text || cssClass ? { text, cssClass } : null;
+  },
+  async setUserFlair(username, { text, cssClass }) {
+    await reddit.setUserFlair({ subredditName: context.subredditName, username, text, ...(cssClass ? { cssClass } : {}) });
   },
   async removeUserFlair(username) {
     await reddit.removeUserFlair(context.subredditName, username);
+  },
+  async isBanned(username) {
+    const banned = await reddit.getBannedUsers({ subredditName: context.subredditName, username, limit: 1 }).all();
+    return banned.some((user) => user.username.toLowerCase() === username.toLowerCase());
   },
 };

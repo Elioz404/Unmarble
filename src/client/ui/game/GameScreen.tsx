@@ -198,6 +198,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           standing={view.standing}
           player={response.player}
           nextTrap={nextTrap?.sheet ?? null}
+          nextSheetAt={response.nextSheetAt}
           onPlay={navigation.play}
           onCompose={navigation.compose}
           onSubscribe={() => platform.subscribe()}

@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { BookEntry, BookResponse } from '../../../shared/protocol/api.ts';
-import { opsForPrefix } from '../../../shared/puzzle/moves.ts';
-import { shadingPaletteOf } from '../../../shared/render/shading.ts';
-import { getPalette } from '../../../shared/sheet/palettes.ts';
 import type { Platform } from '../../platform/platform.ts';
-import { useCpuSheet } from '../card/use-cpu-sheet.ts';
 import { COPY } from '../copy.ts';
 import { BackIcon, QuillIcon } from '../icons.tsx';
 import { StatusScreen } from '../StatusScreen.tsx';
+import { useThumbnail } from './thumbnails.ts';
 import './book-screen.css';
 
 type Shelf = 'dailies' | 'traps';
@@ -17,17 +14,7 @@ const STATUS_GLYPH: Record<BookEntry['status'], string> = { unplayed: '', playin
 /** A small finished sheet, as the Book shows it. */
 const Thumbnail = ({ entry }: { readonly entry: BookEntry }) => {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const { spec } = entry.sheet;
-  const frame = useMemo(
-    () => ({
-      ops: opsForPrefix(spec.moves, spec.moves.length),
-      ground: spec.ground,
-      palette: shadingPaletteOf(getPalette(spec.paletteId)),
-      ghost: 0,
-    }),
-    [spec],
-  );
-  useCpuSheet(canvas, frame);
+  useThumbnail(canvas, entry.sheet.id, entry.sheet.spec);
   return <canvas ref={canvas} className="book__thumb" aria-hidden />;
 };
 
@@ -69,6 +56,7 @@ export const BookScreen = ({ platform, onBack, onPlay, onCompose }: Props) => {
   const [book, setBook] = useState<BookResponse | null>(null);
   const [failed, setFailed] = useState(false);
   const [shelf, setShelf] = useState<Shelf>('dailies');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,9 +67,14 @@ export const BookScreen = ({ platform, onBack, onPlay, onCompose }: Props) => {
     return () => {
       cancelled = true;
     };
-  }, [platform]);
+  }, [platform, attempt]);
 
-  if (!book) return <StatusScreen kind={failed ? 'failed' : 'loading'} />;
+  const retry = (): void => {
+    setFailed(false);
+    setAttempt((n) => n + 1);
+  };
+
+  if (!book) return <StatusScreen kind={failed ? 'failed' : 'loading'} onRetry={retry} onBack={onBack} />;
   const entries = shelf === 'dailies' ? book.dailies : book.traps;
 
   return (

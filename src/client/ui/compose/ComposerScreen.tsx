@@ -22,6 +22,9 @@ const TOOLS: readonly { tool: ComposerTool; label: string; Icon: typeof DropTool
   { tool: 'swirl', label: COPY.trap.tools.swirl, Icon: SwirlToolIcon },
 ];
 
+/** Refusals about the player rather than the trap: changing the trap won't lift them. */
+const STANDING_REFUSALS: ReadonlySet<TrapRejection> = new Set(['signed-out', 'daily-limit', 'banned']);
+
 /** One plain line describing the trap's state, numbered for people (move 1 = the first). */
 const checkLine = (check: TrapCheck, moves: number, tool: ComposerTool): { text: string; tone: 'quiet' | 'alert' | 'gilt' } => {
   const problem = check.problem;
@@ -43,12 +46,14 @@ type Props = {
   readonly platform: Platform;
   /** Today's sheet: its paper (palette and ground) is the trap's paper. */
   readonly paper: SheetDescriptor;
+  /** Traps carry their maker's name, so only signed-in players can set one. */
+  readonly signedIn: boolean;
   readonly sound: SoundBank;
   readonly onBack: () => void;
 };
 
 /** Set a trap: marble a sheet for others, checked live against the same contract as daily sheets. */
-export const ComposerScreen = ({ platform, paper, sound, onBack }: Props) => {
+export const ComposerScreen = ({ platform, paper, signedIn, sound, onBack }: Props) => {
   const palette = getPalette(paper.spec.paletteId);
   const composer = useMemo(
     () =>
@@ -62,22 +67,34 @@ export const ComposerScreen = ({ platform, paper, sound, onBack }: Props) => {
   );
   const view = useStore(composer.view);
   const [publishing, setPublishing] = useState(false);
-  // A refusal applies to the trap as it was submitted; any change clears it.
+  // Most refusals apply to the trap as it was submitted, so any change clears
+  // them; some are about the player, and stand whatever they change.
   const [refusal, setRefusal] = useState<{ reason: TrapRejection; moves: readonly unknown[] } | null>(null);
-  const rejection = refusal && refusal.moves === view.moves ? refusal.reason : null;
+  const blocked: TrapRejection | null = !signedIn
+    ? 'signed-out'
+    : refusal && STANDING_REFUSALS.has(refusal.reason)
+      ? refusal.reason
+      : null;
+  const rejection = blocked ?? (refusal && refusal.moves === view.moves ? refusal.reason : null);
   const [published, setPublished] = useState<Published | null>(null);
 
   const publish = async (): Promise<void> => {
+    // Freeze the paper first, so the trap that is set is the trap on screen.
+    composer.setLocked(true);
     setPublishing(true);
     try {
       const response = await platform.publishTrap(view.moves);
-      if (response.kind === 'published') setPublished({ sheet: response.sheet, postUrl: response.postUrl });
-      else setRefusal({ reason: response.reason, moves: view.moves });
+      if (response.kind === 'published') {
+        setPublished({ sheet: response.sheet, postUrl: response.postUrl });
+        return;
+      }
+      setRefusal({ reason: response.reason, moves: view.moves });
     } catch {
       setRefusal({ reason: 'invalid', moves: view.moves });
     } finally {
       setPublishing(false);
     }
+    composer.setLocked(false);
   };
 
   const line = rejection ? { text: COPY.trap.rejected[rejection], tone: 'alert' as const } : checkLine(view.check, view.moves.length, view.tool);
@@ -203,14 +220,20 @@ export const ComposerScreen = ({ platform, paper, sound, onBack }: Props) => {
             )}
           </div>
 
-          <button
-            type="button"
-            className="button button--primary compose__publish"
-            disabled={view.check.problem !== null || view.busy || publishing}
-            onClick={() => void publish()}
-          >
-            {publishing ? COPY.trap.publishing : COPY.trap.publish}
-          </button>
+          {blocked === 'signed-out' ? (
+            <button type="button" className="button button--primary compose__publish" onClick={() => platform.promptLogin()}>
+              {COPY.trap.signIn}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button button--primary compose__publish"
+              disabled={view.check.problem !== null || view.busy || publishing || blocked !== null}
+              onClick={() => void publish()}
+            >
+              {publishing ? COPY.trap.publishing : COPY.trap.publish}
+            </button>
+          )}
         </footer>
       )}
     </main>

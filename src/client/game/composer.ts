@@ -57,6 +57,8 @@ export class ComposerController implements StageController {
   #painter: OverlayPainter | null = null;
   #renderedRevision = -1;
   #renderedScene: SheetScene | null = null;
+  /** While locked (publishing, or published) the paper ignores every input. */
+  #locked = false;
 
   constructor(options: ComposerOptions) {
     this.#paper = { ...options.paper, moves: [] };
@@ -96,6 +98,15 @@ export class ComposerController implements StageController {
     this.view.update({ turn, tool: 'swirl' });
   }
 
+  /** Freezes the trap as it is (while it is being set, and once it has been). */
+  setLocked(locked: boolean): void {
+    this.#locked = locked;
+    if (locked) {
+      this.#overlay.trail = [];
+      this.#draw();
+    }
+  }
+
   attach(renderer: SheetRenderer, painter: OverlayPainter): void {
     this.#renderer = renderer;
     this.#painter = painter;
@@ -117,6 +128,7 @@ export class ComposerController implements StageController {
   }
 
   tap(point: SheetPoint): void {
+    if (this.#locked) return;
     const { tool, size, ink, turn } = this.view.get();
     const x = snapToHalfCell(point.x);
     const y = snapToHalfCell(point.y);
@@ -128,7 +140,13 @@ export class ComposerController implements StageController {
     this.#overlay.trail = [];
     const first = path[0];
     const last = path[path.length - 1];
-    if (this.view.get().tool !== 'fold' || !first || !last) return this.#draw();
+    if (this.#locked || !first || !last) return this.#draw();
+    if (this.view.get().tool !== 'fold') {
+      // A held or slightly rolled press is still a placement, read where it began (as a tap is).
+      const reach = Math.max(...path.map((p) => Math.hypot(p.x - first.x, p.y - first.y)));
+      if (reach <= INPUT.fingerRadius * 2) this.tap(first);
+      return this.#draw();
+    }
     const length = Math.hypot(last.x - first.x, last.y - first.y);
     if (length < INPUT.minSwipeLength) return this.#draw();
     const heading = snapHeading((Math.atan2(last.y - first.y, last.x - first.x) * 180) / Math.PI);
@@ -138,7 +156,7 @@ export class ComposerController implements StageController {
   }
 
   trace(points: readonly SheetPoint[]): void {
-    if (this.view.get().tool !== 'fold') return;
+    if (this.#locked || this.view.get().tool !== 'fold') return;
     this.#overlay.trail = [...points];
     this.#draw();
   }
@@ -146,7 +164,7 @@ export class ComposerController implements StageController {
   /** Takes the last move back out of the water. */
   async undo(): Promise<void> {
     const { moves, busy } = this.view.get();
-    if (busy || moves.length === 0) return;
+    if (this.#locked || busy || moves.length === 0) return;
     this.view.update({ busy: true });
     this.#sound.unlock();
     this.#sound.play('absorb');
@@ -162,7 +180,7 @@ export class ComposerController implements StageController {
 
   async #add(move: Move): Promise<void> {
     const { moves, busy } = this.view.get();
-    if (busy || moves.length >= TRAP_RULES.maxMoves) return;
+    if (this.#locked || busy || moves.length >= TRAP_RULES.maxMoves) return;
     if (move.x < 0 || move.x > SHEET.cols || move.y < 0 || move.y > SHEET.rows) return;
     this.view.update({ busy: true });
     this.#sound.unlock();
