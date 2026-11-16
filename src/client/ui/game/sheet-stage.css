@@ -25,6 +25,9 @@
   --gild-offset: 6px;
   /* Share of the fillet a torn sheet gets before it stops. */
   --gild-torn-reach: 62;
+  /* A clean sheet's gilding starts once the lift is under way and ends well inside --rise-ms. */
+  --gild-delay: 150ms;
+  --gild-run: 900ms;
   /* Afloat: meniscus, capillary band and halo hug the paper's edge, all spread outward. */
   --shadow-afloat:
     0 0 0 1px var(--meniscus), 0 0 0 3px var(--capillary), 0 0 10px 2px var(--meniscus-glow), var(--sheet-shadow);
@@ -285,8 +288,13 @@
   stroke-dasharray: var(--gild-torn-reach) 200;
 }
 
-.stage:is([data-mood='rising'], [data-mood='sinking']) .tray__gild rect {
-  animation: gild 900ms var(--ease-settle) 150ms both;
+.stage[data-mood='rising'] .tray__gild rect {
+  animation: gild var(--gild-run) var(--ease-settle) var(--gild-delay) both;
+}
+
+/* The torn draw spans the whole sink, so it is at its stop when 'torn' takes over. */
+.stage[data-mood='sinking'] .tray__gild rect {
+  animation: gild var(--sink-ms) var(--ease-settle) both;
 }
 
 @keyframes gild {
