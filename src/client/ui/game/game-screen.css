@@ -17,9 +17,10 @@
   min-height: 100dvh;
 }
 
+/* After the sheet: a smaller sheet, so the result and its next steps come into view. */
 .game[data-phase="result"] .stage {
   flex: 0 0 auto;
-  height: min(52dvh, 460px);
+  height: min(40dvh, 400px);
 }
 
 .game__header {
@@ -69,6 +70,83 @@
     padding-inline: var(--space-3);
   }
   .lens-button span {
+    display: none;
+  }
+}
+
+/* The Book: an open book, named wherever the header has room for the word. */
+.game__book {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-2);
+  border: var(--hairline) solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color var(--duration-quick), color var(--duration-quick);
+}
+
+.game__book:hover {
+  border-color: var(--gilt);
+  color: var(--ink);
+}
+
+.game__banner {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  font-style: italic;
+  text-align: center;
+}
+
+.game__banner-link {
+  min-height: var(--touch-target);
+  border: 0;
+  background: none;
+  color: var(--gilt-ink);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.game__warm-up {
+  position: absolute;
+  inset: auto var(--space-3) var(--space-3);
+  z-index: 2;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid color-mix(in oklab, var(--gilt) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--surface-raised) 94%, transparent);
+  box-shadow: 0 12px 30px -12px rgb(0 0 0 / 0.55);
+  animation: warm-up-rise 420ms var(--ease-lift) both;
+}
+
+@keyframes warm-up-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.game__warm-up p {
+  margin: 0;
+  font-style: italic;
+  text-align: center;
+  text-wrap: balance;
+}
+
+@media (max-width: 399px) {
+  .game__book span {
     display: none;
   }
 }

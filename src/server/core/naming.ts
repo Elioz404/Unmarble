@@ -1,6 +1,6 @@
 import { nameThreshold, parseSheetName } from '../../shared/naming/sheet-name.ts';
 import { dailySheetId } from '../../shared/puzzle/daily.ts';
-import { addDays } from '../../shared/time/calendar.ts';
+import { addDays, type DateKey } from '../../shared/time/calendar.ts';
 import type { RedditPort } from '../reddit/reddit-port.ts';
 import type { AttemptService } from './attempts.ts';
 import { keys } from './keys.ts';
@@ -10,6 +10,10 @@ import type { Store } from './store.ts';
 
 /** Days after its date during which a sheet's name can still change. */
 const NAMING_WINDOW_DAYS = 2;
+
+/** Whether a daily sheet of `dateKey` is still being named on `today`. */
+export const isNamingOpen = (dateKey: DateKey, today: DateKey): boolean =>
+  dateKey <= today && dateKey >= addDays(today, -NAMING_WINDOW_DAYS);
 
 /**
  * The naming ritual, driven by native comments: replies to a sheet's pinned

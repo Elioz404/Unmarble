@@ -26,6 +26,8 @@ export type Feature =
 export type SheetTemplate = {
   readonly id: string;
   readonly title: string;
+  /** What the day asks of the reader, in a few words (the "tomorrow" teaser). */
+  readonly promise: string;
   readonly stars: Stars;
   readonly moves: readonly [min: number, max: number];
   readonly strokes: readonly [min: number, max: number];
@@ -48,13 +50,13 @@ const LIVELY: readonly GroundFamily[] = ['waves', 'chevron', 'rings'];
  * arrive late in the week, once the basic readings are warm.
  */
 export const WEEKLY_TEMPLATES: readonly SheetTemplate[] = [
-  { id: 'sunday', title: 'Sunday', stars: 3, moves: [5, 6], strokes: [1, 1], swirls: [1, 1], inks: 3, features: ['buried-seam', 'crescent'], grounds: ALL, minMargin: 1.4 },
-  { id: 'monday', title: 'Monday', stars: 1, moves: [4, 4], strokes: [1, 1], swirls: [0, 0], inks: 3, features: ['buried-seam'], grounds: CALM, minMargin: 2.4 },
-  { id: 'tuesday', title: 'Tuesday', stars: 2, moves: [5, 5], strokes: [1, 1], swirls: [0, 0], inks: 3, features: ['buried-seam', 'crescent'], grounds: RULED, minMargin: 2 },
-  { id: 'wednesday', title: 'Wednesday', stars: 2, moves: [5, 5], strokes: [2, 2], swirls: [0, 0], inks: 3, features: ['crossed-seams'], grounds: RULED, minMargin: 1.7 },
-  { id: 'thursday', title: 'Thursday', stars: 3, moves: [6, 6], strokes: [1, 2], swirls: [0, 0], inks: 3, features: ['top-seam', 'decoy'], grounds: ALL, minMargin: 1.25 },
-  { id: 'friday', title: 'Friday', stars: 4, moves: [6, 7], strokes: [1, 2], swirls: [1, 1], inks: 3, features: ['twin-inks', 'buried-seam'], grounds: ALL, minMargin: 1.25 },
-  { id: 'saturday', title: 'Saturday', stars: 5, moves: [7, 8], strokes: [2, 2], swirls: [1, 1], inks: 4, features: ['top-seam', 'decoy', 'crescent'], grounds: LIVELY, minMargin: 1.2 },
+  { id: 'sunday', title: 'Sunday', promise: 'a mixed sheet, or the week’s best trap', stars: 3, moves: [5, 6], strokes: [1, 1], swirls: [1, 1], inks: 3, features: ['buried-seam', 'crescent'], grounds: ALL, minMargin: 1.4 },
+  { id: 'monday', title: 'Monday', promise: 'the round drop, and one buried fold', stars: 1, moves: [4, 4], strokes: [1, 1], swirls: [0, 0], inks: 3, features: ['buried-seam'], grounds: CALM, minMargin: 2.4 },
+  { id: 'tuesday', title: 'Tuesday', promise: 'a drop squeezed into a crescent', stars: 2, moves: [5, 5], strokes: [1, 1], swirls: [0, 0], inks: 3, features: ['buried-seam', 'crescent'], grounds: RULED, minMargin: 2 },
+  { id: 'wednesday', title: 'Wednesday', promise: 'two folds crossing: which is on top?', stars: 2, moves: [5, 5], strokes: [2, 2], swirls: [0, 0], inks: 3, features: ['crossed-seams'], grounds: RULED, minMargin: 1.7 },
+  { id: 'thursday', title: 'Thursday', promise: 'a fold on top, and a drop that only looks round', stars: 3, moves: [6, 6], strokes: [1, 2], swirls: [0, 0], inks: 3, features: ['top-seam', 'decoy'], grounds: ALL, minMargin: 1.25 },
+  { id: 'friday', title: 'Friday', promise: 'two drops of the same ink, and a swirl', stars: 4, moves: [6, 7], strokes: [1, 2], swirls: [1, 1], inks: 3, features: ['twin-inks', 'buried-seam'], grounds: ALL, minMargin: 1.25 },
+  { id: 'saturday', title: 'Saturday', promise: 'everything at once', stars: 5, moves: [7, 8], strokes: [2, 2], swirls: [1, 1], inks: 4, features: ['top-seam', 'decoy', 'crescent'], grounds: LIVELY, minMargin: 1.2 },
 ];
 
 export const templateForWeekday = (weekday: number): SheetTemplate => {

@@ -1,4 +1,4 @@
-import { exitExpandedMode, navigateTo, requestExpandedMode, showLoginPrompt } from '@devvit/web/client';
+import { context, exitExpandedMode, navigateTo, requestExpandedMode, showLoginPrompt, showShareSheet } from '@devvit/web/client';
 import { API, type ActionRequest, type FlairRequest, type SheetResponse, type TrapRequest } from '../../shared/protocol/api.ts';
 import {
   parseActionResponse,
@@ -9,7 +9,9 @@ import {
   parseTrapResponse,
 } from '../../shared/protocol/parse.ts';
 import { createAttemptQueue, TransientError } from './attempt-queue.ts';
-import type { Platform } from './platform.ts';
+import { copyToClipboard, type Platform } from './platform.ts';
+
+const isPostId = (id: string): id is `t3_${string}` => id.startsWith('t3_');
 
 /** Name of the expanded entry point in devvit.json. */
 const GAME_ENTRY = 'game';
@@ -59,9 +61,6 @@ const call = async <T>(
 const UNPROCESSABLE = 422;
 const UNAUTHORIZED = 401;
 
-const parseOk = (value: unknown): boolean | null =>
-  typeof value === 'object' && value !== null && 'ok' in value && typeof value.ok === 'boolean' ? value.ok : null;
-
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 /** The Platform backed by the Devvit server and Reddit's client effects. */
@@ -94,5 +93,15 @@ export const createRedditPlatform = (): Platform => ({
   openGame: (event) => requestExpandedMode(event, GAME_ENTRY),
   closeGame: (event) => exitExpandedMode(event),
   promptLogin: () => showLoginPrompt(),
-  subscribe: () => call(API.subscribe, parseOk, { method: 'POST' }).catch(() => false),
+  community: context.subredditName,
+  openCommunity: () => navigateTo(`https://www.reddit.com/r/${context.subredditName}`),
+  share: async (text, postId) => {
+    const copied = await copyToClipboard(text);
+    try {
+      await showShareSheet({ title: 'UNMARBLE', text, ...(postId && isPostId(postId) ? { post: postId } : {}) });
+      return copied === 'copied' ? 'copied' : 'shared';
+    } catch {
+      return copied;
+    }
+  },
 });

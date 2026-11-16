@@ -42,7 +42,7 @@ export const CardApp = ({ platform, initial }: { readonly platform: Platform; re
     <FeedCard
       sheet={sheet}
       progress={response ? progressOf(response) : 'fresh'}
-      hands={response?.stats.hands ?? null}
+      stats={response?.stats ?? null}
       onPlay={(event: MouseEvent) => platform.openGame(event.nativeEvent)}
     />
   );

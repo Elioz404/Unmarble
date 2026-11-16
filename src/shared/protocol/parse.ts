@@ -12,6 +12,8 @@ import type {
   LoggedAction,
   ScarMap,
   SheetResponse,
+  SheetThread,
+  TrapCatch,
   SheetStats,
   Standing,
   TrapRejection,
@@ -122,6 +124,20 @@ export const parseActionResponse = (value: unknown): ActionResponse | null => {
   return { kind: 'applied', verdict, standing: value.standing === null ? null : parseStanding(value.standing) };
 };
 
+const parseThread = (value: unknown): SheetThread | null | undefined => {
+  if (value === null) return null;
+  if (!isRecord(value) || typeof value.url !== 'string' || typeof value.naming !== 'boolean') return undefined;
+  if (typeof value.postId !== 'string' || !value.postId.startsWith('t3_')) return undefined;
+  return { url: value.url, postId: value.postId, naming: value.naming };
+};
+
+const parseTrapCatch = (value: unknown): TrapCatch | null | undefined => {
+  if (value === null) return null;
+  if (!isRecord(value) || typeof value.sheetId !== 'string') return undefined;
+  if (typeof value.caught !== 'number' || typeof value.hands !== 'number') return undefined;
+  return { sheetId: value.sheetId, caught: value.caught, hands: value.hands };
+};
+
 export const parseSheetResponse = (value: unknown): SheetResponse | null => {
   if (!isRecord(value)) return null;
   const sheet = parseSheetDescriptor(value.sheet);
@@ -134,6 +150,9 @@ export const parseSheetResponse = (value: unknown): SheetResponse | null => {
   if (typeof player.flair !== 'boolean') return null;
   if (typeof nextSheetAt !== 'number' || typeof todayId !== 'string') return null;
   const standing = value.standing === null || value.standing === undefined ? null : parseStanding(value.standing);
+  const thread = parseThread(value.thread);
+  const yourTrap = parseTrapCatch(value.yourTrap);
+  if (thread === undefined || yourTrap === undefined) return null;
   return {
     sheet,
     stats,
@@ -141,6 +160,8 @@ export const parseSheetResponse = (value: unknown): SheetResponse | null => {
     standing,
     nextSheetAt,
     todayId,
+    thread,
+    yourTrap,
   };
 };
 
@@ -165,7 +186,8 @@ const parseBookEntry = (value: unknown): BookEntry | null => {
   const sheet = parseSheetDescriptor(value.sheet);
   const stats = parseStats(value.stats);
   const status = BOOK_STATUSES.find((s) => s === value.status);
-  return sheet && stats && status ? { sheet, stats, status } : null;
+  if (typeof value.inTheRunning !== 'boolean') return null;
+  return sheet && stats && status ? { sheet, stats, status, inTheRunning: value.inTheRunning } : null;
 };
 
 const parseBookEntries = (value: unknown): BookEntry[] | null => {

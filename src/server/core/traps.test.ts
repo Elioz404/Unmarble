@@ -11,24 +11,39 @@ import type { SheetDescriptor } from '../../shared/protocol/api.ts';
 /** A Reddit stand-in that records what the app asked it to do. */
 const fakeReddit = () => {
   let posts = 0;
+  let comments = 0;
   const flair = new Map<string, FlairLabel>();
   const banned = new Set<string>();
+  /** Every comment's current text, and which are pinned. */
+  const commentText = new Map<string, string>();
+  const pinned = new Set<string>();
   const port: RedditPort = {
     submitSheetPost: async () => `t3_post${++posts}`,
     suggestTopComments: async () => undefined,
     stickyPost: async () => undefined,
     replaceBinding: async () => undefined,
-    submitComment: async () => `t1_c${++posts}`,
-    pinComment: async () => undefined,
-    editComment: async () => undefined,
+    submitComment: async (_postId, text) => {
+      const id = `t1_c${++comments}`;
+      commentText.set(id, text);
+      return id;
+    },
+    pinComment: async (commentId) => void pinned.add(commentId),
+    editComment: async (commentId, text) => void commentText.set(commentId, text),
     liveCommentScore: async () => 0,
-    subscribeCurrentUser: async () => undefined,
     userFlair: async (username) => flair.get(username) ?? null,
     setUserFlair: async (username, label) => void flair.set(username, label),
     removeUserFlair: async (username) => void flair.delete(username),
     isBanned: async (username) => banned.has(username),
   };
-  return { port, flair, banned, posts: () => posts, flairText: (username: string) => flair.get(username)?.text };
+  return {
+    port,
+    flair,
+    banned,
+    commentText,
+    pinned,
+    posts: () => posts,
+    flairText: (username: string) => flair.get(username)?.text,
+  };
 };
 
 /** A small trap that is fair on any paper: three drops, each pushing the last (no folds to depend on the stripes). */
@@ -123,7 +138,7 @@ test('streak flair is written only for players who opt in, and follows the strea
   assert.equal(reddit.flair.size, 0);
   await services.flair.setEnabled('t2_proud', 'proud', true, 0);
   await solve(services, today, 't2_proud', true);
-  assert.equal(reddit.flairText('proud'), 'Unmarbled 1 day running');
+  assert.equal(reddit.flairText('proud'), '1-day Unmarble streak');
   await services.flair.setEnabled('t2_proud', 'proud', false, 1);
   assert.equal(reddit.flair.has('proud'), false);
 });
@@ -164,7 +179,7 @@ test('streak flair gives back the flair it replaced, and yields to a moderator',
   reddit.flair.set('proud', { text: 'Marbler since 2020', cssClass: 'veteran' });
   await solve(services, today, 't2_proud', true);
   await services.flair.setEnabled('t2_proud', 'proud', true, 1);
-  assert.equal(reddit.flairText('proud'), 'Unmarbled 1 day running');
+  assert.equal(reddit.flairText('proud'), '1-day Unmarble streak');
   await services.flair.setEnabled('t2_proud', 'proud', false, 1);
   assert.deepEqual(reddit.flair.get('proud'), { text: 'Marbler since 2020', cssClass: 'veteran' });
 
@@ -175,4 +190,89 @@ test('streak flair gives back the flair it replaced, and yields to a moderator',
   assert.deepEqual(reddit.flair.get('proud'), { text: 'Moderator pick', cssClass: 'mod' });
   await services.flair.setEnabled('t2_proud', 'proud', false, 2);
   assert.deepEqual(reddit.flair.get('proud'), { text: 'Moderator pick', cssClass: 'mod' });
+});
+
+test('a trap post carries a pinned comment that keeps count of who it catches', async () => {
+  const { services, today, reddit } = await setup();
+  const published = await services.traps.publish({ playerId: 't2_m', username: 'mossmaker' }, FAIR_TRAP, today, 'unmarble');
+  if (published.kind !== 'published') throw new Error('trap not published');
+  const [notesId] = [...reddit.pinned];
+  if (!notesId) throw new Error('no pinned notes');
+  assert.match(reddit.commentText.get(notesId) ?? '', /set by u\/mossmaker.*nobody has sprung it yet/s);
+  await solve(services, published.sheet, 't2_a', false);
+  await solve(services, published.sheet, 't2_b', true);
+  await services.traps.refreshNotes();
+  assert.match(reddit.commentText.get(notesId) ?? '', /Caught so far:\* 1 of 2 hands/);
+});
+
+test('the maker sees how their trap is doing, and the leader for Sunday is marked in the Book', async () => {
+  const { services, today } = await setup('2026-12-03T15:00:00Z');
+  const published = await services.traps.publish({ playerId: 't2_m', username: 'mossmaker' }, FAIR_TRAP, today, 'unmarble');
+  if (published.kind !== 'published') throw new Error('trap not published');
+  for (const [i, clean] of [true, true, false].entries()) await solve(services, published.sheet, `t2_p${i}`, clean);
+  assert.deepEqual(await services.traps.catchOf('t2_m', today.dateKey), { sheetId: published.sheet.id, caught: 1, hands: 3 });
+  assert.equal(await services.traps.catchOf('t2_p0', today.dateKey), null);
+  const book = await services.book.forPlayer('t2_reader');
+  assert.equal(book.traps[0]?.inTheRunning, true);
+});
+
+test('a sheet’s thread is its post, and names are gathered only while naming is open', async () => {
+  const { services, today, clock } = await setup();
+  assert.equal(await services.threadOf(today, 'unmarble'), null, 'no post yet');
+  await services.posts.ensureDailyPost(today);
+  const thread = await services.threadOf(today, 'unmarble');
+  assert.equal(thread?.naming, true);
+  assert.match(thread?.url ?? '', /^https:\/\/www\.reddit\.com\/r\/unmarble\/comments\/post1$/);
+  clock.now += 3 * 86_400_000;
+  assert.equal((await services.threadOf(today, 'unmarble'))?.naming, false);
+});
+
+test('a deleted daily post is forgotten, so it can be published again', async () => {
+  const { services, today, reddit } = await setup();
+  const first = await services.posts.ensureDailyPost(today);
+  await services.posts.forgetPost(first.postId, today.id);
+  const second = await services.posts.ensureDailyPost(today);
+  assert.notEqual(second.postId, first.postId);
+  assert.equal(reddit.posts(), 2);
+});
+
+test('streak flair written under its earlier wording is still the app’s to replace and to give back', async () => {
+  const { services, reddit, today } = await setup();
+  const store = services.flair;
+  reddit.flair.set('veteran', { text: 'Marbler since 2020', cssClass: 'old' });
+  await store.setEnabled('t2_vet', 'veteran', true, 1);
+  // As an earlier version left it on Reddit.
+  reddit.flair.set('veteran', { text: 'Unmarbled 4 days running', cssClass: '' });
+  await solve(services, today, 't2_vet', true);
+  assert.equal(reddit.flairText('veteran'), '1-day Unmarble streak');
+  await store.setEnabled('t2_vet', 'veteran', false, 1);
+  assert.deepEqual(reddit.flair.get('veteran'), { text: 'Marbler since 2020', cssClass: 'old' });
+});
+
+test('a hand counts as caught only once it has finished, so caught never exceeds hands', async () => {
+  const { services, today } = await setup();
+  const published = await services.traps.publish({ playerId: 't2_m', username: 'm' }, FAIR_TRAP, today, 'unmarble');
+  if (published.kind !== 'published') throw new Error('trap not published');
+  // Tears once, then walks away.
+  await services.attempts.record(published.sheet, 't2_quitter', 0, { action: { type: 'absorb', move: 0 }, at: 1000, point: null });
+  assert.deepEqual(await services.attempts.stats(published.sheet.id), { hands: 0, cleans: 0, caught: 0 });
+  await solve(services, published.sheet, 't2_torn', false);
+  assert.deepEqual(await services.attempts.stats(published.sheet.id), { hands: 1, cleans: 0, caught: 1 });
+});
+
+test('deleting a trap post erases the trap; deleting a daily post forgets its naming thread', async () => {
+  const { services, today } = await setup();
+  const published = await services.traps.publish({ playerId: 't2_m', username: 'm' }, FAIR_TRAP, today, 'unmarble');
+  if (published.kind !== 'published') throw new Error('trap not published');
+  await services.traps.erase(published.sheet.id);
+  assert.equal(await services.traps.byId(published.sheet.id), null);
+  assert.deepEqual(await services.traps.recent(10), []);
+
+  const post = await services.posts.ensureDailyPost(today);
+  if (!post.commentId) throw new Error('no naming comment');
+  await services.naming.onComment({ id: 't1_name', parentId: post.commentId, body: 'Harbour fog' });
+  await services.posts.forgetPost(post.postId, today.id);
+  await services.naming.onComment({ id: 't1_late', parentId: post.commentId, body: 'Late name' });
+  await services.naming.tally();
+  assert.equal((await services.sheetById(today.id))?.name ?? null, null);
 });

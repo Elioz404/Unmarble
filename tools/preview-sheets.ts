@@ -14,7 +14,7 @@ import { templateForWeekday } from '../src/shared/puzzle/templates.ts';
 import { rasterizeSheet } from '../src/shared/render/rasterize.ts';
 import { shadingPaletteOf } from '../src/shared/render/shading.ts';
 import { getPalette } from '../src/shared/sheet/palettes.ts';
-import { addDays, paletteIdFor, sheetNumberOf, weekdayOf } from '../src/shared/time/calendar.ts';
+import { addDays, paletteIdForDay, sheetNumberOf, weekdayOf } from '../src/shared/time/calendar.ts';
 import { encodePng } from './png.ts';
 
 const [startArg, daysArg] = process.argv.slice(2);
@@ -51,10 +51,10 @@ mkdirSync(outDir, { recursive: true });
 for (let d = 0; d < days; d++) {
   const key = addDays(start, d);
   const template = templateForWeekday(weekdayOf(key));
-  const number = sheetNumberOf(key);
+  const number = sheetNumberOf(key, start);
   const began = performance.now();
   try {
-    const { spec, reading, attempts } = generateSheet(`preview:${key}`, template, paletteIdFor(number));
+    const { spec, reading, attempts } = generateSheet(`preview:${key}`, template, paletteIdForDay(key));
     const ms = Math.round(performance.now() - began);
     const kinds = spec.moves
       .map((m) => (m.kind === 'drop' ? `${m.size}${m.ink}` : m.kind === 'stroke' ? `~${m.heading}` : m.turn > 0 ? '@+' : '@-'))

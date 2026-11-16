@@ -21,11 +21,29 @@ const write = (key: string, value: string): void => {
   }
 };
 
+/** Finished sheets remembered; enough to tell a newcomer from a regular. */
+const FINISHED_KEPT = 10;
+
+const finishedSheets = (): string[] => {
+  try {
+    const parsed: unknown = JSON.parse(read('finished') ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
 export const localPrefs = {
   muted: (): boolean => read('muted') === '1',
   setMuted: (muted: boolean): void => write('muted', muted ? '1' : '0'),
   hasSeen: (hint: string): boolean => read(`hint:${hint}`) === '1',
   markSeen: (hint: string): void => write(`hint:${hint}`, '1'),
+  /** How many different sheets this device has finished (capped; only "new or not" matters). */
+  finishedCount: (): number => finishedSheets().length,
+  markFinished: (sheetId: string): void => {
+    const finished = finishedSheets();
+    if (!finished.includes(sheetId)) write('finished', JSON.stringify([...finished, sheetId].slice(-FINISHED_KEPT)));
+  },
   lessonSeen: (lessonId: string): boolean => read(`lesson:${lessonId}`) === '1',
   markLessonSeen: (lessonId: string): void => write(`lesson:${lessonId}`, '1'),
 };

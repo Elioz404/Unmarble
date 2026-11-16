@@ -90,8 +90,11 @@ export const GROUND_STYLE = Object.freeze({
 });
 
 export const CALENDAR = Object.freeze({
-  /** UTC date of Sheet No. 1. */
-  epoch: '2026-11-25',
+  /**
+   * Origin of the colour calendar: every community sees the same colourway on
+   * the same day. (Sheet numbers start from each community's own first day.)
+   */
+  paletteEpoch: '2026-11-25',
   /** Palette rotation stride; coprime with the catalogue size so 28 days never repeat. */
   paletteStride: 11,
   paletteOffset: 3,
@@ -148,10 +151,30 @@ export const RULES = Object.freeze({
 });
 
 export const TIMING = Object.freeze({
+  /** One pass of the ghost finger that shows a lesson's gesture, and the rest between passes. */
+  demoStrokeMs: 1500,
+  demoRestMs: 650,
+  /** The pulse on the move that caught the most hands. */
+  communityPulseMs: 1600,
   absorbMs: 650,
   tearPreviewMs: 1200,
   tearRevertMs: 520,
   magnifierMs: 1500,
   cleanWaveMs: 1400,
   replayStepMs: 700,
+  /** A clean sheet re-marbles faster than a torn one: a flourish, not a lesson. */
+  cleanReplayStepMs: 300,
+});
+
+export const ONBOARDING = Object.freeze({
+  /** A player counts as new until they have finished this many sheets on this device. */
+  newcomerSheets: 3,
+  /** Pause without progress before a hint, for newcomers and for everyone else. */
+  newcomerHintMs: 8_000,
+  regularHintMs: 22_000,
+});
+
+export const COMMUNITY = Object.freeze({
+  /** Below this many hands, numbers about "everyone" read as noise and are not shown. */
+  quietHands: 3,
 });

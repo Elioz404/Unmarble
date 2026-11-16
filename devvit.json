@@ -14,7 +14,7 @@
   },
   "permissions": {
     "redis": true,
-    "reddit": { "enable": true, "scope": "user", "asUser": ["SUBSCRIBE_TO_SUBREDDIT"] }
+    "reddit": { "enable": true }
   },
   "triggers": {
     "onAppInstall": "/internal/triggers/app-install",

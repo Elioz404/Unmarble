@@ -4,6 +4,7 @@
  * around the paper rather than an empty box.
  */
 .stage {
+  position: relative;
   --tray-pad: var(--space-3);
   flex: 1 1 auto;
   min-height: 0;

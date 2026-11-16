@@ -30,6 +30,29 @@ export type Platform = {
   closeGame(event: MouseEvent): void;
   /** Offers sign-in so streaks can be kept. */
   promptLogin(): void;
-  /** Subscribes the player to the subreddit; resolves false if unavailable. */
-  subscribe(): Promise<boolean>;
+  /** The community the game lives in (e.g. "unmarble"), or null outside Reddit. */
+  readonly community: string | null;
+  /**
+   * Opens the community's page, where Reddit's own Join button subscribes the
+   * player themself. Must run inside a click handler.
+   */
+  openCommunity(): void;
+  /**
+   * Shares a result line: copied to the clipboard where allowed, and offered
+   * through the host's share sheet (linking `postId`, the sheet's own post).
+   */
+  share(text: string, postId: string | null): Promise<ShareOutcome>;
+};
+
+/** What the player is told after sharing: copied, handed to a share sheet, or neither. */
+export type ShareOutcome = 'shared' | 'copied' | 'failed';
+
+/** Copies text with the browser's clipboard: the fallback wherever no share sheet exists. */
+export const copyToClipboard = async (text: string): Promise<ShareOutcome> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return 'copied';
+  } catch {
+    return 'failed';
+  }
 };

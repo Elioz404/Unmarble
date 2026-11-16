@@ -28,13 +28,13 @@ const publishToday = async (): Promise<string> => {
 };
 
 internal.post('/triggers/app-install', async (c) => {
-  await services.sheets.ensureSecret();
+  await services.sheets.ensureInstalled();
   await publishToday();
   return c.json<TriggerResponse>({});
 });
 
 internal.post('/triggers/app-upgrade', async (c) => {
-  await services.sheets.ensureSecret();
+  await services.sheets.ensureInstalled();
   await publishToday();
   return c.json<TriggerResponse>({});
 });
@@ -57,7 +57,9 @@ internal.post('/triggers/comment-delete', async (c) => {
 internal.post('/triggers/post-delete', async (c) => {
   const event = await c.req.json<OnPostDeleteRequest>();
   const sheetId = await services.posts.sheetIdOfPost(event.postId);
-  if (sheetId && isTrapId(sheetId)) await services.traps.withdraw(sheetId);
+  if (sheetId && isTrapId(sheetId)) await services.traps.erase(sheetId);
+  // A deleted daily or Atelier post can be published again (by the menu or the next run).
+  else await services.posts.forgetPost(event.postId, sheetId);
   return c.json<TriggerResponse>({});
 });
 
@@ -86,6 +88,7 @@ internal.post('/scheduler/daily-sheet', async (c) => {
 
 internal.post('/scheduler/tally-names', async (c) => {
   await services.naming.tally();
+  await services.traps.refreshNotes();
   return c.json({ status: 'ok' });
 });
 

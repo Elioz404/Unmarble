@@ -11,8 +11,14 @@ import type { Store } from './store.ts';
  * opens today's sheet.
  */
 
+/** A post's address in a subreddit. */
+export const postUrl = (subreddit: string, postId: string): string =>
+  `https://www.reddit.com/r/${subreddit}/comments/${postId.replace(/^t3_/, '')}`;
+
+/** A daily post's title; a Sunday chosen from the community credits its maker. */
 export const sheetTitle = (sheet: SheetDescriptor): string =>
-  `Sheet No. ${sheet.number} · ${sheet.weekday} ${'★'.repeat(sheet.spec.stars)} · ${sheet.paletteName}`;
+  `Sheet No. ${sheet.number} · ${sheet.weekday} ${'★'.repeat(sheet.spec.stars)} · ` +
+  (sheet.author ? `the week’s best trap, set by u/${sheet.author}` : sheet.paletteName);
 
 const fallbackText = (sheet: SheetDescriptor): string =>
   [
@@ -33,8 +39,22 @@ export const fieldNotes = (hands: number, cleans: number, leading: string | null
   [
     namingPrompt(),
     '',
-    `*Field notes:* ${hands} ${hands === 1 ? 'hand has' : 'hands have'} worked this sheet, ` +
-      `${cleans} unmarbled it clean.${leading ? ` Leading name: **${leading}**.` : ''}`,
+    hands === 0
+      ? '*Field notes:* no hands on this sheet yet. Be the first.'
+      : `*Field notes:* ${hands} ${hands === 1 ? 'hand has' : 'hands have'} worked this sheet, ` +
+        `${cleans} unmarbled it clean.${leading ? ` Leading name: **${leading}**.` : ''}`,
+  ].join('\n');
+
+/** The pinned comment under a trap post, kept current by the hourly job. */
+export const trapNotes = (maker: string, sheetNumber: number, caught: number, hands: number): string =>
+  [
+    `**A trap set by u/${maker}** on Sheet No. ${sheetNumber}’s paper.`,
+    '',
+    hands === 0
+      ? '*Caught so far:* nobody has sprung it yet. Be the first.'
+      : `*Caught so far:* ${caught} of ${hands} ${hands === 1 ? 'hand' : 'hands'}.`,
+    '',
+    'Did it catch you? Reply with the move that fooled you.',
   ].join('\n');
 
 type SheetPost = { readonly postId: string; readonly commentId: string | null };
@@ -135,6 +155,20 @@ export class PostService {
     await this.#store.set(keys.atelierPost(), postId);
     await this.#reddit.stickyPost(postId, 1);
     return postId;
+  }
+
+  /**
+   * Forgets a deleted daily or Atelier post, so publishing creates it again
+   * instead of pointing at a post that no longer exists.
+   */
+  async forgetPost(postId: string, sheetId: string | null): Promise<void> {
+    if ((await this.#store.get(keys.atelierPost())) === postId) await this.#store.del(keys.atelierPost());
+    if (!sheetId) return;
+    const post = await this.sheetPost(sheetId);
+    if (post?.postId !== postId) return;
+    // Replies under a deleted thread can no longer be seen or voted on: they stop naming the sheet.
+    if (post.commentId) await this.#store.hDel(keys.namingComments(), [post.commentId]);
+    await this.#store.del(keys.sheetPost(sheetId), keys.names(sheetId));
   }
 
   async sheetIdOfPost(postId: string): Promise<string | null> {

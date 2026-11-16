@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef } from 'react';
 import type { StageController, StageMood } from '../../game/stage.ts';
 import { OverlayPainter } from '../../game/overlay.ts';
 import { createInteractiveSurface, type SheetSurface } from '../../render/create-renderer.ts';
@@ -26,13 +26,15 @@ type Props = {
   readonly jolt: number | null;
   /** Fold-drawing cursor for the composer; crosshair otherwise. */
   readonly cursor?: 'crosshair' | 'cell';
+  /** Anything laid over the sheet (it never changes the sheet's size). */
+  readonly children?: ReactNode;
 };
 
 /**
  * The marbling tray: the sheet floating on water, with its drawing surfaces
  * and gesture input. All game logic lives in the controller.
  */
-export const SheetStage = ({ controller, label, mood, jolt, cursor = 'crosshair' }: Props) => {
+export const SheetStage = ({ controller, label, mood, jolt, cursor = 'crosshair', children }: Props) => {
   const sheetRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
 
@@ -103,6 +105,7 @@ export const SheetStage = ({ controller, label, mood, jolt, cursor = 'crosshair'
           <canvas ref={overlayRef} className="tray__overlay" />
         </div>
       </div>
+      {children}
     </div>
   );
 };

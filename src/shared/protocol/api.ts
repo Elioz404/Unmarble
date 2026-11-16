@@ -14,7 +14,6 @@ export const API = Object.freeze({
   sheet: '/api/sheet',
   action: '/api/attempt/action',
   scars: '/api/sheet/scars',
-  subscribe: '/api/subscribe',
   book: '/api/book',
   traps: '/api/traps',
   flair: '/api/flair',
@@ -57,8 +56,24 @@ export type PlayerView = {
 export type SheetStats = {
   readonly hands: number;
   readonly cleans: number;
-  /** Hands that tore the sheet at least once: how many a trap caught. */
+  /** Finished hands that tore the sheet at least once: how many a trap caught. */
   readonly caught: number;
+};
+
+/** The Reddit thread where a sheet is talked about: its own post. */
+export type SheetThread = {
+  readonly url: string;
+  /** The post's id (t3_…), for sharing it. */
+  readonly postId: string;
+  /** Whether replies to its pinned comment can still name the sheet. */
+  readonly naming: boolean;
+};
+
+/** How the player's latest trap is doing. */
+export type TrapCatch = {
+  readonly sheetId: string;
+  readonly caught: number;
+  readonly hands: number;
 };
 
 export type SheetResponse = {
@@ -71,6 +86,10 @@ export type SheetResponse = {
   readonly nextSheetAt: number;
   /** Today's sheet id, so an old post can point players to it. */
   readonly todayId: string;
+  /** This sheet's post, once it has one. */
+  readonly thread: SheetThread | null;
+  /** The trap this player set most recently (within a week), if any. */
+  readonly yourTrap: TrapCatch | null;
 };
 
 export type ActionRequest = {
@@ -113,6 +132,8 @@ export type BookEntry = {
   readonly sheet: SheetDescriptor;
   readonly status: BookStatus;
   readonly stats: SheetStats;
+  /** A trap currently set to become next Sunday's sheet. */
+  readonly inTheRunning: boolean;
 };
 
 /** The Book: past daily sheets and recent traps, newest first. */

@@ -38,8 +38,11 @@ export const rankScore = (result: Result): number =>
   (result.magnified ? 1 : 0) * 1e8 +
   Math.min(Math.round(result.durationMs / 100), DURATION_CAP_DS);
 
-/** Spoiler-free text a player can paste in a comment: one mark per action. */
-export const shareLine = (sheetNumber: number, weekdayTitle: string, stars: number, state: SessionState): string => {
+/**
+ * Spoiler-free text a player can paste in a comment: one mark per action.
+ * `heading` names the sheet ("No.12 · Saturday", or "a trap by u/someone").
+ */
+export const shareLine = (heading: string, stars: number, state: SessionState): string => {
   const marks = state.history
     .filter((h) => h.action.type !== 'magnify')
     .map((h) => (h.verdict === 'correct' ? '●' : '○'))
@@ -47,7 +50,7 @@ export const shareLine = (sheetNumber: number, weekdayTitle: string, stars: numb
   const result = resultOf(state);
   const seconds = Math.round(result.durationMs / 1000);
   const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-  const outcome = result.clean ? (result.blots === 0 ? 'clean' : `${result.blots} blot${result.blots > 1 ? 's' : ''}`) : 'torn';
+  const outcome = result.clean ? (result.blots === 0 ? 'clean' : `${result.blots} tear${result.blots > 1 ? 's' : ''}`) : 'torn';
   const lens = result.magnified ? ' ◐' : '';
-  return `UNMARBLE No.${sheetNumber} · ${weekdayTitle} ${'★'.repeat(stars)}\n${marks}${lens}\n${outcome} · ${time}`;
+  return `UNMARBLE ${heading} ${'★'.repeat(stars)}\n${marks}${lens}\n${outcome} · ${time}`;
 };

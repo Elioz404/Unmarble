@@ -11,12 +11,13 @@ import type {
   SheetDescriptor,
   SheetResponse,
   SheetStats,
+  TrapCatch,
   Standing,
   TrapResponse,
 } from '../../shared/protocol/api.ts';
 import { parseActionLog } from '../../shared/protocol/parse.ts';
 import { addDays, dateKeyOf, isDateKey, type DateKey } from '../../shared/time/calendar.ts';
-import type { Platform } from './platform.ts';
+import { copyToClipboard, type Platform } from './platform.ts';
 
 /**
  * Browser-only platform for design work and playtests with strangers.
@@ -91,11 +92,13 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
   const requested = search.get('date');
   const today = isDateKey(requested) ? requested : dateKeyOf(now());
   const dailies = new Map<string, SheetDescriptor>();
+  // The lab behaves like a community that installed the app when its Book begins.
+  const firstDay = addDays(today, 1 - LAB_BOOK_DAYS);
 
   const daily = (dateKey: DateKey): SheetDescriptor => {
     const cached = dailies.get(dateKey);
     if (cached) return cached;
-    const sheet = buildDailySheet(dateKey, LAB_SEED);
+    const sheet = buildDailySheet(dateKey, LAB_SEED, firstDay);
     dailies.set(dateKey, sheet);
     return sheet;
   };
@@ -118,13 +121,23 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
   const statsOf = (sheet: SheetDescriptor): SheetStats => {
     const state = stateOf(sheet);
     const finished = state.status !== 'playing';
-    return { hands: finished ? 1 : 0, cleans: state.status === 'clean' ? 1 : 0, caught: state.blots > 0 ? 1 : 0 };
+    // As on the server: a hand is caught once it has finished, having torn the sheet.
+    return { hands: finished ? 1 : 0, cleans: state.status === 'clean' ? 1 : 0, caught: finished && state.blots > 0 ? 1 : 0 };
   };
   /** Consecutive days, ending today, whose daily sheet is finished. */
   const streak = (): number => {
     let days = 0;
     while (statusOf(daily(addDays(today, -days))) === 'clean' || statusOf(daily(addDays(today, -days))) === 'torn') days++;
     return days;
+  };
+
+  /** The lab player's latest trap, set within the past week, and how it is doing. */
+  const latestTrapCatch = (): TrapCatch | null => {
+    const weekAgo = addDays(today, -6);
+    const latest = [...traps()].reverse().find((trap) => trap.dateKey >= weekAgo && trap.dateKey <= today);
+    if (!latest) return null;
+    const stats = statsOf(latest);
+    return { sheetId: latest.id, caught: stats.caught, hands: stats.hands };
   };
 
   return {
@@ -139,6 +152,9 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
         stats: statsOf(sheet),
         nextSheetAt: Date.parse(`${addDays(today, 1)}T00:00:00Z`),
         todayId: daily(today).id,
+        // The lab has no Reddit posts to discuss sheets in.
+        thread: null,
+        yourTrap: latestTrapCatch(),
       };
     },
     sinkFor: (sheetId) => ({
@@ -162,7 +178,8 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
       return { points, trap: null, hands: 1 };
     },
     loadBook: async (): Promise<BookResponse> => {
-      const entry = (sheet: SheetDescriptor) => ({ sheet, status: statusOf(sheet), stats: statsOf(sheet) });
+      // Alone in the lab, no trap can gather the hands it takes to be featured.
+      const entry = (sheet: SheetDescriptor) => ({ sheet, status: statusOf(sheet), stats: statsOf(sheet), inTheRunning: false });
       return {
         dailies: Array.from({ length: LAB_BOOK_DAYS }, (_, back) => entry(daily(addDays(today, -back)))),
         traps: [...traps()].reverse().map(entry),
@@ -194,6 +211,8 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
     openGame: () => hooks.onOpenGame(),
     closeGame: () => hooks.onCloseGame(),
     promptLogin: () => undefined,
-    subscribe: async () => false,
+    community: null,
+    openCommunity: () => undefined,
+    share: (text) => copyToClipboard(text),
   };
 };

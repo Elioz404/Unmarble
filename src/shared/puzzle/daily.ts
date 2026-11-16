@@ -1,6 +1,6 @@
 import type { SheetDescriptor } from '../protocol/api.ts';
 import { getPalette } from '../sheet/palettes.ts';
-import { isDateKey, paletteIdFor, sheetNumberOf, weekdayOf, type DateKey } from '../time/calendar.ts';
+import { isDateKey, paletteIdForDay, sheetNumberOf, weekdayOf, type DateKey } from '../time/calendar.ts';
 import { generateSheet } from './generator.ts';
 import { templateForWeekday } from './templates.ts';
 
@@ -20,10 +20,19 @@ export const dateKeyOfSheetId = (id: string): DateKey | null => {
   return isDateKey(key) ? key : null;
 };
 
-export const buildDailySheet = (dateKey: DateKey, seed: string, name: string | null = null): SheetDescriptor => {
-  const number = sheetNumberOf(dateKey);
+/**
+ * The daily sheet of `dateKey` in a community whose first sheet fell on
+ * `firstDay` (which only sets its number).
+ */
+export const buildDailySheet = (
+  dateKey: DateKey,
+  seed: string,
+  firstDay: DateKey,
+  name: string | null = null,
+): SheetDescriptor => {
+  const number = sheetNumberOf(dateKey, firstDay);
   const template = templateForWeekday(weekdayOf(dateKey));
-  const palette = getPalette(paletteIdFor(number));
+  const palette = getPalette(paletteIdForDay(dateKey));
   const { spec } = generateSheet(`${seed}:${dateKey}`, template, palette.id);
   return {
     id: dailySheetId(dateKey),
@@ -42,11 +51,11 @@ export const buildDailySheet = (dateKey: DateKey, seed: string, name: string | n
  * A Sunday sheet chosen from the community: the week's best trap, republished
  * as the daily sheet with its maker credited.
  */
-export const featuredDailySheet = (dateKey: DateKey, trap: SheetDescriptor): SheetDescriptor => ({
+export const featuredDailySheet = (dateKey: DateKey, trap: SheetDescriptor, firstDay: DateKey): SheetDescriptor => ({
   id: dailySheetId(dateKey),
   kind: 'daily',
   author: trap.author,
-  number: sheetNumberOf(dateKey),
+  number: sheetNumberOf(dateKey, firstDay),
   dateKey,
   weekday: templateForWeekday(weekdayOf(dateKey)).title,
   paletteName: getPalette(trap.spec.paletteId).name,

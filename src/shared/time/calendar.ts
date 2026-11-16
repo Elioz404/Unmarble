@@ -27,17 +27,27 @@ export const addDays = (key: DateKey, days: number): DateKey => dateKeyOf((dayIn
 /** 0 = Sunday … 6 = Saturday. */
 export const weekdayOf = (key: DateKey): number => new Date(`${key}T00:00:00Z`).getUTCDay();
 
-/** Sheet number: Sheet No. 1 falls on `CALENDAR.epoch`. */
-export const sheetNumberOf = (key: DateKey): number => dayIndex(key) - dayIndex(CALENDAR.epoch) + 1;
+/**
+ * Sheet number in a community: Sheet No. 1 is its `firstDay` (the day the app
+ * was installed there), so numbering always starts at one. Days before it
+ * never get a sheet; they read as No. 1 rather than a negative number.
+ */
+export const sheetNumberOf = (key: DateKey, firstDay: DateKey): number =>
+  Math.max(1, dayIndex(key) - dayIndex(firstDay) + 1);
 
 /** Day of the UTC year, 0-based; used to address streak bitfields. */
 export const dayOfYear = (key: DateKey): number =>
   dayIndex(key) - dayIndex(`${key.slice(0, 4)}-01-01`);
 
-/** Palette for a sheet number. A stride coprime with the catalogue size never repeats within a cycle. */
-export const paletteIdFor = (sheetNumber: number): string => {
+/**
+ * The colourway of a day, the same in every community. A stride coprime with
+ * the catalogue size never repeats within a cycle.
+ */
+export const paletteIdForDay = (key: DateKey): string => {
   const n = PALETTES.length;
-  const index = (((sheetNumber * CALENDAR.paletteStride + CALENDAR.paletteOffset) % n) + n) % n;
+  // Day 1 is the epoch itself, as it always was.
+  const day = dayIndex(key) - dayIndex(CALENDAR.paletteEpoch) + 1;
+  const index = (((day * CALENDAR.paletteStride + CALENDAR.paletteOffset) % n) + n) % n;
   return (PALETTES[index] as (typeof PALETTES)[number]).id;
 };
 

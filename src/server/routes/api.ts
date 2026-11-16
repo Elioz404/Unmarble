@@ -42,10 +42,13 @@ api.get('/sheet', async (c) => {
   const sheet = requested ? await services.sheetById(requested) : await boundSheet();
   if (!sheet) return c.json<ErrorResponse>({ error: 'Unknown sheet' }, 404);
   const player = playerId();
-  const [view, stats, standing] = await Promise.all([
+  const today = services.sheets.today();
+  const [view, stats, standing, thread, yourTrap] = await Promise.all([
     services.attempts.playerView(sheet.id, player),
     services.attempts.stats(sheet.id),
     player ? services.attempts.standing(sheet, player) : Promise.resolve(null),
+    services.threadOf(sheet, context.subredditName),
+    context.userId ? services.traps.catchOf(context.userId, today) : Promise.resolve(null),
   ]);
   const now = Date.now();
   return c.json<SheetResponse>({
@@ -54,7 +57,9 @@ api.get('/sheet', async (c) => {
     standing,
     stats,
     nextSheetAt: now + msUntilNextDay(now),
-    todayId: dailySheetId(services.sheets.today()),
+    todayId: dailySheetId(today),
+    thread,
+    yourTrap,
   });
 });
 
@@ -75,12 +80,6 @@ api.get('/sheet/scars', async (c) => {
   const map = await services.attempts.scarMap(sheet, playerId());
   if (!map) return c.json<ErrorResponse>({ error: 'Finish the sheet first' }, 403);
   return c.json<ScarMap>(map);
-});
-
-api.post('/subscribe', async (c) => {
-  if (!context.userId) return c.json<ErrorResponse>({ error: 'Sign in to subscribe' }, 401);
-  await services.reddit.subscribeCurrentUser();
-  return c.json({ ok: true });
 });
 
 api.get('/book', async (c) => c.json<BookResponse>(await services.book.forPlayer(playerId())));

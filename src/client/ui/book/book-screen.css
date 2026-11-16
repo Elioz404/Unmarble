@@ -134,3 +134,23 @@
   margin-top: auto;
   flex: none;
 }
+
+/* The trap that would become Sunday's sheet if the week ended now. */
+.book__running {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--gilt) 18%, transparent);
+  color: var(--gilt-ink);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+}
+
+.book__rule {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  font-style: italic;
+  text-align: center;
+}

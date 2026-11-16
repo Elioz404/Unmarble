@@ -31,6 +31,11 @@ export type TrapCheck = {
   readonly problem: TrapProblem | null;
   /** Difficulty, from how many moves there are and how faint the faintest mark is. */
   readonly stars: Stars;
+  /**
+   * Whether the trap fools a reader who only trusts the roundest drop: what
+   * makes a trap a trap. Not required, but celebrated.
+   */
+  readonly devious: boolean;
 };
 
 const clampStars = (value: number): Stars => {
@@ -39,11 +44,13 @@ const clampStars = (value: number): Stars => {
 };
 
 export const checkTrap = (moves: readonly Move[], ground: Ground): TrapCheck => {
-  if (moves.length > TRAP_RULES.maxMoves) return { problem: { kind: 'too-many' }, stars: 5 };
-  if (moves.length > 0 && moves[0]?.kind !== 'drop') return { problem: { kind: 'starts-bare' }, stars: 1 };
+  if (moves.length > TRAP_RULES.maxMoves) return { problem: { kind: 'too-many' }, stars: 5, devious: false };
+  if (moves.length > 0 && moves[0]?.kind !== 'drop') return { problem: { kind: 'starts-bare' }, stars: 1, devious: false };
   const problem = diagnoseReadability(moves, ground) ?? diagnoseFairness(moves, TRAP_RULES.minMargin);
-  const margin = moves.length > 1 ? readSheet(moves).margin : Infinity;
+  const reading = moves.length > 1 ? readSheet(moves) : null;
+  const margin = reading?.margin ?? Infinity;
   const stars = clampStars(moves.length - 2 + (margin < TRAP_RULES.plainMargin ? 1 : 0));
-  if (problem) return { problem, stars };
-  return { problem: moves.length < TRAP_RULES.minMoves ? { kind: 'too-few' } : null, stars };
+  const devious = (reading?.naiveFailures ?? 0) > 0;
+  if (problem) return { problem, stars, devious };
+  return { problem: moves.length < TRAP_RULES.minMoves ? { kind: 'too-few' } : null, stars, devious };
 };

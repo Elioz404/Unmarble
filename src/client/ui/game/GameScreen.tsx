@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { BookEntry, SheetResponse } from '../../../shared/protocol/api.ts';
+import { ONBOARDING } from '../../../shared/config.ts';
+import type { BookEntry, ScarMap, SheetDescriptor, SheetResponse } from '../../../shared/protocol/api.ts';
 import { lessonsFor } from '../../../shared/puzzle/tutorial.ts';
 import type { SoundBank } from '../../audio/sound.ts';
 import { NOWHERE } from '../../game/attempt-sink.ts';
@@ -37,6 +38,17 @@ type Message = { text: string; tone: 'quiet' | 'alert' | 'gilt' };
 
 /** Pause on a finished lesson before the next one appears. */
 const LESSON_PAUSE_MS = 900;
+/** Sheets at or above this many stars suggest a warm-up to newcomers; at or below the other, they make one. */
+const WARM_UP = { hardFrom: 4, easyUpTo: 2 } as const;
+
+/** The most recent easy daily sheet this player has not finished, to warm up on. */
+const easySheetIn = (dailies: readonly BookEntry[], today: string): SheetDescriptor | null =>
+  dailies.find(
+    (entry) =>
+      entry.sheet.id !== today &&
+      entry.sheet.spec.stars <= WARM_UP.easyUpTo &&
+      (entry.status === 'unplayed' || entry.status === 'playing'),
+  )?.sheet ?? null;
 
 const HINT_COPY: Record<HintKind, string> = {
   round: COPY.hintRound,
@@ -87,6 +99,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
             log: [],
             sink: NOWHERE,
             hints: false,
+            demonstrate: true,
             standing: null,
           }
         : {
@@ -95,6 +108,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
             log: response.player.log,
             sink: platform.sinkFor(sheet.id, response.player.log.length),
             hints: true,
+            demonstrate: false,
             standing: response.standing,
           },
     [currentLesson, lessonAttempt, sheet, response.player.log, response.standing, platform],
@@ -129,11 +143,15 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
   // Once finished: where everyone tore it, and a trap to try next.
   const finished = currentLesson === null && view.settled;
   const [nextTrap, setNextTrap] = useState<BookEntry | null>(null);
+  const [scars, setScars] = useState<ScarMap | null>(null);
   useEffect(() => {
     if (!finished) return;
+    localPrefs.markFinished(sheet.id);
     let cancelled = false;
     void platform.fetchScars(sheet.id).then((map) => {
-      if (!cancelled && map) controller.showCommunityScars(map.points);
+      if (cancelled || !map) return;
+      controller.showCommunityScars(map);
+      setScars(map);
     });
     platform
       .loadBook()
@@ -146,6 +164,33 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
       cancelled = true;
     };
   }, [finished, platform, sheet.id, controller]);
+
+  // A newcomer facing a hard sheet is offered an easier one from the Book first.
+  const untouched = response.player.log.length === 0 && view.remaining === view.total && view.blots === 0;
+  const wantsWarmUp =
+    currentLesson === null &&
+    untouched &&
+    sheet.kind === 'daily' &&
+    sheet.id === response.todayId &&
+    sheet.spec.stars >= WARM_UP.hardFrom &&
+    localPrefs.finishedCount() < ONBOARDING.newcomerSheets;
+  const [warmUp, setWarmUp] = useState<SheetDescriptor | null>(null);
+  const [warmUpDismissed, setWarmUpDismissed] = useState(false);
+  useEffect(() => {
+    if (!wantsWarmUp) return;
+    let cancelled = false;
+    platform
+      .loadBook()
+      .then((book) => {
+        if (!cancelled) setWarmUp(easySheetIn(book.dailies, response.todayId));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsWarmUp, platform, response.todayId]);
+  const offerWarmUp = wantsWarmUp && !warmUpDismissed && warmUp !== null ? warmUp : null;
+  const earlierSheet = currentLesson === null && sheet.kind === 'daily' && sheet.id !== response.todayId;
 
   const fallback = currentLesson?.prompt ?? (view.remaining === view.total ? COPY.dailyPrompt : '');
   const message = messageFor(view, fallback);
@@ -165,8 +210,9 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           <SheetPlaque sheet={sheet} />
         )}
         <div className="game__tools">
-          <button type="button" className="icon-button" onClick={navigation.openBook} aria-label={COPY.book.open}>
-            <BookIcon />
+          <button type="button" className="game__book" onClick={navigation.openBook} aria-label={COPY.book.open}>
+            <BookIcon size={18} />
+            <span>{COPY.book.label}</span>
           </button>
           <SoundToggle muted={muted} onToggle={onToggleMute} />
           {platform.kind === 'reddit' ? (
@@ -182,6 +228,15 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
         </div>
       </header>
 
+      {earlierSheet ? (
+        <p className="game__banner">
+          {COPY.oldSheet}{' '}
+          <button type="button" className="game__banner-link" onClick={() => navigation.play(response.todayId)}>
+            {COPY.goToToday}
+          </button>
+        </p>
+      ) : null}
+
       {finished ? null : <MessageLine text={message.text} tone={message.tone} />}
 
       <SheetStage
@@ -189,7 +244,22 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
         label={`Marbled sheet, ${view.remaining} moves left`}
         mood={moodOf(view)}
         jolt={view.feedback?.kind === 'blot' ? view.feedback.id : null}
-      />
+      >
+        {offerWarmUp ? (
+          // Over the sheet, never beside it: arriving or leaving, it never moves the sheet under a finger.
+          <div className="game__warm-up" role="note">
+            <p>{COPY.warmUp.note(sheet.spec.stars)}</p>
+            <div className="actions">
+              <button type="button" className="button button--primary" onClick={() => navigation.play(offerWarmUp.id)}>
+                {COPY.warmUp.action(offerWarmUp.weekday)}
+              </button>
+              <button type="button" className="button" onClick={() => setWarmUpDismissed(true)}>
+                {COPY.warmUp.dismiss}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </SheetStage>
 
       {finished ? (
         <ResultCard
@@ -197,11 +267,17 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           state={controller.state}
           standing={view.standing}
           player={response.player}
+          scars={scars}
+          thread={response.thread}
+          yourTrap={response.yourTrap}
           nextTrap={nextTrap?.sheet ?? null}
           nextSheetAt={response.nextSheetAt}
+          community={platform.community}
           onPlay={navigation.play}
           onCompose={navigation.compose}
-          onSubscribe={() => platform.subscribe()}
+          onShare={(text, postId) => platform.share(text, postId)}
+          onOpenThread={(url) => platform.openPost(url)}
+          onJoin={() => platform.openCommunity()}
           onLogin={() => platform.promptLogin()}
           onFlair={(enabled) => platform.setFlair(enabled)}
         />

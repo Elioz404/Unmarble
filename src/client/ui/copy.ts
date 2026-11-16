@@ -1,4 +1,7 @@
 import type { BlotReason } from '../../shared/game/explain.ts';
+import type { MoveKind } from '../../shared/puzzle/moves.ts';
+
+const FORM_NAMES: Record<MoveKind, string> = { drop: 'drop', stroke: 'fold', swirl: 'swirl' };
 
 /**
  * Every word the player reads, in one place. Written by hand, kept short:
@@ -15,8 +18,17 @@ export const COPY = Object.freeze({
   cardSampleRight: 'Yes — the round one fell last.',
   cardSampleWrong: 'Look again: only one is perfectly round.',
   cardSamplePrompt: 'Tap it.',
+  cardHeroHint: 'Tap to unmarble',
+  /** A name the community gave a sheet, set apart from the colourway's name. */
+  communityName: (name: string) => `“${name}”`,
+  cardHands: (hands: number) => `${hands} ${hands === 1 ? 'hand has' : 'hands have'} worked this sheet`,
   lessonOf: (n: number, total: number) => `Lesson ${n} of ${total}`,
   lessonsDone: 'Now today’s sheet.',
+  warmUp: {
+    note: (stars: number) => `Today’s sheet is ${'★'.repeat(stars)}. New here? Warm up on an easier one first.`,
+    action: (weekday: string) => `Warm up on ${weekday}’s sheet`,
+    dismiss: 'Take on today’s',
+  },
   skipLessons: 'Skip',
   lens: 'Lens',
   lensUsed: 'Lens used',
@@ -46,16 +58,28 @@ export const COPY = Object.freeze({
     torn: 'Torn.',
     cleanWithBlots: (blots: number) => `Clean, with ${blots} ${blots === 1 ? 'tear' : 'tears'}.`,
     rank: (rank: number, hands: number) => `${ordinal(rank)} of ${hands} ${hands === 1 ? 'hand' : 'hands'}`,
+    /** While only a few have played, a rank says nothing: say how early they are instead. */
+    early: (hands: number) => (hands <= 1 ? 'The first hand on this sheet' : `One of the first ${hands} hands`),
     streak: (days: number) => `${days}-day streak`,
     next: 'Next sheet in',
-    tomorrow: (palette: string) => `Tomorrow: ${palette}`,
-    copy: 'Copy result',
-    copied: 'Copied',
-    subscribe: 'Join the bindery',
-    subscribed: 'Joined',
-    login: 'Sign in to keep your streak',
-    nameIt: 'What does this sheet look like? Name it in the comments.',
-    scars: 'Where hands tore it today',
+    /** Stars only when they are certain (a Sunday may be a community trap of any difficulty). */
+    tomorrow: (weekday: string, stars: number | null, promise: string) =>
+      `Tomorrow, ${weekday}${stars === null ? '' : ` ${'★'.repeat(stars)}`}: ${promise}.`,
+    share: 'Share result',
+    shared: 'Ready to share',
+    copied: 'Copied — paste it in the comments',
+    shareFailed: 'Could not share. Try again.',
+    join: (community: string) => `Join r/${community}`,
+    login: 'Sign in to set traps and show your streak',
+    nameIt: 'Name this sheet',
+    nameHow: 'Reply to the pinned comment with a name of up to three words. The best-voted one sticks.',
+    comments: 'See what others made of it',
+    tellMaker: (author: string) => `Tell u/${author} how it went`,
+    scars: (hands: number) => `Where hands tore it · ${hands} hands so far`,
+    scarsQuiet: 'Everyone’s tears will show on the sheet once a few more hands have played.',
+    caughtOn: (share: number, form: MoveKind) => `${Math.round(share * 100)}% tore on this ${FORM_NAMES[form]}`,
+    yourTrap: (caught: number, hands: number) =>
+      hands === 0 ? 'Your trap is set. No one has sprung it yet.' : `Your trap has caught ${caught} of ${hands} ${hands === 1 ? 'hand' : 'hands'}.`,
   },
   book: {
     title: 'The Book',
@@ -63,6 +87,10 @@ export const COPY = Object.freeze({
     dailies: 'Daily sheets',
     traps: 'Traps',
     noTraps: 'No traps yet. Set the first one on today’s paper.',
+    beFirst: 'No hands yet — be the first',
+    inTheRunning: 'In the running for Sunday',
+    sundayRule: 'The week’s best fair trap becomes Sunday’s sheet.',
+    label: 'Book',
     hands: (n: number) => `${n} ${n === 1 ? 'hand' : 'hands'}`,
     status: { unplayed: 'Not played', playing: 'In progress', clean: 'Clean', torn: 'Torn' },
     open: 'Open the Book',
@@ -87,10 +115,13 @@ export const COPY = Object.freeze({
     signIn: 'Sign in to set traps',
     publishing: 'Setting…',
     published: 'Your trap is set.',
-    publishedNote: 'Everyone in the subreddit can now try it. You will see how many it catches.',
+    publishedNote: 'Everyone in the subreddit can now try it. Its post keeps count of who it catches, and the week’s best fair trap becomes Sunday’s sheet.',
     seePost: 'See it in the feed',
     backToSheet: 'Back to today’s sheet',
     ready: (stars: number, moves: number) => `Fair. ${'★'.repeat(stars)} · ${moves} moves — ready to set.`,
+    devious: 'Devious: it fools anyone who trusts the roundest drop.',
+    plain: 'Fair, but plain: no drop pretends to be the last one yet.',
+    sundayRule: 'Fair traps that catch people can become Sunday’s sheet.',
     problems: {
       'too-few': 'Add at least 3 moves.',
       'too-many': 'Seven moves at most.',

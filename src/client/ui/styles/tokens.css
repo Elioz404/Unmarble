@@ -10,7 +10,7 @@
 
   /* Type */
   --font-book: 'EB Garamond Variable', 'EB Garamond', Garamond, 'Times New Roman', serif;
-  --text-xs: 0.72rem;
+  --text-xs: 0.78rem;
   --text-sm: 0.86rem;
   --text-md: 1.02rem;
   --text-lg: 1.32rem;
@@ -46,10 +46,13 @@
   --surface-raised: #fbf8f2;
   --ink: #1f1a14;
   --ink-soft: #5c5144;
-  --ink-faint: #8a7e6c;
+  /* Faint, but still 4.5:1 on the raised surface. */
+  --ink-faint: #6f6454;
   --rule: rgb(31 26 20 / 0.14);
   --rule-strong: rgb(31 26 20 / 0.28);
   --gilt: #94732f;
+  /* Gilt for small text: 4.5:1 or better on the room and on gilt tints. */
+  --gilt-ink: #6a5020;
   --gilt-bright: #b58f3e;
   --gilt-shadow: rgb(94 70 20 / 0.35);
   --blot: #8e3328;
@@ -68,10 +71,11 @@
     --surface-raised: #241f19;
     --ink: #eee5d3;
     --ink-soft: #b9ac96;
-    --ink-faint: #857a6a;
+    --ink-faint: #9a8e7b;
     --rule: rgb(238 229 211 / 0.13);
     --rule-strong: rgb(238 229 211 / 0.26);
     --gilt: #c9a45c;
+    --gilt-ink: #c9a45c;
     --gilt-bright: #e2c078;
     --gilt-shadow: rgb(0 0 0 / 0.55);
     --blot: #d4695c;

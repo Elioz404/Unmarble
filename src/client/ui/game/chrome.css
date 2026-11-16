@@ -145,8 +145,8 @@
 }
 
 .tears__mark {
-  width: 18px;
-  height: 3px;
+  width: 22px;
+  height: 5px;
   border-radius: 2px;
   background: var(--rule-strong);
   transition: background var(--duration-calm);

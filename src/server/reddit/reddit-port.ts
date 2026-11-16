@@ -25,7 +25,6 @@ export type RedditPort = {
   editComment(commentId: string, text: string): Promise<void>;
   /** Current score of a comment, or null if it was removed or marked spam. Throws when the lookup fails. */
   liveCommentScore(commentId: string): Promise<number | null>;
-  subscribeCurrentUser(): Promise<void>;
   /** A user's flair in the current subreddit, or null when they have none. */
   userFlair(username: string): Promise<FlairLabel | null>;
   /** Sets a user's flair in the current subreddit (replacing what they had). */
@@ -88,9 +87,6 @@ export const devvitReddit: RedditPort = {
   async liveCommentScore(commentId) {
     const comment = await reddit.getCommentById(asCommentId(commentId));
     return comment.removed || comment.spam ? null : comment.score;
-  },
-  async subscribeCurrentUser() {
-    await reddit.subscribeToCurrentSubreddit();
   },
   async userFlair(username) {
     const user = await reddit.getUserByUsername(username);

@@ -101,12 +101,13 @@ export class AttemptService {
 
   async playerView(sheetId: string, playerId: string | null): Promise<PlayerView> {
     if (!playerId) return { signedIn: false, log: [], streak: 0, flair: false };
-    const [log, streak, flair] = await Promise.all([
+    const [log, streak, flair, legacyFlair] = await Promise.all([
       this.logOf(sheetId, playerId),
       this.streak(playerId),
+      this.#store.hGet(keys.flair(playerId), 'enabled'),
       this.#store.hGet(keys.player(playerId), 'flair'),
     ]);
-    return { signedIn: isSignedIn(playerId), log, streak, flair: flair === '1' };
+    return { signedIn: isSignedIn(playerId), log, streak, flair: (flair ?? legacyFlair) === '1' };
   }
 
   /** How a player stands with a sheet, for the Book. */
@@ -199,16 +200,18 @@ export class AttemptService {
     if (entry.point) {
       const snap = (v: number) => Math.round(v / SCAR_GRID) * SCAR_GRID;
       await this.#store.hIncrBy(keys.scars(sheetId), `${snap(entry.point.x)},${snap(entry.point.y)}`, 1);
+      await this.#store.expire(keys.scars(sheetId), RETENTION_SECONDS);
     }
-    // A hand is "caught" by the sheet the first time it tears it.
-    if (before.blots === 0) await this.#store.hIncrBy(keys.stats(sheetId), 'caught', 1);
     // Count each player once per trap: the move they misread.
     const action = entry.action;
     if (action.type === 'magnify') return;
     const alreadyCaught = before.history.some(
       (h) => h.verdict === 'blot' && h.action.type !== 'magnify' && h.action.move === action.move,
     );
-    if (!alreadyCaught) await this.#store.hIncrBy(keys.traps(sheetId), String(action.move), 1);
+    if (!alreadyCaught) {
+      await this.#store.hIncrBy(keys.traps(sheetId), String(action.move), 1);
+      await this.#store.expire(keys.traps(sheetId), RETENTION_SECONDS);
+    }
   }
 
   /** Server-observed time since the player's first action on this sheet. */
@@ -230,8 +233,12 @@ export class AttemptService {
     await this.#store.expire(keys.results(sheet.id), RETENTION_SECONDS);
     if (stored > 0) {
       await this.#store.zAdd(keys.board(sheet.id), { member: playerId, score: rankScore(result) });
+      await this.#store.expire(keys.board(sheet.id), RETENTION_SECONDS);
       await this.#store.hIncrBy(keys.stats(sheet.id), 'hands', 1);
       if (result.clean) await this.#store.hIncrBy(keys.stats(sheet.id), 'cleans', 1);
+      // A hand the sheet caught: it finished, but tore it at least once. Always a subset of hands.
+      if (result.blots > 0) await this.#store.hIncrBy(keys.stats(sheet.id), 'caught', 1);
+      await this.#store.expire(keys.stats(sheet.id), RETENTION_SECONDS);
       if (isSignedIn(playerId)) {
         await this.#store.hIncrBy(keys.stats(sheet.id), 'signedHands', 1);
         if (result.clean) await this.#store.hIncrBy(keys.stats(sheet.id), 'signedCleans', 1);
@@ -265,6 +272,8 @@ export class AttemptService {
       streak: String(next),
       best: String(Math.max(best, next)),
     });
+    // A player's record lasts as long as they keep playing.
+    await this.#store.expire(keys.player(playerId), RETENTION_SECONDS);
     return next;
   }
 

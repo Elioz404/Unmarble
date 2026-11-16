@@ -76,11 +76,12 @@ export const DropMark = (props: IconProps) => (
 );
 
 /** A bound book with a ribbon marker. */
+/** An open book: the Book of every sheet so far. */
 export const BookIcon = (props: IconProps) => (
   <Svg {...props}>
-    <path d="M5 4.5h11.5A2.5 2.5 0 0 1 19 7v12.5H7.5A2.5 2.5 0 0 1 5 17z" />
-    <path d="M5 17a2.5 2.5 0 0 1 2.5-2.5H19" />
-    <path d="M10 4.5v6l1.75-1.25L13.5 10.5v-6" />
+    <path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5" />
+    <path d="M12 6.5C14 5 17 4.5 20.5 5v13c-3.5-.5-6.5 0-8.5 1.5" />
+    <path d="M12 6.5v13" />
   </Svg>
 );
 

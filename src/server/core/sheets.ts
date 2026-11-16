@@ -2,7 +2,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { buildDailySheet, dailySheetId, dateKeyOfSheetId, featuredDailySheet } from '../../shared/puzzle/daily.ts';
 import type { SheetDescriptor } from '../../shared/protocol/api.ts';
 import { parseSheetDescriptor } from '../../shared/protocol/post-data.ts';
-import { dateKeyOf, weekdayOf, type DateKey } from '../../shared/time/calendar.ts';
+import { addDays, dateKeyOf, isDateKey, sheetNumberOf, weekdayOf, type DateKey } from '../../shared/time/calendar.ts';
 import { readJson } from './json.ts';
 import { keys } from './keys.ts';
 import type { Store } from './store.ts';
@@ -39,6 +39,33 @@ export class SheetService {
     return dateKeyOf(this.#now());
   }
 
+  /**
+   * The day of this community's Sheet No. 1. Recorded on first use (install),
+   * then fixed, so numbering starts at one wherever the app is installed.
+   */
+  async firstDay(): Promise<DateKey> {
+    const existing = await this.#store.get(keys.firstDay());
+    if (existing && isDateKey(existing)) return existing;
+    const today = this.today();
+    // An installation from before numbering was per community may already have today's sheet.
+    const cached = await this.#cached(dailySheetId(today));
+    const proposed = cached && cached.number >= 1 ? addDays(today, 1 - cached.number) : today;
+    await this.#store.set(keys.firstDay(), proposed, { nx: true });
+    const recorded = await this.#store.get(keys.firstDay());
+    const firstDay = recorded && isDateKey(recorded) ? recorded : proposed;
+    // Its number came from the old global calendar (and could be below one): it becomes No. 1.
+    if (cached && cached.number < 1 && firstDay === today) {
+      await this.#store.set(keys.sheet(cached.id), JSON.stringify({ ...cached, number: sheetNumberOf(today, firstDay) }));
+    }
+    return firstDay;
+  }
+
+  /** Everything an installation needs before its first sheet: the secret and the first day. */
+  async ensureInstalled(): Promise<void> {
+    await this.ensureSecret();
+    await this.firstDay();
+  }
+
   /** Creates the installation secret if it does not exist yet. */
   async ensureSecret(): Promise<string> {
     const existing = await this.#store.get(keys.secret());
@@ -55,7 +82,7 @@ export class SheetService {
     const cached = await this.#cached(dailySheetId(dateKey));
     if (cached) return cached;
     const featured = weekdayOf(dateKey) === SUNDAY ? await this.#featured(dateKey) : null;
-    const sheet = featured ? featuredDailySheet(dateKey, featured) : await this.#generate(dateKey);
+    const sheet = featured ? featuredDailySheet(dateKey, featured, await this.firstDay()) : await this.#generate(dateKey);
     await this.#store.set(keys.sheet(sheet.id), JSON.stringify(sheet), { nx: true });
     return (await this.#cached(sheet.id)) ?? sheet;
   }
@@ -79,7 +106,7 @@ export class SheetService {
   async #generate(dateKey: DateKey): Promise<SheetDescriptor> {
     const secret = await this.ensureSecret();
     const seed = createHmac('sha256', secret).update(dateKey).digest('hex');
-    return buildDailySheet(dateKey, seed);
+    return buildDailySheet(dateKey, seed, await this.firstDay());
   }
 
   async #cached(sheetId: string): Promise<SheetDescriptor | null> {

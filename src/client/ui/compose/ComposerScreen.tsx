@@ -28,7 +28,7 @@ const STANDING_REFUSALS: ReadonlySet<TrapRejection> = new Set(['signed-out', 'da
 /** One plain line describing the trap's state, numbered for people (move 1 = the first). */
 const checkLine = (check: TrapCheck, moves: number, tool: ComposerTool): { text: string; tone: 'quiet' | 'alert' | 'gilt' } => {
   const problem = check.problem;
-  if (!problem) return { text: COPY.trap.ready(check.stars, moves), tone: 'gilt' };
+  if (!problem) return { text: `${COPY.trap.ready(check.stars, moves)} ${check.devious ? COPY.trap.devious : COPY.trap.plain}`, tone: 'gilt' };
   if (moves === 0) return { text: COPY.trap.toolHints[tool], tone: 'quiet' };
   switch (problem.kind) {
     case 'too-few':

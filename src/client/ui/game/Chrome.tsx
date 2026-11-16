@@ -56,7 +56,7 @@ export const SheetPlaque = ({ sheet }: { readonly sheet: SheetDescriptor }) =>
       number={sheet.number}
       weekday={sheet.weekday}
       stars={sheet.spec.stars}
-      paletteName={sheet.name ?? sheet.paletteName}
+      paletteName={sheet.name ? COPY.communityName(sheet.name) : sheet.paletteName}
       {...(sheet.author ? { eyebrow: COPY.trap.sheetOfWeek(sheet.author) } : {})}
     />
   );

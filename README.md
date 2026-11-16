@@ -21,10 +21,11 @@ Misread the sheet and the paper tears: you keep a small scar, and the sheet show
 ## How to play
 
 - Open today's post (or the pinned **Atelier** post, which always shows today's sheet).
-- The first time you meet a form, a ten-second lesson teaches it — the first visit covers drops and folds, and the first sheet with a swirl teaches swirls.
+- The first time you meet a form, a ten-second lesson teaches it — the first visit covers drops and folds, and the first sheet with a swirl teaches swirls. A ghost finger shows each gesture until you try it.
+- New here and today's sheet is a ★★★★ or ★★★★★? The game offers an easier sheet from the Book to warm up on first, and its hints come sooner for your first few sheets.
 - **Tap** a drop to draw it back. **Drag** along a fold to undo it. **Circle** a swirl's eye, against its turn.
 - The **Lens** (once per sheet) briefly shows where the water moved. Using it is marked on your result.
-- A clean sheet lifts out of the bath. Your result card shows your marks (● correct, ○ tear), your time, your standing among everyone who played today, and your streak.
+- A clean sheet lifts out of the bath and marbles itself again, quickly: what you just undid. Your result card shows your marks (● correct, ○ tear), your time, your standing among everyone who played today, your streak, and what tomorrow's sheet will ask.
 
 ## The daily rhythm
 
@@ -40,23 +41,24 @@ The week has a shape, like a crossword's:
 | Saturday ★★★★★ | 7–8 | everything, on waves, chevrons or rings |
 | Sunday ★★★ | 5–6 | **the week's best community trap**, credited to its maker — or a mixed sheet with a swirl |
 
-The paper itself changes too: plain bands, finely combed stripes, a grid (a ruler in both directions), chevrons, waves and concentric rings, across 28 colourways that never repeat within four weeks.
+Sheet No. 1 is the day the app was installed in your community; the colourway of the day is the same everywhere. The paper itself changes too: plain bands, finely combed stripes, a grid (a ruler in both directions), chevrons, waves and concentric rings, across 28 colourways that never repeat within four weeks.
 
 Every sheet is generated fresh each day and **checked before anyone sees it**: a rule-reading robot must be able to solve it without a single mistake, each covered move must carry a mark a human can see, and every drop must stay big enough to tap. There are no guessing games and no unfair sheets.
 
 ## The community
 
 - **Everyone gets the same sheet each day.** You're compared with your subreddit, not the whole internet.
-- **Set a trap.** Once a day, marble a sheet of your own on today's paper — drops, folds and swirls — to catch other players. The editor checks your trap live against the same fairness rules as the daily sheets (it names the move at fault and outlines it on the paper), and the server checks it again. Your trap is posted to the subreddit under your name; you see how many hands it catches. The week's most-played trap that was devious but fair becomes **Sunday's sheet**.
+- **Set a trap.** Once a day, marble a sheet of your own on today's paper — drops, folds and swirls — to catch other players. The editor checks your trap live against the same fairness rules as the daily sheets (it names the move at fault and outlines it on the paper), and tells you when it is *devious*: when it fools anyone who trusts the roundest drop. The server checks it again. Your trap is posted to the subreddit under your name, with a pinned comment that keeps count of who it caught; your result card tells you too. The week's most-played trap that was devious but fair becomes **Sunday's sheet**, credited to you in its title — the Book marks the trap currently in the running.
 - **The Book.** Every past daily sheet and every recent trap, with a thumbnail and your result on each. Old sheets stay playable any time.
-- **Streak flair (opt-in).** Tick a box on your result card to show *"Unmarbled 12 days running"* next to your name in the subreddit. Untick it and your previous flair comes back. If a moderator gives you a flair meanwhile, theirs wins and the app stops updating yours.
-- **Name the sheet.** Each daily post has a pinned comment asking *"What does this sheet look like?"* Reply with up to three words. The best-voted reply names the sheet in the post card. Nothing is generated: the names come from people, in normal Reddit comments that you can report.
-- **Scars are shared.** Once you finish, you can see where everyone else tore the sheet today ("58% tore the ochre").
+- **Streak flair (opt-in).** Tick a box on your result card to show *"12-day Unmarble streak"* next to your name in the subreddit. Untick it and your previous flair comes back. If a moderator gives you a flair meanwhile, theirs wins and the app stops updating yours.
+- **Name the sheet.** Each daily post has a pinned comment asking *"What does this sheet look like?"* The result card takes you there: reply with up to three words. The best-voted reply names the sheet (shown in quotes, on the card and in the Book). Nothing is generated: the names come from people, in normal Reddit comments that you can report.
+- **Scars are shared.** Once you finish, you see where everyone else tore the sheet, and — once a few hands have played — which move caught the most of them ("42% tore on this drop", with the move outlined on the paper).
+- **Join.** The result card links to the subreddit, where Reddit's own Join button subscribes you. The app never subscribes anyone itself.
 - **Streaks** count consecutive days of finished sheets.
 
 ## For moderators
 
-- Installing the app creates today's post and a pinned **Atelier** post. A new sheet is posted every day at 00:00 UTC.
+- Installing the app creates today's post and a pinned **Atelier** post; that day is Sheet No. 1. A new sheet is posted every day at 00:00 UTC. If you delete today's post or the Atelier, *post today's sheet now* publishes it again.
 - Menu actions: *post today's sheet now* (subreddit menu) and *clear this sheet's name* (post menu, for any name you don't want).
 - Names must be short replies to the pinned comment. Removed or spam comments never count, and the app filters common profanity.
 - Traps are ordinary posts by the app, titled with their maker's name: remove one like any post (or mark it as spam) and it leaves the Book and the Sunday selection; approve it again and it comes back. Users banned from the subreddit can't set traps.
@@ -64,7 +66,7 @@ Every sheet is generated fresh each day and **checked before anyone sees it**: a
 
 ## Privacy
 
-The app stores, per subreddit: your moves on each sheet (to resume and verify results), your rank on each sheet, your streak, the traps you set, and — only if you opt in to flair — your username to keep the flair up to date. Attempt data expires after 60 days. Nothing is shared outside the subreddit, and no data is sent to third parties.
+The app stores, per subreddit: your moves on each sheet (to resume and verify results), your rank on each sheet, your streak, the traps you set, and — only if you opt in to flair — your username and the flair it replaced, to keep the flair up to date and restore it. Moves, results, ranks and the per-sheet tallies (hands, scars) expire 60 days after they were last written; your streak record expires 60 days after your last counted day. Traps stay as long as their posts do, since they are the posts' content. Nothing is shared outside the subreddit, and no data is sent to third parties.
 
 ---
 

@@ -133,3 +133,27 @@ test('finishing an earlier sheet late never rewinds a newer streak day', async (
   assert.equal((await attempts.progress('both')).lastDay, '2026-12-04');
   assert.equal(await attempts.streak('both'), 1);
 });
+
+test('sheet numbers start at one on the day the app was installed in a community', async () => {
+  const clock = { now: Date.parse('2026-12-10T09:00:00Z') };
+  const sheets = new SheetService(new MemoryStore(), () => clock.now);
+  await sheets.ensureInstalled();
+  assert.equal((await sheets.todaySheet()).number, 1);
+  clock.now = Date.parse('2026-12-12T09:00:00Z');
+  assert.equal((await sheets.todaySheet()).number, 3);
+  assert.equal(await sheets.firstDay(), '2026-12-10', 'the first day never moves');
+});
+
+test('an installation from before per-community numbering keeps today as No. 1, not its old global number', async () => {
+  const clock = { now: Date.parse('2026-11-16T09:00:00Z') };
+  const store = new MemoryStore();
+  const sheets = new SheetService(store, () => clock.now);
+  // As the old version cached it: numbered from a global epoch still in the future.
+  const today = await sheets.todaySheet();
+  await store.del('config:first-day');
+  await store.set(`sheet:${today.id}`, JSON.stringify({ ...today, number: -8 }));
+  await sheets.ensureInstalled();
+  assert.equal((await sheets.todaySheet()).number, 1);
+  clock.now = Date.parse('2026-11-17T09:00:00Z');
+  assert.equal((await sheets.todaySheet()).number, 2);
+});

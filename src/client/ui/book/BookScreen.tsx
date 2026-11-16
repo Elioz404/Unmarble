@@ -18,10 +18,23 @@ const Thumbnail = ({ entry }: { readonly entry: BookEntry }) => {
   return <canvas ref={canvas} className="book__thumb" aria-hidden />;
 };
 
-const Row = ({ entry, onPlay }: { readonly entry: BookEntry; readonly onPlay: (id: string) => void }) => {
+/** What the row says about how the sheet has fared, and where it stands in the race for Sunday. */
+const metaOf = (entry: BookEntry): string => {
   const { sheet, status, stats } = entry;
+  if (stats.hands === 0) return COPY.book.beFirst;
+  const parts = [COPY.book.status[status], COPY.book.hands(stats.hands)];
+  if (sheet.kind === 'trap') parts.push(COPY.trap.caught(stats.caught, stats.hands));
+  return parts.join(' · ');
+};
+
+const Row = ({ entry, onPlay }: { readonly entry: BookEntry; readonly onPlay: (id: string) => void }) => {
+  const { sheet, status } = entry;
   const title = sheet.kind === 'trap' ? COPY.trap.by(sheet.author ?? 'someone') : `No. ${sheet.number} · ${sheet.weekday}`;
-  const subtitle = sheet.name ?? sheet.paletteName;
+  const subtitle = sheet.author && sheet.kind === 'daily'
+    ? COPY.trap.sheetOfWeek(sheet.author)
+    : sheet.name
+      ? COPY.communityName(sheet.name)
+      : sheet.paletteName;
   return (
     <li>
       <button type="button" className="book__row" onClick={() => onPlay(sheet.id)} data-status={status}>
@@ -31,10 +44,8 @@ const Row = ({ entry, onPlay }: { readonly entry: BookEntry; readonly onPlay: (i
           <span className="book__subtitle">
             <span className="book__stars">{'★'.repeat(sheet.spec.stars)}</span> {subtitle}
           </span>
-          <span className="book__meta">
-            {COPY.book.status[status]} · {COPY.book.hands(stats.hands)}
-            {sheet.kind === 'trap' && stats.hands > 0 ? ` · ${COPY.trap.caught(stats.caught, stats.hands)}` : ''}
-          </span>
+          <span className="book__meta">{metaOf(entry)}</span>
+          {entry.inTheRunning ? <span className="book__running">{COPY.book.inTheRunning}</span> : null}
         </span>
         <span className="book__glyph" aria-hidden>
           {STATUS_GLYPH[status]}
@@ -106,6 +117,8 @@ export const BookScreen = ({ platform, onBack, onPlay, onCompose }: Props) => {
           </button>
         ))}
       </div>
+
+      {shelf === 'traps' ? <p className="book__rule">{COPY.book.sundayRule}</p> : null}
 
       {entries.length === 0 ? (
         <p className="book__empty">{COPY.book.noTraps}</p>

@@ -1,4 +1,4 @@
-import { RULES, TIMING } from '../../shared/config.ts';
+import { COMMUNITY, INPUT, RULES, TIMING } from '../../shared/config.ts';
 import { explainBlot, type BlotExplanation } from '../../shared/game/explain.ts';
 import { resolveDrag, resolveTap } from '../../shared/game/gestures.ts';
 import {
@@ -8,10 +8,10 @@ import {
   type SessionState,
   type SheetPoint,
 } from '../../shared/game/session.ts';
-import { dropOutline, seamPath, swirlEye } from '../../shared/puzzle/evidence.ts';
+import { dropOutline, seamPath, seamSegment, swirlEye } from '../../shared/puzzle/evidence.ts';
 import { opsForPrefix, strokeOp, swirlOp } from '../../shared/puzzle/moves.ts';
 import type { SheetSpec } from '../../shared/puzzle/sheet.ts';
-import type { LoggedAction, Standing } from '../../shared/protocol/api.ts';
+import type { LoggedAction, ScarMap, Standing } from '../../shared/protocol/api.ts';
 import type { SoundBank } from '../audio/sound.ts';
 import { Animator, ease } from '../lib/animator.ts';
 import { Store } from '../lib/store.ts';
@@ -33,16 +33,22 @@ export type HintKind = 'round' | 'seam' | 'swirl' | 'lens';
 /** How far (in move amounts) a wrong-way drag bends the water before it springs back. */
 const WRONG_WAY_OVERSHOOT = 0.6;
 
-/** Which contextual hints this player has already been shown. */
+/** Which contextual hints to offer, and after how long a pause. */
 export type HintPolicy = {
   hasSeen(kind: HintKind): boolean;
   markSeen(kind: HintKind): void;
+  /** Pause without progress before a hint is offered. */
+  readonly delayMs: number;
 };
 
 /** How long feedback stays on the message line; blots linger to be read. */
 const FEEDBACK_MS = { correct: 2200, miss: 2200, blot: 4500 } as const;
-/** Pause without progress before a contextual hint is offered. */
-const HINT_AFTER_MS = 22_000;
+/** Points along the ghost finger's path. */
+const DEMO_POINTS = 28;
+/** Radius (cells) of the ghost finger's circle around a swirl's eye. */
+const DEMO_CIRCLE_RADIUS = 1.6;
+/** How far (cells) the ghost finger swipes along a fold. */
+const DEMO_SWIPE_LENGTH = INPUT.minSwipeLength + 2;
 
 export type GameView = {
   readonly status: SessionState['status'];
@@ -75,6 +81,8 @@ export type ControllerOptions = {
   readonly hints: HintPolicy | null;
   /** Standing already known for a finished attempt (when reopening it). */
   readonly standing: Standing | null;
+  /** Shows the gesture that undoes the top move until the player touches the sheet (lessons). */
+  readonly demonstrate: boolean;
 };
 
 /**
@@ -102,6 +110,13 @@ export class GameController implements StageController {
   #drawHandle: number | null = null;
   #renderedRevision = -1;
   #disposed = false;
+  #demoing = false;
+  /** Bumped whenever a demo must stop, so an older loop can never resume. */
+  #demoRun = 0;
+  /** Set by the player's first touch: the demo has done its job. */
+  #demoDismissed = false;
+  readonly #demonstrate: boolean;
+  readonly #reducedMotion: () => boolean;
 
   constructor(options: ControllerOptions) {
     this.#spec = options.spec;
@@ -109,6 +124,8 @@ export class GameController implements StageController {
     this.#sound = options.sound;
     this.#colors = options.colors;
     this.#hints = options.hints;
+    this.#demonstrate = options.demonstrate;
+    this.#reducedMotion = options.reducedMotion;
     this.#animator = new Animator(() => this.#draw(), options.reducedMotion);
     this.#disposed = false;
 
@@ -155,10 +172,13 @@ export class GameController implements StageController {
     if (this.#state.status !== 'playing' && this.view.get().settled) this.#scene.visible = this.#spec.moves.length;
     this.#draw();
     this.#armHint();
+    if (this.#demonstrate && !this.#demoDismissed && this.#state.status === 'playing') void this.#runDemo();
   }
 
   detach(): void {
     this.#disposed = true;
+    this.#demoing = false;
+    this.#demoRun++;
     this.#clearTimer('feedback');
     this.#clearTimer('hint');
     if (this.#drawHandle !== null) cancelAnimationFrame(this.#drawHandle);
@@ -175,13 +195,20 @@ export class GameController implements StageController {
     this.#draw();
   }
 
-  /** Shows where everyone else tore today's sheet (only after finishing). */
-  showCommunityScars(points: OverlayModel['community']): void {
-    this.#overlay.community = [...points];
+  /**
+   * Shows where everyone else tore the sheet (only after finishing), and,
+   * once enough hands have played, pulses the move that caught the most.
+   */
+  showCommunityScars(map: ScarMap): void {
+    // A handful of hands says nothing about "everyone": until then only the player's own scars show.
+    if (map.hands < COMMUNITY.quietHands) return;
+    this.#overlay.community = [...map.points];
     this.#requestDraw();
+    if (map.trap) void this.#pulse(map.trap.move, TIMING.communityPulseMs);
   }
 
   tap(point: SheetPoint): void {
+    this.#stopDemo();
     if (!this.#accepting()) return;
     this.#sound.unlock();
     const action = resolveTap(this.#spec, this.#state.remaining, point);
@@ -194,6 +221,7 @@ export class GameController implements StageController {
 
   /** A finished drag across the sheet: a swipe along a fold or a circle around an eye. */
   drag(path: readonly SheetPoint[]): void {
+    this.#stopDemo();
     this.#overlay.trail = [];
     if (!this.#accepting() || path.length < 2) {
       this.#requestDraw();
@@ -211,11 +239,13 @@ export class GameController implements StageController {
 
   /** Live trail while a finger drags across the sheet. */
   trace(points: readonly SheetPoint[]): void {
+    this.#stopDemo();
     this.#overlay.trail = [...points];
     this.#requestDraw();
   }
 
   magnify(): void {
+    this.#stopDemo();
     if (!this.#accepting() || this.#state.magnified) return;
     this.#sound.unlock();
     void this.#act({ type: 'magnify' }, null);
@@ -312,10 +342,15 @@ export class GameController implements StageController {
       return;
     }
     const culprit = explanation?.culprit ?? null;
-    const outline = culprit === null ? null : this.#outlineOf(culprit);
+    if (culprit !== null) await this.#pulse(culprit, TIMING.tearPreviewMs);
+  }
+
+  /** Outlines one move as the sheet now shows it, glowing once. */
+  async #pulse(move: number, duration: number): Promise<void> {
+    const outline = this.#outlineOf(move);
     if (!outline) return;
     await this.#animator.play({
-      duration: TIMING.tearPreviewMs,
+      duration,
       easing: ease.linear,
       update: (t) => {
         const pulse = Math.sin(Math.min(1, t * 1.25) * Math.PI);
@@ -326,8 +361,11 @@ export class GameController implements StageController {
     this.#draw();
   }
 
+  /** The outline of a move in the frame on screen (the whole sheet once it is finished). */
   #outlineOf(move: number): { points: SheetPoint[]; closed: boolean } | null {
-    const ops = opsForPrefix(this.#spec.moves, this.#state.remaining);
+    const prefix = this.#scene.visible;
+    if (move >= prefix) return null;
+    const ops = opsForPrefix(this.#spec.moves, prefix);
     const target = this.#spec.moves[move];
     if (!target) return null;
     switch (target.kind) {
@@ -371,22 +409,24 @@ export class GameController implements StageController {
   async #playEnding(): Promise<void> {
     this.#publish({ busy: true });
     if (this.#state.status === 'clean') {
+      // The bare stripes hold for a breath, then the sheet marbles itself again, quickly: what you undid.
       this.#sound.play('clean');
       await this.#animator.wait(TIMING.cleanWaveMs);
+      await this.#playReplay(TIMING.cleanReplayStepMs);
     } else {
-      await this.#playReplay();
+      await this.#playReplay(TIMING.replayStepMs);
     }
     this.#publish({ busy: false });
   }
 
-  /** A torn sheet replays how it was really made, move by move. */
-  async #playReplay(): Promise<void> {
+  /** Replays how the sheet was really made, move by move: a lesson after a tear, a flourish after a win. */
+  async #playReplay(stepMs: number): Promise<void> {
     this.#overlay.scars = [];
     for (let i = 0; i < this.#spec.moves.length; i++) {
       this.#scene.visible = i + 1;
       this.#publish({ replayStep: i });
       await this.#animator.play({
-        duration: TIMING.replayStepMs,
+        duration: stepMs,
         easing: ease.outQuint,
         update: (t) => {
           this.#scene.topAmount = t;
@@ -423,7 +463,77 @@ export class GameController implements StageController {
       if (hints.hasSeen(kind)) return;
       hints.markSeen(kind);
       this.#publish({ hint: kind });
-    }, HINT_AFTER_MS);
+    }, hints.delayMs);
+  }
+
+  /** The drag that undoes the top move, as a finger would draw it (folds and swirls only). */
+  #demoPath(): SheetPoint[] | null {
+    const index = this.#state.remaining - 1;
+    const top = this.#spec.moves[index];
+    if (top?.kind === 'stroke') {
+      const op = strokeOp(top, index);
+      const segment = seamSegment(op);
+      if (!segment) return null;
+      const mid = { x: (segment.from.x + segment.to.x) / 2, y: (segment.from.y + segment.to.y) / 2 };
+      const half = DEMO_SWIPE_LENGTH / 2;
+      // Against the fold's point: from ahead of it, back past it.
+      return Array.from({ length: DEMO_POINTS }, (_, i) => {
+        const t = half - (2 * half * i) / (DEMO_POINTS - 1);
+        return { x: mid.x + op.ux * t, y: mid.y + op.uy * t };
+      });
+    }
+    if (top?.kind === 'swirl') {
+      // Against the turn, most of the way round the eye.
+      const sweep = -top.turn * Math.PI * 1.4;
+      return Array.from({ length: DEMO_POINTS }, (_, i) => {
+        const a = -Math.PI / 2 + (sweep * i) / (DEMO_POINTS - 1);
+        return { x: top.x + DEMO_CIRCLE_RADIUS * Math.cos(a), y: top.y + DEMO_CIRCLE_RADIUS * Math.sin(a) };
+      });
+    }
+    return null;
+  }
+
+  /**
+   * Draws the gesture with a ghost finger, over and over, until the player
+   * touches the sheet. With reduced motion, the whole gesture is drawn once
+   * and stays (a loop of instant tweens would never yield).
+   */
+  async #runDemo(): Promise<void> {
+    const path = this.#demoPath();
+    if (!path || this.#demoing) return;
+    const run = ++this.#demoRun;
+    this.#demoing = true;
+    const current = (): boolean => run === this.#demoRun && !this.#disposed;
+    if (this.#reducedMotion()) {
+      this.#overlay.trail = path;
+      this.#requestDraw();
+      return;
+    }
+    while (current()) {
+      await this.#animator.play({
+        duration: TIMING.demoStrokeMs,
+        easing: ease.inOutCubic,
+        update: (t) => {
+          if (current()) this.#overlay.trail = path.slice(0, Math.max(2, Math.round(t * path.length)));
+        },
+      });
+      if (!current()) break;
+      await this.#animator.wait(TIMING.demoRestMs);
+      if (!current()) break;
+      this.#overlay.trail = [];
+      this.#requestDraw();
+      await this.#animator.wait(TIMING.demoRestMs / 2);
+    }
+  }
+
+  /** Any touch ends the demo for this sheet, for good. */
+  #stopDemo(): void {
+    this.#demoDismissed = true;
+    if (!this.#demoing) return;
+    this.#demoing = false;
+    this.#demoRun++;
+    this.#overlay.trail = [];
+    this.#requestDraw();
   }
 
   #clearTimer(which: 'feedback' | 'hint'): void {
