@@ -4,8 +4,13 @@
   "post": {
     "dir": "dist/client",
     "entrypoints": {
-      "default": { "entry": "card.html", "height": "tall" },
-      "game": { "entry": "game.html" }
+      "default": {
+        "entry": "card.html",
+        "height": "tall"
+      },
+      "game": {
+        "entry": "game.html"
+      }
     }
   },
   "server": {
@@ -14,7 +19,9 @@
   },
   "permissions": {
     "redis": true,
-    "reddit": { "enable": true }
+    "reddit": {
+      "enable": true
+    }
   },
   "triggers": {
     "onAppInstall": "/internal/triggers/app-install",
@@ -26,8 +33,14 @@
   },
   "scheduler": {
     "tasks": {
-      "daily-sheet": { "endpoint": "/internal/scheduler/daily-sheet", "cron": "0 0 * * *" },
-      "tally-names": { "endpoint": "/internal/scheduler/tally-names", "cron": "17 * * * *" }
+      "daily-sheet": {
+        "endpoint": "/internal/scheduler/daily-sheet",
+        "cron": "0 0 * * *"
+      },
+      "tally-names": {
+        "endpoint": "/internal/scheduler/tally-names",
+        "cron": "17 * * * *"
+      }
     }
   },
   "menu": {
@@ -52,5 +65,8 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build"
+  },
+  "dev": {
+    "subreddit": "unmarble_dev"
   }
 }
