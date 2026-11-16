@@ -8,6 +8,7 @@ import type { AttemptSink } from '../../game/attempt-sink.ts';
 import { GameController, type HintKind, type HintPolicy } from '../../game/controller.ts';
 import { localPrefs } from '../../lib/local-prefs.ts';
 import { prefersReducedMotion } from '../hooks/use-store.ts';
+import { overlayTokens } from './overlay-tokens.ts';
 
 export type GameSetup = {
   /** Identifies one attempt: a new key starts a fresh controller. */
@@ -22,10 +23,6 @@ export type GameSetup = {
   /** Standing already known for a finished attempt. */
   readonly standing: Standing | null;
 };
-
-/** Overlay colours are paper colours: independent of the app's light or dark theme. */
-const OVERLAY_INK = '#1F1A14';
-const OVERLAY_BLOT = '#8E3328';
 
 /**
  * Hints for this sheet. Newcomers get them sooner, and again on every sheet;
@@ -54,7 +51,7 @@ const createController = (setup: GameSetup, sound: SoundBank): GameController =>
     sink: setup.sink,
     sound,
     reducedMotion: prefersReducedMotion,
-    colors: () => ({ ink: OVERLAY_INK, paper: palette.paper, accent: OVERLAY_INK, blot: OVERLAY_BLOT }),
+    colors: () => ({ ...overlayTokens(), paper: palette.paper }),
     hints: setup.hints ? hintPolicy() : null,
     standing: setup.standing,
     demonstrate: setup.demonstrate,

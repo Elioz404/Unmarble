@@ -2,15 +2,28 @@ import { SHEET } from '../../shared/config.ts';
 import type { SheetPoint } from '../../shared/game/session.ts';
 
 /**
+ * A sub-second trace of water light left by a correct undo, gone before input
+ * returns: an opening broken ring for a drop, a fading line along the drag for
+ * a fold, one counter-turning arc around a swirl's eye.
+ */
+export type Wake =
+  | { kind: 'ring'; at: SheetPoint; radius: number; progress: number }
+  | { kind: 'line'; points: readonly SheetPoint[]; progress: number }
+  | { kind: 'arc'; at: SheetPoint; radius: number; turn: 1 | -1; progress: number };
+
+/**
  * Everything drawn over the marbled sheet in paper space: scars left by
  * blots, the outline of the move that gave the order away, a ripple where a
- * tap found no ink, the trail of a swipe in progress, and the Lens tracing.
+ * tap found no ink, the wake of an undo, the trail of a swipe in progress,
+ * and the Lens tracing. Only the highlight may close, and only along an
+ * outline the sheet already has: on this sheet, a round mark means "fell last".
  */
 export type OverlayModel = {
   scars: SheetPoint[];
   /** Outline of a culprit move (closed for drops, open for seams) and its opacity. */
   highlight: { points: readonly SheetPoint[]; closed: boolean; opacity: number } | null;
   ripple: { at: SheetPoint; progress: number } | null;
+  wake: Wake | null;
   trail: SheetPoint[];
   /** Where everyone else tore the sheet today, weighted by how many hands. */
   community: readonly { readonly x: number; readonly y: number; readonly weight: number }[];
@@ -18,9 +31,28 @@ export type OverlayModel = {
   lens: { path: Path2D; reveal: number; fade: number } | null;
 };
 
-export type OverlayColors = { ink: string; paper: string; accent: string; blot: string };
+/**
+ * Paper-side colours (the sheet is never themed): `ink` for the slit of a
+ * tear, `water` and `shade` for the light and the dark rim of water marks.
+ */
+export type OverlayColors = {
+  ink: string;
+  paper: string;
+  water: string;
+  shade: string;
+  accent: string;
+  blot: string;
+};
 
-export const emptyOverlay = (): OverlayModel => ({ scars: [], highlight: null, ripple: null, trail: [], community: [], lens: null });
+export const emptyOverlay = (): OverlayModel => ({
+  scars: [],
+  highlight: null,
+  ripple: null,
+  wake: null,
+  trail: [],
+  community: [],
+  lens: null,
+});
 
 /**
  * The Lens tracing: the untouched ground as a crisp vellum tracing, swept in
@@ -42,11 +74,97 @@ export const LENS = Object.freeze({
   coreAlpha: 0.85,
 });
 
+/** Sizes in cells unless named `Px` (device pixels); alphas in [0, 1]. */
+const MARK = Object.freeze({
+  /** Segments along a tear: enough to look ragged, few enough to stay a slit. */
+  tearSteps: 7,
+  /** Sideways wobble of a tear as a share of its length: every tear stays at least 5× longer than wide. */
+  tearRagged: 0.2,
+  /** The player's own tear: a pale lifted edge under a dark slit, a little longer for some blots than others. */
+  scarLength: 0.55,
+  scarLengthJitter: 0.2,
+  scarHalo: 0.16,
+  scarHaloAlpha: 0.9,
+  scarSlit: 0.045,
+  scarSlitAlpha: 0.75,
+  scarFibres: 5,
+  scarFibreAlpha: 0.35,
+  /** Fibres lifted off a tear: short hairs, partly along the tear. */
+  fibreLength: 0.08,
+  fibreLengthJitter: 0.1,
+  fibreLean: 0.3,
+  fibreWidth: 0.02,
+  /** Everyone else's tears grow from a short nick to a long rip with the share of hands. */
+  communityLength: 0.35,
+  communityLengthGain: 0.35,
+  communityAlpha: 0.25,
+  communityAlphaGain: 0.45,
+  communityWidth: 0.05,
+  communityFibres: 3,
+  communityFibreAlpha: 0.3,
+  /** Culprit outline: dashed gilt over a pale paper under-stroke, so it reads on dark ink too. */
+  highlightCore: 0.07,
+  highlightUnder: 0.13,
+  highlightUnderAlpha: 0.7,
+  highlightDash: 0.18,
+  highlightGap: 0.22,
+  /** Water marks: a darker rim this many pixels each side of a light core. */
+  waterShadePx: 1,
+  waterShadeAlpha: 0.18,
+  waterLightAlpha: 0.5,
+  rippleWidth: 0.05,
+  /** A broken ring is three open arcs, 80° of every 120°, so it can never close. */
+  brokenArcs: 3,
+  brokenArcSpan: (80 / 180) * Math.PI,
+  /** Missed tap: two broken rings spreading from a small start, the second a beat behind. */
+  rippleStart: 0.25,
+  rippleSpread: 1.1,
+  rippleDelays: [0, 0.35],
+  /**
+   * Ghost finger and live trail: wet paper darkens (the shade band reads on
+   * pale paper), and water light runs down its middle (it reads on dark ink).
+   * Tapers over its last fifth.
+   */
+  trailWidth: 0.14,
+  trailShadeAlpha: 0.26,
+  trailLight: 0.55,
+  trailLightAlpha: 0.42,
+  trailTaper: 0.2,
+  /** Wakes are broader than a ripple: they have under a second to be seen, while the sheet itself moves. */
+  wakeWidth: 0.09,
+  /** How far a drop's wake ring opens beyond the drop's own edge. */
+  wakeRingOpen: 0.6,
+  /** How far a swirl's wake arc travels round the eye, and how long it is. */
+  wakeArcSweep: Math.PI,
+  wakeArcSpan: (100 / 180) * Math.PI,
+  /** The wake arc starts at the top of the eye, where the lesson's finger starts. */
+  wakeArcStart: -Math.PI / 2,
+});
+
 /** Deterministic jitter so each scar is ragged but stable across frames. */
 const jitter = (seed: number): number => {
   const v = Math.sin(seed * 91.37) * 43758.5453;
   return v - Math.floor(v) - 0.5;
 };
+
+/** A stable seed from a position, so a mark keeps its shape from frame to frame. */
+const seedOf = (p: { readonly x: number; readonly y: number }): number => p.x * 7.13 + p.y * 3.71;
+
+/**
+ * A tear as an open polyline in cells about its centre: a ragged slit along
+ * `angle`, never wider than a fifth of its length, so it never reads as a drop.
+ */
+export const tearPath = (seed: number, length: number, angle: number): SheetPoint[] => {
+  const ux = Math.cos(angle);
+  const uy = Math.sin(angle);
+  return Array.from({ length: MARK.tearSteps + 1 }, (_, i) => {
+    const t = i / MARK.tearSteps - 0.5;
+    const wobble = jitter(seed * 13 + i) * MARK.tearRagged * length;
+    return { x: ux * t * length - uy * wobble, y: uy * t * length + ux * wobble };
+  });
+};
+
+type CanvasPath = readonly (readonly [number, number])[];
 
 export class OverlayPainter {
   readonly #canvas: HTMLCanvasElement;
@@ -68,7 +186,6 @@ export class OverlayPainter {
 
   paint(model: OverlayModel, colors: OverlayColors): void {
     const ctx = this.#context;
-    const s = this.#scale;
     ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -76,111 +193,217 @@ export class OverlayPainter {
     this.#paintCommunity(model.community, colors);
     model.scars.forEach((scar, index) => this.#paintScar(scar, index, colors));
     if (model.lens) this.#paintLens(model.lens);
-
-    if (model.highlight && model.highlight.points.length > 1) {
-      const { points, closed, opacity } = model.highlight;
-      ctx.save();
-      ctx.globalAlpha = opacity;
-      ctx.setLineDash([0.18 * s, 0.22 * s]);
-      ctx.lineWidth = Math.max(1.5, 0.09 * s);
-      ctx.strokeStyle = colors.accent;
-      ctx.beginPath();
-      points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x * s, p.y * s) : ctx.lineTo(p.x * s, p.y * s)));
-      if (closed) ctx.closePath();
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    if (model.ripple) {
-      const { at, progress } = model.ripple;
-      ctx.save();
-      ctx.globalAlpha = (1 - progress) * 0.55;
-      ctx.lineWidth = Math.max(1, 0.05 * s);
-      ctx.strokeStyle = colors.ink;
-      for (const ring of [0, 0.35]) {
-        const t = Math.max(0, progress - ring);
-        ctx.beginPath();
-        ctx.arc(at.x * s, at.y * s, (0.25 + t * 1.1) * s, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    if (model.trail.length > 1) {
-      ctx.save();
-      ctx.lineWidth = Math.max(2, 0.14 * s);
-      ctx.strokeStyle = colors.ink;
-      ctx.globalAlpha = 0.28;
-      ctx.beginPath();
-      model.trail.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x * s, p.y * s) : ctx.lineTo(p.x * s, p.y * s)));
-      ctx.stroke();
-      ctx.restore();
-    }
+    if (model.highlight && model.highlight.points.length > 1) this.#paintHighlight(model.highlight, colors);
+    if (model.ripple) this.#paintRipple(model.ripple, colors);
+    if (model.wake) this.#paintWake(model.wake, colors);
+    if (model.trail.length > 1) this.#paintTrail(model.trail, colors);
   }
 
-  /** Everyone's tears as soft oxblood stains, the heaviest the darkest. */
-  #paintCommunity(points: OverlayModel['community'], colors: { blot: string }): void {
+  /** Everyone's tears as thin oxblood rips: the more hands tore there, the longer and darker. */
+  #paintCommunity(points: OverlayModel['community'], colors: OverlayColors): void {
     if (points.length === 0) return;
     const ctx = this.#context;
-    const s = this.#scale;
     const heaviest = Math.max(...points.map((p) => p.weight));
     ctx.save();
-    ctx.fillStyle = colors.blot;
-    for (const p of points) {
+    ctx.strokeStyle = colors.blot;
+    points.forEach((p, index) => {
       const strength = p.weight / heaviest;
-      ctx.globalAlpha = 0.18 + 0.5 * strength;
-      ctx.beginPath();
-      ctx.arc(p.x * s, p.y * s, (0.14 + 0.26 * strength) * s, 0, Math.PI * 2);
-      ctx.fill();
-    }
+      const seed = index + seedOf(p);
+      const angle = jitter(seed + 1) * Math.PI;
+      const path = this.#toCanvas(p, tearPath(seed, MARK.communityLength + MARK.communityLengthGain * strength, angle));
+      ctx.globalAlpha = MARK.communityAlpha + MARK.communityAlphaGain * strength;
+      ctx.lineWidth = Math.max(1, MARK.communityWidth * this.#scale);
+      this.#strokePolyline(path);
+      ctx.globalAlpha = MARK.communityFibreAlpha;
+      this.#strokeFibres(path, MARK.communityFibres, seed, angle);
+    });
     ctx.restore();
   }
 
   /** A small tear in the paper: a ragged slit with lifted fibres. */
-  #paintScar(scar: SheetPoint, index: number, colors: { ink: string; paper: string }): void {
+  #paintScar(scar: SheetPoint, index: number, colors: OverlayColors): void {
     const ctx = this.#context;
     const s = this.#scale;
     const angle = jitter(index + 1) * Math.PI;
-    const length = 0.55 + jitter(index + 7) * 0.2;
-    const cx = scar.x * s;
-    const cy = scar.y * s;
-    const ux = Math.cos(angle);
-    const uy = Math.sin(angle);
-    const steps = 7;
-    const path: [number, number][] = [];
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps - 0.5;
-      const wobble = jitter(index * 13 + i) * 0.12;
-      path.push([cx + (ux * t * length - uy * wobble) * s, cy + (uy * t * length + ux * wobble) * s]);
-    }
+    const length = MARK.scarLength + jitter(index + 7) * MARK.scarLengthJitter;
+    const path = this.#toCanvas(scar, tearPath(index, length, angle));
     ctx.save();
     // Lifted paper edge: a pale halo under the slit.
     ctx.strokeStyle = colors.paper;
-    ctx.globalAlpha = 0.9;
-    ctx.lineWidth = Math.max(3, 0.16 * s);
-    ctx.beginPath();
-    path.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
-    ctx.stroke();
+    ctx.globalAlpha = MARK.scarHaloAlpha;
+    ctx.lineWidth = Math.max(3, MARK.scarHalo * s);
+    this.#strokePolyline(path);
     // The slit itself.
     ctx.strokeStyle = colors.ink;
-    ctx.globalAlpha = 0.75;
-    ctx.lineWidth = Math.max(1, 0.045 * s);
+    ctx.globalAlpha = MARK.scarSlitAlpha;
+    ctx.lineWidth = Math.max(1, MARK.scarSlit * s);
+    this.#strokePolyline(path);
+    ctx.globalAlpha = MARK.scarFibreAlpha;
+    this.#strokeFibres(path, MARK.scarFibres, index, angle);
+    ctx.restore();
+  }
+
+  /** The culprit's outline in dashed gilt over a pale under-stroke, so it reads on paper and ink alike. */
+  #paintHighlight(highlight: NonNullable<OverlayModel['highlight']>, colors: OverlayColors): void {
+    const ctx = this.#context;
+    const s = this.#scale;
+    const { points, closed, opacity } = highlight;
+    const core = Math.max(1.5, MARK.highlightCore * s);
+    ctx.save();
+    ctx.setLineDash([MARK.highlightDash * s, MARK.highlightGap * s]);
+    ctx.beginPath();
+    points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x * s, p.y * s) : ctx.lineTo(p.x * s, p.y * s)));
+    if (closed) ctx.closePath();
+    ctx.strokeStyle = colors.paper;
+    ctx.globalAlpha = opacity * MARK.highlightUnderAlpha;
+    ctx.lineWidth = Math.max(core + 2, MARK.highlightUnder * s);
+    ctx.stroke();
+    ctx.strokeStyle = colors.accent;
+    ctx.globalAlpha = opacity;
+    ctx.lineWidth = core;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** A missed tap: two pale broken rings spreading on the water, never closed. */
+  #paintRipple({ at, progress }: NonNullable<OverlayModel['ripple']>, colors: OverlayColors): void {
+    const s = this.#scale;
+    MARK.rippleDelays.forEach((delay, ring) => {
+      const radius = (MARK.rippleStart + Math.max(0, progress - delay) * MARK.rippleSpread) * s;
+      const turn = jitter(seedOf(at) + ring);
+      this.#wet(() => this.#traceBrokenRing(at.x * s, at.y * s, radius, turn), MARK.rippleWidth, 1 - progress, colors);
+    });
+  }
+
+  #paintWake(wake: Wake, colors: OverlayColors): void {
+    this.#wet(() => this.#traceWake(wake), MARK.wakeWidth, 1 - wake.progress, colors);
+  }
+
+  /** Adds a wake's shape at its progress to the current path. */
+  #traceWake(wake: Wake): void {
+    const ctx = this.#context;
+    const s = this.#scale;
+    switch (wake.kind) {
+      case 'ring': {
+        const radius = (wake.radius + MARK.wakeRingOpen * wake.progress) * s;
+        this.#traceBrokenRing(wake.at.x * s, wake.at.y * s, radius, jitter(seedOf(wake.at)));
+        return;
+      }
+      case 'line':
+        wake.points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x * s, p.y * s) : ctx.lineTo(p.x * s, p.y * s)));
+        return;
+      case 'arc': {
+        // Against the turn, like the gesture that undid it.
+        const head = MARK.wakeArcStart - wake.turn * MARK.wakeArcSweep * wake.progress;
+        const tail = head + wake.turn * MARK.wakeArcSpan;
+        const [cx, cy, r] = [wake.at.x * s, wake.at.y * s, wake.radius * s];
+        ctx.moveTo(cx + r * Math.cos(tail), cy + r * Math.sin(tail));
+        ctx.arc(cx, cy, r, tail, head, wake.turn > 0);
+        return;
+      }
+    }
+  }
+
+  /** A finger's path as a wet line: a damp band with water light down its middle, tapering to the tip. */
+  #paintTrail(trail: readonly SheetPoint[], colors: OverlayColors): void {
+    const ctx = this.#context;
+    const s = this.#scale;
+    const path = trail.map((p) => [p.x * s, p.y * s] as const);
+    const width = Math.max(2, MARK.trailWidth * s);
+    ctx.save();
+    ctx.strokeStyle = colors.shade;
+    ctx.globalAlpha = MARK.trailShadeAlpha;
+    this.#strokeTapered(path, width);
+    ctx.strokeStyle = colors.water;
+    ctx.globalAlpha = MARK.trailLightAlpha;
+    this.#strokeTapered(path, Math.max(1, MARK.trailLight * width));
+    ctx.restore();
+  }
+
+  /** Strokes a polyline, stepping the width down segment by segment over its last part. */
+  #strokeTapered(path: CanvasPath, width: number): void {
+    const ctx = this.#context;
+    const segments = path.length - 1;
+    const taper = Math.round(MARK.trailTaper * segments);
+    const body = segments - taper;
+    if (body > 0) {
+      ctx.lineWidth = width;
+      this.#strokePolyline(path.slice(0, body + 1));
+    }
+    for (let j = 1; j <= taper; j++) {
+      const from = path[body + j - 1];
+      const to = path[body + j];
+      if (!from || !to) break;
+      ctx.lineWidth = width * (1 - j / (taper + 1));
+      this.#strokePolyline([from, to]);
+    }
+  }
+
+  /** Adds open arcs of one circle to the current path; `turn` in [−0.5, 0.5) rotates them. */
+  #traceBrokenRing(cx: number, cy: number, radius: number, turn: number): void {
+    const ctx = this.#context;
+    const period = (2 * Math.PI) / MARK.brokenArcs;
+    for (let i = 0; i < MARK.brokenArcs; i++) {
+      const from = (i + turn) * period;
+      ctx.moveTo(cx + radius * Math.cos(from), cy + radius * Math.sin(from));
+      ctx.arc(cx, cy, radius, from, from + MARK.brokenArcSpan);
+    }
+  }
+
+  /**
+   * Strokes the path `trace` adds as water light, `width` cells wide: a dark
+   * rim, then a pale core, both fading with `fade`. Normal compositing: a transparent 2D canvas
+   * cannot blend with the WebGL sheet beneath it.
+   */
+  #wet(trace: () => void, width: number, fade: number, colors: OverlayColors): void {
+    if (fade <= 0) return;
+    const ctx = this.#context;
+    const core = Math.max(1, width * this.#scale);
+    ctx.save();
+    ctx.beginPath();
+    trace();
+    ctx.strokeStyle = colors.shade;
+    ctx.globalAlpha = MARK.waterShadeAlpha * fade;
+    ctx.lineWidth = core + 2 * MARK.waterShadePx;
+    ctx.stroke();
+    ctx.strokeStyle = colors.water;
+    ctx.globalAlpha = MARK.waterLightAlpha * fade;
+    ctx.lineWidth = core;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Short fibres lifted off a tear, alternating sides, in the current stroke style. */
+  #strokeFibres(path: CanvasPath, count: number, seed: number, angle: number): void {
+    const ctx = this.#context;
+    const s = this.#scale;
+    const ux = Math.cos(angle);
+    const uy = Math.sin(angle);
+    ctx.lineWidth = Math.max(0.6, MARK.fibreWidth * s);
+    for (let i = 0; i < count; i++) {
+      const point = path[1 + i];
+      if (!point) break;
+      const [x, y] = point;
+      const side = i % 2 === 0 ? 1 : -1;
+      const fl = (MARK.fibreLength + Math.abs(jitter(seed * 5 + i)) * MARK.fibreLengthJitter) * s;
+      this.#strokePolyline([
+        [x, y],
+        [x - uy * fl * side + ux * fl * MARK.fibreLean, y + ux * fl * side + uy * fl * MARK.fibreLean],
+      ]);
+    }
+  }
+
+  #strokePolyline(path: CanvasPath): void {
+    const ctx = this.#context;
     ctx.beginPath();
     path.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
     ctx.stroke();
-    // Fibres.
-    ctx.globalAlpha = 0.35;
-    ctx.lineWidth = Math.max(0.6, 0.02 * s);
-    for (let i = 0; i < 5; i++) {
-      const [x, y] = path[1 + i] ?? [cx, cy];
-      const side = i % 2 === 0 ? 1 : -1;
-      const fl = (0.08 + Math.abs(jitter(index * 5 + i)) * 0.1) * s;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x - uy * fl * side + ux * fl * 0.3, y + ux * fl * side + uy * fl * 0.3);
-      ctx.stroke();
-    }
-    ctx.restore();
+  }
+
+  /** A path in cells about `centre`, in canvas pixels. */
+  #toCanvas(centre: { readonly x: number; readonly y: number }, path: readonly SheetPoint[]): CanvasPath {
+    const s = this.#scale;
+    return path.map((p) => [(centre.x + p.x) * s, (centre.y + p.y) * s] as const);
   }
 
   /** The Lens tracing: a double line (pale glow, blue core) fading in behind a sweeping band of light. */

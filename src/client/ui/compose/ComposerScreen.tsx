@@ -10,11 +10,9 @@ import { COPY } from '../copy.ts';
 import { BackIcon, DropToolIcon, FoldToolIcon, SwirlToolIcon, UndoIcon } from '../icons.tsx';
 import { prefersReducedMotion, useStore } from '../hooks/use-store.ts';
 import { MessageLine, Plaque } from '../game/Chrome.tsx';
+import { overlayTokens } from '../game/overlay-tokens.ts';
 import { SheetStage } from '../game/SheetStage.tsx';
 import './composer-screen.css';
-
-/** Overlay colours are paper colours, independent of the app theme. */
-const OVERLAY = { ink: '#1F1A14', accent: '#8E3328', blot: '#8E3328' } as const;
 
 const TOOLS: readonly { tool: ComposerTool; label: string; Icon: typeof DropToolIcon }[] = [
   { tool: 'drop', label: COPY.trap.tools.drop, Icon: DropToolIcon },
@@ -61,7 +59,11 @@ export const ComposerScreen = ({ platform, paper, signedIn, sound, onBack }: Pro
         paper: paper.spec,
         sound,
         reducedMotion: prefersReducedMotion,
-        colors: () => ({ ...OVERLAY, paper: palette.paper }),
+        // The outline here names a problem with the trap: the alarm colour, not gilt.
+        colors: () => {
+          const tokens = overlayTokens();
+          return { ...tokens, accent: tokens.blot, paper: palette.paper };
+        },
       }),
     [paper.spec, sound, palette.paper],
   );

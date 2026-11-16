@@ -1,4 +1,4 @@
-import { COMMUNITY, INPUT, RULES, TIMING } from '../../shared/config.ts';
+import { COMMUNITY, EVIDENCE, INPUT, RULES, TIMING } from '../../shared/config.ts';
 import { explainBlot, type BlotExplanation } from '../../shared/game/explain.ts';
 import { resolveDrag, resolveTap } from '../../shared/game/gestures.ts';
 import {
@@ -9,7 +9,7 @@ import {
   type SheetPoint,
 } from '../../shared/game/session.ts';
 import { dropOutline, seamPath, seamSegment, swirlEye } from '../../shared/puzzle/evidence.ts';
-import { opsForPrefix, strokeOp, swirlOp } from '../../shared/puzzle/moves.ts';
+import { dropRadius, opsForPrefix, strokeOp, swirlOp } from '../../shared/puzzle/moves.ts';
 import type { SheetSpec } from '../../shared/puzzle/sheet.ts';
 import type { LoggedAction, ScarMap, Standing } from '../../shared/protocol/api.ts';
 import type { SoundBank } from '../audio/sound.ts';
@@ -17,7 +17,7 @@ import { Animator, ease } from '../lib/animator.ts';
 import { Store } from '../lib/store.ts';
 import type { SheetRenderer } from '../render/renderer.ts';
 import { groundTracing } from './ghost-paths.ts';
-import { emptyOverlay, LENS, type OverlayColors, type OverlayModel, type OverlayPainter } from './overlay.ts';
+import { emptyOverlay, LENS, type OverlayColors, type OverlayModel, type OverlayPainter, type Wake } from './overlay.ts';
 import { AttemptConflictError, type AttemptSink } from './attempt-sink.ts';
 import { SheetScene } from './scene.ts';
 import type { StageController } from './stage.ts';
@@ -110,6 +110,8 @@ export class GameController implements StageController {
   #hintTimer: number | null = null;
   #drawHandle: number | null = null;
   #renderedRevision = -1;
+  /** The finger's path for the drag being acted on (session actions do not carry it). */
+  #lastPath: readonly SheetPoint[] = [];
   #disposed = false;
   #demoing = false;
   /** Bumped whenever a demo must stop, so an older loop can never resume. */
@@ -235,6 +237,8 @@ export class GameController implements StageController {
       if (where) void this.#miss(where);
       return;
     }
+    // Session actions carry no path; the wake of a fold follows the finger.
+    this.#lastPath = path;
     void this.#act(action, where);
   }
 
@@ -261,6 +265,8 @@ export class GameController implements StageController {
   }
 
   async #act(action: PlayerAction, point: SheetPoint | null): Promise<void> {
+    const path = this.#lastPath;
+    this.#lastPath = [];
     const previous = this.#state;
     const at = this.#now();
     const transition = applyAction(this.#spec, previous, action, at, point);
@@ -273,12 +279,13 @@ export class GameController implements StageController {
       await this.#playLens();
     } else if (transition.verdict === 'correct') {
       this.#showFeedback({ id: ++this.#feedbackId, kind: 'correct' });
-      await this.#playUnmarble(action);
+      await this.#playUnmarble(action, path);
     } else {
       const explanation = explainBlot(this.#spec, previous.remaining, action);
       this.#showFeedback({ id: ++this.#feedbackId, kind: 'blot', explanation });
       await this.#playBlot(action, point, explanation);
     }
+    console.assert(this.#overlay.wake === null, 'A wake must be gone before input returns');
     this.#publish({ busy: false });
     this.#armHint();
 
@@ -299,18 +306,48 @@ export class GameController implements StageController {
     );
   }
 
-  async #playUnmarble(action: PlayerAction): Promise<void> {
+  /** Undoes the top move; `path` is the drag that did it, if any. */
+  async #playUnmarble(action: PlayerAction, path: readonly SheetPoint[]): Promise<void> {
     this.#sound.play(action.type === 'absorb' ? 'absorb' : action.type === 'unswirl' ? 'unswirl' : 'unstroke');
-    await this.#animator.play({
-      duration: TIMING.absorbMs,
-      easing: ease.settle,
-      update: (t) => {
-        this.#scene.topAmount = 1 - t;
-      },
-    });
+    const wake = this.#wakeOf(action, path);
+    await Promise.all([
+      this.#animator.play({
+        duration: TIMING.absorbMs,
+        easing: ease.settle,
+        update: (t) => {
+          this.#scene.topAmount = 1 - t;
+        },
+      }),
+      // Alongside, on a linear clock: the settle curve would fade the wake out in a blink.
+      wake &&
+        this.#animator.play({
+          duration: TIMING.absorbMs,
+          update: (t) => {
+            this.#overlay.wake = { ...wake, progress: t };
+          },
+        }),
+    ]);
+    this.#overlay.wake = null;
     this.#scene.visible = this.#state.remaining;
     this.#scene.topAmount = 1;
     this.#draw();
+  }
+
+  /** The wake a correct undo leaves on the water, at progress 0; null when there is nothing to trace. */
+  #wakeOf(action: PlayerAction, path: readonly SheetPoint[]): Wake | null {
+    if (action.type === 'magnify') return null;
+    const move = this.#spec.moves[action.move];
+    switch (move?.kind) {
+      case 'drop':
+        return { kind: 'ring', at: { x: move.x, y: move.y }, radius: dropRadius(move.size), progress: 0 };
+      case 'stroke':
+        return path.length > 1 ? { kind: 'line', points: path, progress: 0 } : null;
+      case 'swirl':
+        // The undone swirl is the top move, so its eye is still the round probe circle.
+        return { kind: 'arc', at: { x: move.x, y: move.y }, radius: EVIDENCE.swirlProbeRadius, turn: move.turn, progress: 0 };
+      default:
+        return null;
+    }
   }
 
   async #playBlot(action: PlayerAction, point: SheetPoint | null, explanation: BlotExplanation | null): Promise<void> {

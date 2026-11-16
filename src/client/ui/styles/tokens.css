@@ -65,6 +65,17 @@
   --tray-edge: rgb(31 26 20 / 0.18);
   --sheet-shadow: 0 1px 1px rgb(31 26 20 / 0.12), 0 8px 24px -6px rgb(31 26 20 / 0.28);
   --focus: #2f5aa8;
+
+  /* overlay marks */
+  /* Drawn on the sheet, which is never themed: paper colours, read by the overlay painter. */
+  --overlay-ink: #1f1a14;
+  /* Water light on the bath, and the darker rim that lets it read on pale paper. */
+  --overlay-water: rgb(236 246 248);
+  --overlay-shade: rgb(28 42 58);
+  /* The culprit's outline: gilt, never the near-black of the ink it outlines. */
+  --overlay-accent: #94732f;
+  /* Tears: oxblood, the only alarm colour, deep enough to hold on pale paper. */
+  --overlay-blot: #8e3328;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -88,5 +99,9 @@
     --tray-edge: rgb(0 0 0 / 0.6);
     --sheet-shadow: 0 1px 1px rgb(0 0 0 / 0.5), 0 14px 32px -8px rgb(0 0 0 / 0.75);
     --focus: #8fb3ff;
+
+    /* overlay marks */
+    /* Only the gilt warms with the room; every other mark is a paper colour and stays. */
+    --overlay-accent: #b08a45;
   }
 }
