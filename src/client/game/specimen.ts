@@ -2,6 +2,7 @@ import { SHEET, TIMING } from '../../shared/config.ts';
 import { resolveTap } from '../../shared/game/gestures.ts';
 import type { SheetSpec } from '../../shared/puzzle/sheet.ts';
 import { Animator, ease } from '../lib/animator.ts';
+import { EDGE_SAMPLES } from '../../shared/render/rasterize.ts';
 import { CpuSheetRenderer } from '../render/cpu-renderer.ts';
 import { SheetScene } from './scene.ts';
 
@@ -23,7 +24,7 @@ export class SpecimenPlayer {
   constructor(canvas: HTMLCanvasElement, spec: SheetSpec, reducedMotion: () => boolean) {
     this.#spec = spec;
     this.#scene = new SheetScene(spec, spec.moves.length);
-    this.#renderer = new CpuSheetRenderer(canvas, { supersample: 2 });
+    this.#renderer = new CpuSheetRenderer(canvas, { edgeSamples: EDGE_SAMPLES.still });
     this.#animator = new Animator(() => this.#draw(), reducedMotion);
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_RATIO);
     this.#renderer.resize(Math.round(canvas.clientWidth * ratio), Math.round(canvas.clientHeight * ratio));

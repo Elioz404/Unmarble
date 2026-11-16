@@ -165,10 +165,13 @@ export const inkAtDensity = (palette: ShadingPalette, slot: number, density: num
   return out;
 };
 
+/** Where a ground sample sits in the ruled pattern: its stripe phase, a grid's crossing phase (else 0), and its hairline share. */
+export type GroundPlace = { phase: number; cross: number; line: number };
+
 /**
  * Linear-RGB colour of one sample, before the paper finish, into `out`.
  * `px` is the size of a pixel in cells. Returns the sample's ink coverage:
- * 1 for ink, 0 for bare ground.
+ * 1 for ink, 0 for bare ground. For ground, also reports its `place`.
  */
 export const shadeSample = (
   sample: FieldSample,
@@ -176,6 +179,7 @@ export const shadeSample = (
   palette: ShadingPalette,
   px: number,
   out: [number, number, number],
+  place?: GroundPlace,
 ): number => {
   if (sample.kind === 'ink') {
     const { depth, source } = sample;
@@ -197,6 +201,11 @@ export const shadeSample = (
   out[0] = mix(band[0], palette.rule[0], line);
   out[1] = mix(band[1], palette.rule[1], line);
   out[2] = mix(band[2], palette.rule[2], line);
+  if (place) {
+    place.phase = phase;
+    place.cross = cross ?? 0;
+    place.line = line;
+  }
   return 0;
 };
 

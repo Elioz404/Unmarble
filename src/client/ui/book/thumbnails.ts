@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from 'react';
 import { opsForPrefix } from '../../../shared/puzzle/moves.ts';
 import type { SheetSpec } from '../../../shared/puzzle/sheet.ts';
-import { rasterizeSheet } from '../../../shared/render/rasterize.ts';
+import { createAdaptiveRaster, EDGE_SAMPLES, rasterizeAdaptive } from '../../../shared/render/rasterize.ts';
 import { shadingPaletteOf } from '../../../shared/render/shading.ts';
 import { getPalette } from '../../../shared/sheet/palettes.ts';
 
@@ -21,11 +21,12 @@ const ratio = (): number => Math.min(window.devicePixelRatio || 1, MAX_RATIO);
 
 const render = (spec: SheetSpec, width: number, height: number): ImageData => {
   const image = new ImageData(width, height);
-  rasterizeSheet(
+  rasterizeAdaptive(
+    createAdaptiveRaster(width, height),
     opsForPrefix(spec.moves, spec.moves.length),
     spec.ground,
     shadingPaletteOf(getPalette(spec.paletteId)),
-    { width, height, supersample: 1 },
+    EDGE_SAMPLES.still,
     image.data,
   );
   return image;

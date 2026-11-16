@@ -32,35 +32,84 @@ export type FieldSample =
   | { kind: 'ground'; x: number; y: number };
 
 /**
- * Pulls a point back through `ops` (top first) and reports what it shows.
- * Pure and allocation-light; this is the CPU twin of the fragment shader.
+ * A reusable sample for hot loops (rendering): the fields of both kinds of
+ * `FieldSample`, overwritten by every `sampleFieldInto`. Only the fields of
+ * its current `kind` are meaningful.
  */
-export const sampleField = (ops: readonly FieldOp[], x: number, y: number): FieldSample => {
-  const p: Point = { x, y };
+export type FieldScratch = {
+  kind: 'ink' | 'ground';
+  opIndex: number;
+  source: number;
+  ink: number;
+  depth: number;
+  lx: number;
+  ly: number;
+  r: number;
+  x: number;
+  y: number;
+};
+
+export const fieldScratch = (): FieldScratch => ({
+  kind: 'ground',
+  opIndex: -1,
+  source: -1,
+  ink: 0,
+  depth: 0,
+  lx: 0,
+  ly: 0,
+  r: 0,
+  x: 0,
+  y: 0,
+});
+
+/**
+ * Pulls a point back through `ops` (top first) and writes what it shows into
+ * `out`, allocating nothing. This is the CPU twin of the fragment shader.
+ */
+export const sampleFieldInto = (ops: readonly FieldOp[], x: number, y: number, out: FieldScratch): FieldScratch => {
+  // The point being pulled back is `out` itself; once on the ground, it is the ground coordinate.
+  out.x = x;
+  out.y = y;
   for (let i = ops.length - 1; i >= 0; i--) {
     const op = ops[i] as FieldOp;
     switch (op.type) {
       case 'drop': {
-        const dx = p.x - op.cx;
-        const dy = p.y - op.cy;
-        if (!pullDrop(op.cx, op.cy, op.r, p)) {
-          const depth = op.r > 0 ? Math.sqrt(dx * dx + dy * dy) / op.r : 1;
-          return { kind: 'ink', opIndex: i, source: op.source, ink: op.ink, depth, lx: dx, ly: dy, r: op.r };
+        const dx = out.x - op.cx;
+        const dy = out.y - op.cy;
+        if (!pullDrop(op.cx, op.cy, op.r, out)) {
+          out.kind = 'ink';
+          out.opIndex = i;
+          out.source = op.source;
+          out.ink = op.ink;
+          out.depth = op.r > 0 ? Math.sqrt(dx * dx + dy * dy) / op.r : 1;
+          out.lx = dx;
+          out.ly = dy;
+          out.r = op.r;
+          return out;
         }
         break;
       }
       case 'stroke':
-        pullStroke(op, p);
+        pullStroke(op, out);
         break;
       case 'swirl':
-        pullSwirl(op, p);
+        pullSwirl(op, out);
         break;
       case 'suction':
-        pushDrop(op.cx, op.cy, op.r, p);
+        pushDrop(op.cx, op.cy, op.r, out);
         break;
     }
   }
-  return { kind: 'ground', x: p.x, y: p.y };
+  out.kind = 'ground';
+  return out;
+};
+
+/** Pulls a point back through `ops` (top first) and reports what it shows. Pure. */
+export const sampleField = (ops: readonly FieldOp[], x: number, y: number): FieldSample => {
+  const s = sampleFieldInto(ops, x, y, fieldScratch());
+  return s.kind === 'ink'
+    ? { kind: 'ink', opIndex: s.opIndex, source: s.source, ink: s.ink, depth: s.depth, lx: s.lx, ly: s.ly, r: s.r }
+    : { kind: 'ground', x: s.x, y: s.y };
 };
 
 /** Maps a point forward through `ops[from..to)`. Mutates and returns `p`. */

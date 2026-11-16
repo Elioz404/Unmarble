@@ -4,7 +4,7 @@ import { opsForPrefix } from '../../../shared/puzzle/moves.ts';
 import type { SheetSpec } from '../../../shared/puzzle/sheet.ts';
 import { templateForWeekday } from '../../../shared/puzzle/templates.ts';
 import { LESSONS } from '../../../shared/puzzle/tutorial.ts';
-import { rasterizeSheet } from '../../../shared/render/rasterize.ts';
+import { createAdaptiveRaster, EDGE_SAMPLES, rasterizeAdaptive, rasterizeSheet } from '../../../shared/render/rasterize.ts';
 import { shadingPaletteOf } from '../../../shared/render/shading.ts';
 import { getPalette, PALETTES } from '../../../shared/sheet/palettes.ts';
 import type { SheetFrame } from '../../render/renderer.ts';
@@ -18,6 +18,8 @@ const BUDGET = 3;
 /** Differences are drawn this many times brighter, so a 1/255 miss is visible. */
 const DIFF_GAIN = 40;
 const WEEKDAYS = 7;
+/** What the feed spent per pixel before edge-adaptive sampling: a quick centre pass, then a full 2 × 2 pass. */
+const OLD_FEED_SAMPLES = 1 + 4;
 
 type Specimen = { readonly name: string; readonly spec: SheetSpec };
 
@@ -26,6 +28,8 @@ type Comparison = {
   readonly maxDiff: number;
   readonly overBudget: number;
   readonly cpuMs: number;
+  /** Field samples per pixel the feed's edge-adaptive path takes on this sheet. */
+  readonly feedSamples: number;
   readonly gpu: ImageData;
   readonly cpu: ImageData;
   readonly diff: ImageData;
@@ -70,6 +74,9 @@ const compare = ({ name, spec }: Specimen): Comparison => {
   const began = performance.now();
   rasterizeSheet(frame.ops, frame.ground, frame.palette, { ...SIZE, supersample: 2 }, cpu.data);
   const cpuMs = performance.now() - began;
+  const feed = createAdaptiveRaster(SIZE.width, SIZE.height);
+  rasterizeAdaptive(feed, frame.ops, frame.ground, frame.palette, EDGE_SAMPLES.still, new Uint8ClampedArray(cpu.data.length));
+  const feedSamples = feed.samples / (SIZE.width * SIZE.height);
   const diff = new ImageData(SIZE.width, SIZE.height);
   let maxDiff = 0;
   let overBudget = 0;
@@ -80,7 +87,7 @@ const compare = ({ name, spec }: Specimen): Comparison => {
     if (worst > BUDGET) overBudget++;
     diff.data.set([worst * DIFF_GAIN, worst > BUDGET ? 0 : worst * DIFF_GAIN, worst > BUDGET ? 0 : worst * DIFF_GAIN, 255], o);
   }
-  return { name, maxDiff, overBudget, cpuMs, gpu, cpu, diff };
+  return { name, maxDiff, overBudget, cpuMs, feedSamples, gpu, cpu, diff };
 };
 
 const Picture = ({ image, label }: { readonly image: ImageData; readonly label: string }) => {
@@ -124,15 +131,19 @@ export const ParityBoard = () => {
   if (error) return <main className="parity">{error}</main>;
   if (!results) return <main className="parity">Rendering…</main>;
   const worst = Math.max(...results.map((r) => r.maxDiff));
+  const costliest = Math.max(...results.map((r) => r.feedSamples));
   return (
     <main className="parity">
       <p className="parity__verdict" data-pass={worst <= BUDGET}>
         Largest GPU/CPU difference: {worst}/255 (budget {BUDGET}/255)
       </p>
+      <p className="parity__verdict" data-pass={costliest <= OLD_FEED_SAMPLES}>
+        Costliest feed sheet: {costliest.toFixed(2)} samples per pixel (was {OLD_FEED_SAMPLES})
+      </p>
       {results.map((r) => (
         <section key={r.name} className="parity__row">
           <h2 className="parity__name">
-            {r.name}: max {r.maxDiff}/255, {r.overBudget} pixels over budget, CPU {r.cpuMs.toFixed(0)} ms
+            {r.name}: max {r.maxDiff}/255, {r.overBudget} pixels over budget, CPU {r.cpuMs.toFixed(0)} ms, feed {r.feedSamples.toFixed(2)} samples/px
           </h2>
           <Picture image={r.gpu} label="WebGL" />
           <Picture image={r.cpu} label="CPU" />

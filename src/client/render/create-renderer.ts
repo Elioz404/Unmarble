@@ -1,3 +1,4 @@
+import { EDGE_SAMPLES } from '../../shared/render/rasterize.ts';
 import { CpuSheetRenderer } from './cpu-renderer.ts';
 import type { SheetRenderer } from './renderer.ts';
 import { WebGlSheetRenderer, WebGlUnavailableError } from './webgl/webgl-renderer.ts';
@@ -29,5 +30,5 @@ export const createInteractiveSurface = (className: string, preferCpu = false): 
     }
   }
   const canvas = freshCanvas(className);
-  return { canvas, renderer: new CpuSheetRenderer(canvas, { supersample: 1 }) };
+  return { canvas, renderer: new CpuSheetRenderer(canvas, { edgeSamples: EDGE_SAMPLES.fallback }) };
 };
