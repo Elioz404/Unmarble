@@ -1,7 +1,17 @@
 import { SHEET } from '../config.ts';
 import type { PlayerAction, SheetPoint } from '../game/session.ts';
 import { MAX_MOVES } from '../puzzle/sheet.ts';
-import type { ActionRequest, LoggedAction } from './api.ts';
+import type { Result } from '../game/scoring.ts';
+import type {
+  ActionRequest,
+  ActionResponse,
+  LoggedAction,
+  ScarMap,
+  SheetResponse,
+  SheetStats,
+  Standing,
+} from './api.ts';
+import { parseSheetDescriptor } from './post-data.ts';
 
 /** Validators for untrusted request bodies and stored records. */
 
@@ -64,4 +74,62 @@ export const parseActionLog = (value: unknown): LoggedAction[] | null => {
     log.push(entry);
   }
   return log;
+};
+
+/* ---------- Responses (validated on the client at the network boundary) ---------- */
+
+export const parseResult = (value: unknown): Result | null => {
+  if (!isRecord(value)) return null;
+  const { clean, blots, magnified, durationMs, moves } = value;
+  if (typeof clean !== 'boolean' || typeof magnified !== 'boolean') return null;
+  if (typeof blots !== 'number' || typeof durationMs !== 'number' || typeof moves !== 'number') return null;
+  return { clean, blots, magnified, durationMs, moves };
+};
+
+const parseStats = (value: unknown): SheetStats | null =>
+  isRecord(value) && typeof value.hands === 'number' && typeof value.cleans === 'number'
+    ? { hands: value.hands, cleans: value.cleans }
+    : null;
+
+export const parseStanding = (value: unknown): Standing | null => {
+  if (!isRecord(value)) return null;
+  const result = parseResult(value.result);
+  const stats = parseStats(value.stats);
+  const { rank, streak } = value;
+  if (!result || !stats || typeof rank !== 'number' || typeof streak !== 'number') return null;
+  return { result, stats, rank, streak };
+};
+
+export const parseActionResponse = (value: unknown): ActionResponse | null => {
+  if (!isRecord(value)) return null;
+  const { verdict } = value;
+  if (verdict !== 'correct' && verdict !== 'blot' && verdict !== 'ignored') return null;
+  return { verdict, standing: value.standing === null ? null : parseStanding(value.standing) };
+};
+
+export const parseSheetResponse = (value: unknown): SheetResponse | null => {
+  if (!isRecord(value)) return null;
+  const sheet = parseSheetDescriptor(value.sheet);
+  const stats = parseStats(value.stats);
+  const player = value.player;
+  if (!sheet || !stats || !isRecord(player)) return null;
+  const log = parseActionLog(player.log);
+  const { nextSheetAt, todayId } = value;
+  if (!log || typeof player.signedIn !== 'boolean' || typeof player.streak !== 'number') return null;
+  if (typeof nextSheetAt !== 'number' || typeof todayId !== 'string') return null;
+  return { sheet, stats, player: { signedIn: player.signedIn, log, streak: player.streak }, nextSheetAt, todayId };
+};
+
+export const parseScarMap = (value: unknown): ScarMap | null => {
+  if (!isRecord(value) || !Array.isArray(value.points) || typeof value.hands !== 'number') return null;
+  const points = value.points.flatMap((p: unknown) =>
+    isRecord(p) && typeof p.x === 'number' && typeof p.y === 'number' && typeof p.weight === 'number'
+      ? [{ x: p.x, y: p.y, weight: p.weight }]
+      : [],
+  );
+  const trap =
+    isRecord(value.trap) && typeof value.trap.move === 'number' && typeof value.trap.share === 'number'
+      ? { move: value.trap.move, share: value.trap.share }
+      : null;
+  return { points, trap, hands: value.hands };
 };

@@ -3,21 +3,40 @@ import '../ui/styles/base.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createLabPlatform } from '../platform/lab-platform.ts';
+import { CardApp } from '../ui/card/CardApp.tsx';
 import { GameApp } from '../ui/GameApp.tsx';
+import { FeedBoard } from '../ui/lab/FeedBoard.tsx';
 import { mountRoot } from './mount.ts';
 
 /**
- * The lab: the full game in a plain browser, no Reddit involved. Used for
- * design reviews and for playtests with strangers (see lab-platform.ts).
+ * The lab: the app in a plain browser, no Reddit involved. Used for design
+ * reviews and for playtests with strangers.
+ *
+ *   lab.html                 the full game (default)
+ *   lab.html?view=card       the in-feed card alone
+ *   lab.html?view=board      the card at several feed widths
  */
 const search = new URLSearchParams(window.location.search);
+const view = search.get('view') ?? 'game';
+
+const navigate = (nextView: string): void => {
+  const next = new URLSearchParams(search);
+  next.set('view', nextView);
+  window.location.assign(`?${next.toString()}`);
+};
+
 const platform = createLabPlatform(search, {
-  onOpenGame: () => undefined,
-  onCloseGame: () => undefined,
+  onOpenGame: () => navigate('game'),
+  onCloseGame: () => navigate('card'),
 });
 
-createRoot(mountRoot()).render(
-  <StrictMode>
+const app =
+  view === 'board' ? (
+    <FeedBoard search={search} />
+  ) : view === 'card' ? (
+    <CardApp platform={platform} initial={null} />
+  ) : (
     <GameApp platform={platform} />
-  </StrictMode>,
-);
+  );
+
+createRoot(mountRoot()).render(<StrictMode>{app}</StrictMode>);

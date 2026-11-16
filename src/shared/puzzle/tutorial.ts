@@ -52,3 +52,17 @@ export const LESSONS: readonly Lesson[] = [
     },
   },
 ];
+
+/**
+ * The two-drop specimen on the in-feed card: the whole idea of the game in
+ * one tap. It borrows the day's palette so the card stays one colourway.
+ */
+export const cardSample = (paletteId: string): SheetSpec => ({
+  paletteId,
+  ground: { family: 'bands', period: 1.6, angle: 0, amplitude: 0, wavelength: 6 },
+  stars: 1,
+  moves: [
+    { kind: 'drop', x: 4.5, y: 9, size: 'L', ink: 0 },
+    { kind: 'drop', x: 8, y: 7, size: 'L', ink: 3 },
+  ],
+});

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LESSONS } from './tutorial.ts';
+import { cardSample, LESSONS } from './tutorial.ts';
 import { isReadable } from './generator.ts';
 import { readSheet } from './analysis.ts';
 import { parseSheetSpec } from './sheet.ts';
@@ -15,3 +15,9 @@ for (const lesson of LESSONS) {
     }
   });
 }
+
+test('the card specimen is fair and readable', () => {
+  const spec = cardSample('harbor-cobalt');
+  assert.ok(isReadable(spec.moves, spec.ground));
+  assert.ok(readSheet(spec.moves).margin >= 2);
+});

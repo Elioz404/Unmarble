@@ -4,6 +4,7 @@ import type { LoggedAction } from '../../../shared/protocol/api.ts';
 import { getPalette } from '../../../shared/sheet/palettes.ts';
 import type { SoundBank } from '../../audio/sound.ts';
 import { GameController, type AttemptSink } from '../../game/controller.ts';
+import { localPrefs } from '../../lib/local-prefs.ts';
 import { prefersReducedMotion } from '../hooks/use-store.ts';
 
 export type GameSetup = {
@@ -12,6 +13,8 @@ export type GameSetup = {
   readonly spec: SheetSpec;
   readonly log: readonly LoggedAction[];
   readonly sink: AttemptSink;
+  /** Whether contextual hints may appear (off during lessons). */
+  readonly hints: boolean;
 };
 
 /** Overlay ink: the colour of a pen line on paper, independent of theme. */
@@ -26,6 +29,7 @@ const createController = (setup: GameSetup, sound: SoundBank): GameController =>
     sound,
     reducedMotion: prefersReducedMotion,
     colors: () => ({ ink: OVERLAY_INK, paper: palette.paper, accent: OVERLAY_INK }),
+    hints: setup.hints ? localPrefs : null,
   });
 };
 

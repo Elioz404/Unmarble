@@ -16,8 +16,8 @@ export type Platform = {
   fetchScars(sheetId: string): Promise<ScarMap | null>;
   /** From the in-feed card: open the full game. Must run inside a click handler. */
   openGame(event: MouseEvent): void;
-  /** Leaves the full game (no-op where there is nothing to leave). */
-  closeGame(): void;
+  /** Leaves the full game. Must run inside a click handler. */
+  closeGame(event: MouseEvent): void;
   /** Offers sign-in so streaks can be kept. */
   promptLogin(): void;
   /** Subscribes the player to the subreddit; resolves false if unavailable. */

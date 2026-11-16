@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { SheetResponse } from '../../../shared/protocol/api.ts';
 import { LESSONS } from '../../../shared/puzzle/tutorial.ts';
 import type { SoundBank } from '../../audio/sound.ts';
-import type { Feedback, GameController, GameView } from '../../game/controller.ts';
-import { localPrefs } from '../../lib/local-prefs.ts';
+import type { Feedback, GameView, HintKind } from '../../game/controller.ts';
 import type { Platform } from '../../platform/platform.ts';
 import { blotLine, COPY } from '../copy.ts';
 import { CloseIcon } from '../icons.tsx';
@@ -14,12 +13,6 @@ import { SheetStage } from './SheetStage.tsx';
 import { NOWHERE, useGame } from './use-game.ts';
 import './game-screen.css';
 
-/** How long feedback stays before hints may take the line again. */
-const FEEDBACK_MS = 2800;
-/** Idle time before a contextual hint is offered (once per device). */
-const HINT_AFTER_MS = 22_000;
-const LESSON_PAUSE_MS = 900;
-
 type Props = {
   readonly platform: Platform;
   readonly response: SheetResponse;
@@ -29,6 +22,11 @@ type Props = {
 };
 
 type Message = { text: string; tone: 'quiet' | 'alert' | 'gilt' };
+
+/** Pause on a finished lesson before the next one appears. */
+const LESSON_PAUSE_MS = 900;
+
+const HINT_COPY: Record<HintKind, string> = { round: COPY.hintRound, seam: COPY.hintSeam, lens: COPY.hintLens };
 
 const feedbackMessage = (feedback: Feedback): Message => {
   switch (feedback.kind) {
@@ -41,46 +39,12 @@ const feedbackMessage = (feedback: Feedback): Message => {
   }
 };
 
-/** The latest feedback, cleared after a moment (blots linger longer to be read). */
-const useFeedback = (feedback: Feedback | null): Message | null => {
-  const [message, setMessage] = useState<Message | null>(null);
-  useEffect(() => {
-    if (!feedback) return;
-    setMessage(feedbackMessage(feedback));
-    const timer = window.setTimeout(
-      () => setMessage(null),
-      feedback.kind === 'blot' ? FEEDBACK_MS * 1.6 : FEEDBACK_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [feedback]);
-  return message;
-};
-
-/** A contextual hint after a long pause, each kind offered once per device. */
-const useHint = (controller: GameController, view: GameView, enabled: boolean): Message | null => {
-  const [hint, setHint] = useState<Message | null>(null);
-  const { idleSince, status, remaining, blots, lensLeft } = view;
-  useEffect(() => {
-    setHint(null);
-    if (!enabled || status !== 'playing') return;
-    const timer = window.setTimeout(() => {
-      const top = controller.spec.moves[remaining - 1];
-      const kind = blots >= 2 && lensLeft > 0 ? 'lens' : top?.kind === 'stroke' ? 'seam' : 'round';
-      if (localPrefs.hasSeen(kind)) return;
-      localPrefs.markSeen(kind);
-      setHint({ text: kind === 'lens' ? COPY.hintLens : kind === 'seam' ? COPY.hintSeam : COPY.hintRound, tone: 'quiet' });
-    }, HINT_AFTER_MS);
-    return () => window.clearTimeout(timer);
-  }, [controller, enabled, idleSince, status, remaining, blots, lensLeft]);
-  return hint;
-};
-
-/** Chooses the one line shown above the sheet. */
-const useMessage = (controller: GameController, view: GameView, fallback: string, hints: boolean): Message => {
-  const feedback = useFeedback(view.feedback);
-  const hint = useHint(controller, view, hints);
+/** The one line above the sheet: replay step, then feedback, then hint, then the standing prompt. */
+const messageFor = (view: GameView, fallback: string): Message => {
   if (view.replayStep !== null) return { text: COPY.replayStep(view.replayStep + 1, view.total), tone: 'quiet' };
-  return feedback ?? hint ?? { text: fallback, tone: 'quiet' };
+  if (view.feedback) return feedbackMessage(view.feedback);
+  if (view.hint) return { text: HINT_COPY[view.hint], tone: 'quiet' };
+  return { text: fallback, tone: 'quiet' };
 };
 
 /** The full game: three short lessons for newcomers, then the sheet. */
@@ -95,8 +59,8 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute }: P
   const setup = useMemo(
     () =>
       currentLesson
-        ? { key: `lesson:${currentLesson.id}:${lessonAttempt}`, spec: currentLesson.spec, log: [], sink: NOWHERE }
-        : { key: sheet.id, spec: sheet.spec, log: response.player.log, sink: platform.sinkFor(sheet.id) },
+        ? { key: `lesson:${currentLesson.id}:${lessonAttempt}`, spec: currentLesson.spec, log: [], sink: NOWHERE, hints: false }
+        : { key: sheet.id, spec: sheet.spec, log: response.player.log, sink: platform.sinkFor(sheet.id), hints: true },
     [currentLesson, lessonAttempt, sheet, response.player.log, platform],
   );
   const controller = useGame(setup, sound);
@@ -124,7 +88,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute }: P
   };
 
   const fallback = currentLesson?.prompt ?? (view.remaining === view.total ? COPY.dailyPrompt : '');
-  const message = useMessage(controller, view, fallback, currentLesson === null);
+  const message = messageFor(view, fallback);
   const showResult = lesson === null && view.settled;
 
   return (
@@ -144,7 +108,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute }: P
         <div className="game__tools">
           <SoundToggle muted={muted} onToggle={onToggleMute} />
           {platform.kind === 'reddit' ? (
-            <button type="button" className="icon-button" onClick={() => platform.closeGame()} aria-label={COPY.close}>
+            <button type="button" className="icon-button" onClick={(event) => platform.closeGame(event.nativeEvent)} aria-label={COPY.close}>
               <CloseIcon />
             </button>
           ) : null}

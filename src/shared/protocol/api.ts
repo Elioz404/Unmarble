@@ -13,6 +13,7 @@ export const API = Object.freeze({
   sheet: '/api/sheet',
   action: '/api/attempt/action',
   scars: '/api/sheet/scars',
+  subscribe: '/api/subscribe',
 });
 
 /** One sheet as presented to players. */

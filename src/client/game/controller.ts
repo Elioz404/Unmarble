@@ -29,6 +29,19 @@ export type Feedback =
   | { readonly id: number; readonly kind: 'miss' }
   | { readonly id: number; readonly kind: 'blot'; readonly explanation: BlotExplanation | null };
 
+export type HintKind = 'round' | 'seam' | 'lens';
+
+/** Which contextual hints this player has already been shown. */
+export type HintPolicy = {
+  hasSeen(kind: HintKind): boolean;
+  markSeen(kind: HintKind): void;
+};
+
+/** How long feedback stays on the message line; blots linger to be read. */
+const FEEDBACK_MS = { correct: 2200, miss: 2200, blot: 4500 } as const;
+/** Pause without progress before a contextual hint is offered. */
+const HINT_AFTER_MS = 22_000;
+
 export type GameView = {
   readonly status: SessionState['status'];
   readonly total: number;
@@ -43,8 +56,8 @@ export type GameView = {
   /** True once the closing animation has played. */
   readonly settled: boolean;
   readonly standing: Standing | null;
-  /** Milliseconds since the last correct action, for idle hints. */
-  readonly idleSince: number;
+  /** A contextual hint after a long pause, if one is due. */
+  readonly hint: HintKind | null;
 };
 
 export type ControllerOptions = {
@@ -54,6 +67,8 @@ export type ControllerOptions = {
   readonly sound: SoundBank;
   readonly reducedMotion: () => boolean;
   readonly colors: () => { ink: string; paper: string; accent: string };
+  /** Contextual hints; null disables them (e.g. during lessons). */
+  readonly hints: HintPolicy | null;
 };
 
 /**
@@ -75,12 +90,16 @@ export class GameController {
   #feedbackId = 0;
   #renderer: SheetRenderer | null = null;
   #painter: OverlayPainter | null = null;
+  readonly #hints: HintPolicy | null;
+  #feedbackTimer: number | null = null;
+  #hintTimer: number | null = null;
 
   constructor(options: ControllerOptions) {
     this.#spec = options.spec;
     this.#sink = options.sink;
     this.#sound = options.sound;
     this.#colors = options.colors;
+    this.#hints = options.hints;
     this.#animator = new Animator(() => this.#draw(), options.reducedMotion);
 
     let state = startSession(options.spec);
@@ -103,7 +122,7 @@ export class GameController {
       replayStep: null,
       settled: state.status !== 'playing',
       standing: null,
-      idleSince: performance.now(),
+      hint: null,
     });
   }
 
@@ -121,9 +140,12 @@ export class GameController {
     this.#painter = painter;
     if (this.#state.status === 'torn') this.#scene.visible = this.#spec.moves.length;
     this.#draw();
+    this.#armHint();
   }
 
   detach(): void {
+    this.#clearTimer('feedback');
+    this.#clearTimer('hint');
     this.#animator.cancelAll();
     this.#renderer = null;
     this.#painter = null;
@@ -193,14 +215,15 @@ export class GameController {
     if (action.type === 'magnify') {
       await this.#playLens();
     } else if (transition.verdict === 'correct') {
-      this.#publish({ feedback: { id: ++this.#feedbackId, kind: 'correct' }, idleSince: performance.now() });
+      this.#showFeedback({ id: ++this.#feedbackId, kind: 'correct' });
       await this.#playUnmarble(action);
     } else {
       const explanation = explainBlot(this.#spec, previous.remaining, action);
-      this.#publish({ feedback: { id: ++this.#feedbackId, kind: 'blot', explanation } });
+      this.#showFeedback({ id: ++this.#feedbackId, kind: 'blot', explanation });
       await this.#playBlot(action, point, explanation);
     }
     this.#publish({ busy: false });
+    this.#armHint();
 
     if (this.#state.status !== 'playing') {
       await this.#playEnding();
@@ -290,7 +313,7 @@ export class GameController {
 
   async #miss(point: SheetPoint): Promise<void> {
     this.#sound.play('miss');
-    this.#publish({ feedback: { id: ++this.#feedbackId, kind: 'miss' } });
+    this.#showFeedback({ id: ++this.#feedbackId, kind: 'miss' });
     await this.#animator.play({
       duration: 700,
       easing: ease.outCubic,
@@ -329,6 +352,35 @@ export class GameController {
     }
     this.#scene.topAmount = 1;
     this.#publish({ replayStep: null });
+  }
+
+  #showFeedback(feedback: Feedback): void {
+    this.#clearTimer('feedback');
+    this.#publish({ feedback });
+    this.#feedbackTimer = window.setTimeout(() => this.#publish({ feedback: null }), FEEDBACK_MS[feedback.kind]);
+  }
+
+  /** (Re)starts the idle countdown after which a contextual hint may appear. */
+  #armHint(): void {
+    this.#clearTimer('hint');
+    if (this.view.get().hint) this.#publish({ hint: null });
+    const hints = this.#hints;
+    if (!hints || this.#state.status !== 'playing') return;
+    this.#hintTimer = window.setTimeout(() => {
+      const top = this.#spec.moves[this.#state.remaining - 1];
+      const lensLeft = this.view.get().lensLeft;
+      const kind: HintKind = this.#state.blots >= 2 && lensLeft > 0 ? 'lens' : top?.kind === 'stroke' ? 'seam' : 'round';
+      if (hints.hasSeen(kind)) return;
+      hints.markSeen(kind);
+      this.#publish({ hint: kind });
+    }, HINT_AFTER_MS);
+  }
+
+  #clearTimer(which: 'feedback' | 'hint'): void {
+    const handle = which === 'feedback' ? this.#feedbackTimer : this.#hintTimer;
+    if (handle !== null) window.clearTimeout(handle);
+    if (which === 'feedback') this.#feedbackTimer = null;
+    else this.#hintTimer = null;
   }
 
   #publish(patch: Partial<GameView>): void {

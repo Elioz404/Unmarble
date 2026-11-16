@@ -14,6 +14,7 @@ export const COPY = Object.freeze({
   cardDone: 'See today’s result',
   cardSampleRight: 'Yes — the round one fell last.',
   cardSampleWrong: 'Look again: only one is perfectly round.',
+  cardSamplePrompt: 'Tap it.',
   lessonOf: (n: number, total: number) => `Lesson ${n} of ${total}`,
   lessonsDone: 'Now today’s sheet.',
   skipLessons: 'Skip',
