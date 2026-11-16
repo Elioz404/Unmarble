@@ -38,7 +38,24 @@
 .compose__tool[aria-checked='true'] {
   border-color: var(--gilt);
   color: var(--ink);
-  background: color-mix(in oklab, var(--gilt) 10%, transparent);
+}
+
+/* Each tool is a blind roundel pressed into the leather; the one in hand is struck in gilt. */
+.compose__roundel {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 0.45),
+    0 1px 0 var(--blind-light);
+  transition: background var(--duration-quick), color var(--duration-quick);
+}
+
+.compose__tool[aria-checked='true'] .compose__roundel {
+  background: var(--gilt-foil);
+  color: var(--foil-ink);
 }
 
 .compose__tool:disabled {
@@ -98,19 +115,28 @@
   background: var(--gilt);
 }
 
+/*
+ * Ink pots seen from above: a lamp highlight, a darker rim, and between them
+ * (about 78% of the disc) the exact ink, so the choice reads true.
+ */
 .compose__ink {
   width: 30px;
   height: 30px;
-  border: 2px solid transparent;
+  border: 0;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15);
+  background: radial-gradient(
+    circle at 35% 30%,
+    color-mix(in oklab, var(--ink-swatch) 70%, white) 0 6%,
+    var(--ink-swatch) 16% 85%,
+    color-mix(in oklab, var(--ink-swatch) 80%, black) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.35);
   cursor: pointer;
 }
 
 .compose__ink[aria-checked='true'] {
-  border-color: var(--ink);
   outline: 2px solid var(--gilt);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 .compose__turn {

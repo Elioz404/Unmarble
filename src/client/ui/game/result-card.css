@@ -1,12 +1,7 @@
+/* The end screen: a printed bookplate (the screenshot), and the next steps outside it. */
 .result {
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-5) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  box-shadow:
-    0 0 0 var(--hairline) var(--rule),
-    0 18px 40px -20px rgb(0 0 0 / 0.5);
+  gap: var(--space-5);
   animation: result-rise 520ms var(--ease-lift) both;
 }
 
@@ -17,55 +12,144 @@
   }
 }
 
+/* Ex-libris: a double gilt fillet, a fleuron in each corner. */
+.result__plate {
+  --plate-fillet: color-mix(in oklab, var(--gilt-ink) 70%, transparent);
+  --plate-fillet-soft: color-mix(in oklab, var(--gilt-ink) 35%, transparent);
+  position: relative;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-radius: 2px;
+  background: var(--surface-raised);
+  box-shadow:
+    inset 0 0 0 1px var(--plate-fillet),
+    inset 0 0 0 4px var(--surface-raised),
+    inset 0 0 0 5px var(--plate-fillet-soft),
+    0 18px 40px -20px rgb(0 0 0 / 0.5);
+}
+
+.result__plate[data-tone='torn'] {
+  --plate-fillet: var(--blot);
+  --plate-fillet-soft: color-mix(in oklab, var(--blot) 45%, transparent);
+}
+
+/* Each corner piece sits on the plate's own paper, so it cuts the fillets where they meet. */
+.result__corner {
+  position: absolute;
+  display: grid;
+  background: var(--surface-raised);
+}
+
+.result__corner[data-corner='top-left'] {
+  top: 0;
+  left: 0;
+}
+
+.result__corner[data-corner='top-right'] {
+  top: 0;
+  right: 0;
+  transform: rotate(90deg);
+}
+
+.result__corner[data-corner='bottom-right'] {
+  bottom: 0;
+  right: 0;
+  transform: rotate(180deg);
+}
+
+.result__corner[data-corner='bottom-left'] {
+  bottom: 0;
+  left: 0;
+  transform: rotate(270deg);
+}
+
+.result__plate[data-tone='torn'] .fleuron path,
+.result__plate[data-tone='torn'] .fillet :is(rect, path) {
+  fill: var(--blot);
+}
+
 .result__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
 }
 
 .result__headline {
   margin: 0;
   font-size: var(--text-xxl);
-  font-weight: 450;
+  font-weight: 430;
   font-style: italic;
   line-height: 1;
   letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 
 .result__headline[data-tone='torn'] {
   color: var(--blot);
 }
 
-.result__marks {
+.result__colophon {
   margin: 0;
-  font-size: var(--text-lg);
-  letter-spacing: 0.12em;
-  color: var(--gilt);
+  color: var(--ink-soft);
+  text-wrap: balance;
 }
 
-.result__marks [data-verdict='blot'] {
-  color: var(--blot);
+.result__colophon-part {
+  white-space: nowrap;
+}
+
+/* The struck seals, centred like a printer's stamp row. */
+.result__marks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
 }
 
 .result__lens {
-  margin-left: 0.4em;
-  color: var(--ink-soft);
+  display: grid;
+  margin-left: var(--space-2);
 }
 
+/* A three-column colophon table: hairline rules, lining tabular figures. */
 .result__facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-  gap: var(--space-3);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   margin: 0;
   padding: var(--space-3) 0;
   border-block: var(--hairline) solid var(--rule);
+  text-align: center;
+}
+
+.result__facts > div {
+  padding-inline: var(--space-2);
+}
+
+.result__facts > div + div {
+  border-inline-start: var(--hairline) solid var(--rule);
 }
 
 .result__facts dd {
   margin: 2px 0 0;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
+  font-variant-numeric: lining-nums tabular-nums;
+  text-wrap: balance;
+}
+
+@media (max-width: 360px) {
+  .result__plate {
+    padding-inline: var(--space-4);
+  }
+}
+
+.result__after {
+  display: grid;
+  gap: var(--space-4);
 }
 
 .result__name {
@@ -104,10 +188,8 @@
 }
 
 .result__stars {
-  color: var(--gilt);
-  font-style: normal;
-  letter-spacing: 0.1em;
-  font-size: var(--text-sm);
+  display: inline-flex;
+  font-size: 0.8em;
 }
 
 .result__secondary {

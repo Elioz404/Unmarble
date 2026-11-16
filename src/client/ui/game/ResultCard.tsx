@@ -16,6 +16,8 @@ import { dateKeyOf, msUntilNextDay, weekdayOf } from '../../../shared/time/calen
 import type { ShareOutcome } from '../../platform/platform.ts';
 import { COPY } from '../copy.ts';
 import { CheckIcon, CopyIcon, QuillIcon } from '../icons.tsx';
+import { deckle, Fillet, Fleuron, Seal, ToolStars } from '../ornaments.tsx';
+import { Numero } from './Chrome.tsx';
 import './result-card.css';
 
 type Props = {
@@ -79,6 +81,44 @@ const standingLine = (standing: Standing): string =>
 /** How the sheet names itself when shared: its number, or its maker for a trap. */
 const shareHeading = (sheet: SheetDescriptor): string =>
   sheet.kind === 'trap' ? `· a trap by u/${sheet.author ?? 'someone'}` : `No.${sheet.number} · ${sheet.weekday}`;
+
+/** The plate's stamp row: the same seals as the footer's, a size up for the screenshot. */
+const MARK_SIZE = 16;
+
+/** The plate's four corner pieces, each the top-left fleuron turned a quarter further. */
+const CORNERS = ['top-left', 'top-right', 'bottom-right', 'bottom-left'] as const;
+
+/** A torn plate's top edge: how many deckle teeth, and how deep (px) they bite. */
+const TORN_EDGE = Object.freeze({ teeth: 24, depth: 4 });
+/** Room kept outside the clip for the plate's cast shadow, which the clip would otherwise cut. */
+const SHADOW_ROOM = '48px';
+
+/** The ragged top edge as a clip-path, seeded so it is the same on every render and every device. */
+const TORN_CLIP = (() => {
+  const top = deckle(TORN_EDGE.teeth, 'torn-plate').map(
+    (jitter, i) => `${((i * 100) / TORN_EDGE.teeth).toFixed(2)}% ${(jitter * TORN_EDGE.depth).toFixed(2)}px`,
+  );
+  const outside = `calc(100% + ${SHADOW_ROOM})`;
+  return `polygon(-${SHADOW_ROOM} ${TORN_EDGE.depth}px, ${top.join(', ')}, ${outside} ${TORN_EDGE.depth}px, ${outside} ${outside}, -${SHADOW_ROOM} ${outside})`;
+})();
+
+/** The plate's colophon: the sheet by number, day and colourway, or a trap by its maker. */
+const Colophon = ({ sheet }: { readonly sheet: SheetDescriptor }) => (
+  <p className="result__colophon label">
+    {sheet.kind === 'trap' ? (
+      COPY.trap.by(sheet.author ?? 'someone')
+    ) : (
+      // Each part stays whole on narrow screens; a line breaks only after a dot.
+      <>
+        <span className="result__colophon-part">
+          {COPY.result.sheet} <Numero /> <span className="figures">{sheet.number}</span> ·
+        </span>{' '}
+        <span className="result__colophon-part">{sheet.weekday} ·</span>{' '}
+        <span className="result__colophon-part">{sheet.paletteName}</span>
+      </>
+    )}
+  </p>
+);
 
 const SHARE_LABEL: Record<ShareOutcome, string> = {
   shared: COPY.result.shared,
@@ -154,117 +194,150 @@ export const ResultCard = ({
 
   return (
     <section className="result" aria-label="Result">
-      <header className="result__head">
-        <h2 className="result__headline" data-tone={state.status}>
-          {headlineOf(state, standing)}
-        </h2>
-        <p className="result__marks figures" aria-label={`${marks.length} actions`}>
+      <article
+        className="result__plate"
+        data-tone={state.status}
+        style={state.status === 'torn' ? { clipPath: TORN_CLIP } : undefined}
+      >
+        {CORNERS.map((corner) => (
+          <span key={corner} className="result__corner" data-corner={corner}>
+            <Fleuron />
+          </span>
+        ))}
+
+        <header className="result__head">
+          <h2 className="result__headline" data-tone={state.status}>
+            {headlineOf(state, standing)}
+          </h2>
+          <Fillet />
+          <Colophon sheet={sheet} />
+        </header>
+
+        {isTrap ? (
+          <p className="result__trap">
+            {state.blots > 0 ? COPY.trap.gotCaught : COPY.trap.sawThrough}{' '}
+            {standing && standing.stats.hands >= COMMUNITY.quietHands
+              ? COPY.trap.caught(standing.stats.caught, standing.stats.hands)
+              : null}
+          </p>
+        ) : null}
+
+        <dl className="result__facts">
+          <div>
+            <dt className="label">Time</dt>
+            <dd>{formatDuration(duration)}</dd>
+          </div>
+          {standing ? (
+            <div>
+              <dt className="label">Standing</dt>
+              <dd>{standingLine(standing)}</dd>
+            </div>
+          ) : null}
+          {!isTrap && standing && standing.streak > 0 ? (
+            <div>
+              <dt className="label">Streak</dt>
+              <dd>{COPY.result.streak(standing.streak)}</dd>
+            </div>
+          ) : null}
+        </dl>
+
+        <p className="result__marks" role="img" aria-label={`${marks.length} actions`}>
           {marks.map((m, i) => (
-            <span key={i} data-verdict={m.verdict}>
-              {m.verdict === 'correct' ? '●' : '○'}
-            </span>
+            <Seal key={i} state={m.verdict === 'correct' ? 'gilt' : 'split'} size={MARK_SIZE} />
           ))}
-          {state.magnified ? <span className="result__lens">◐</span> : null}
-        </p>
-      </header>
-
-      {isTrap ? (
-        <p className="result__trap">
-          {state.blots > 0 ? COPY.trap.gotCaught : COPY.trap.sawThrough}{' '}
-          {standing && standing.stats.hands >= COMMUNITY.quietHands
-            ? COPY.trap.caught(standing.stats.caught, standing.stats.hands)
-            : null}
-        </p>
-      ) : null}
-
-      <dl className="result__facts">
-        <div>
-          <dt className="label">Time</dt>
-          <dd className="figures">{formatDuration(duration)}</dd>
-        </div>
-        {standing ? (
-          <div>
-            <dt className="label">Standing</dt>
-            <dd>{standingLine(standing)}</dd>
-          </div>
-        ) : null}
-        {!isTrap && standing && standing.streak > 0 ? (
-          <div>
-            <dt className="label">Streak</dt>
-            <dd>{COPY.result.streak(standing.streak)}</dd>
-          </div>
-        ) : null}
-      </dl>
-
-      <div className="result__primary">
-        <div className="actions">
-          <button type="button" className="button button--primary" onClick={() => void share()}>
-            {shared === 'shared' || shared === 'copied' ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
-            {COPY.result.share}
-          </button>
-          <button type="button" className="button" onClick={onCompose}>
-            <QuillIcon size={18} />
-            {COPY.trap.set}
-          </button>
-        </div>
-        <p className="result__note" role="status">
-          {shared ? SHARE_LABEL[shared] : COPY.book.sundayRule}
-        </p>
-      </div>
-
-      {scars ? <CommunityScars sheet={sheet} scars={scars} /> : null}
-
-      {thread ? (
-        <div className="result__thread">
-          <button type="button" className="result__thread-button" onClick={() => onOpenThread(thread.url)}>
-            {thread.naming && !isTrap
-              ? COPY.result.nameIt
-              : isTrap
-                ? COPY.result.tellMaker(sheet.author ?? 'someone')
-                : COPY.result.comments}
-          </button>
-          {thread.naming && !isTrap ? <p className="result__note">{COPY.result.nameHow}</p> : null}
-        </div>
-      ) : null}
-
-      {nextTrap ? (
-        <button type="button" className="result__next-trap" onClick={() => onPlay(nextTrap.id)}>
-          <span>{COPY.trap.next(nextTrap.author ?? 'someone')}</span>
-          <span className="result__stars">{'★'.repeat(nextTrap.spec.stars)}</span>
-        </button>
-      ) : null}
-
-      {yourTrap && yourTrap.sheetId !== sheet.id ? (
-        <p className="result__your-trap">{COPY.result.yourTrap(yourTrap.caught, yourTrap.hands)}</p>
-      ) : null}
-
-      <div className="result__secondary">
-        {community ? (
-          <button type="button" className="result__link" onClick={onJoin}>
-            {COPY.result.join(community)}
-          </button>
-        ) : null}
-        {player.signedIn && !isTrap ? (
-          <label className="result__flair">
-            <input type="checkbox" checked={flair} onChange={toggleFlair} />
-            <span>
-              {COPY.flair.toggle}
-              <small>{COPY.flair.note}</small>
+          {state.magnified ? (
+            <span className="result__lens">
+              <Seal state="lens" size={MARK_SIZE} />
             </span>
-          </label>
+          ) : null}
+        </p>
+
+        {scars ? <CommunityScars sheet={sheet} scars={scars} /> : null}
+      </article>
+
+      <div className="result__after">
+        <div className="result__primary">
+          <div className="actions">
+            <button type="button" className="button button--primary" onClick={() => void share()}>
+              {shared === 'shared' || shared === 'copied' ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
+              {COPY.result.share}
+            </button>
+            <button type="button" className="button" onClick={onCompose}>
+              <QuillIcon size={18} />
+              {COPY.trap.set}
+            </button>
+          </div>
+          <p className="result__note" role="status">
+            {shared ? SHARE_LABEL[shared] : COPY.book.sundayRule}
+          </p>
+        </div>
+
+        {thread ? (
+          <div className="result__thread">
+            <button type="button" className="result__thread-button" onClick={() => onOpenThread(thread.url)}>
+              {thread.naming && !isTrap
+                ? COPY.result.nameIt
+                : isTrap
+                  ? COPY.result.tellMaker(sheet.author ?? 'someone')
+                  : COPY.result.comments}
+            </button>
+            {thread.naming && !isTrap ? <p className="result__note">{COPY.result.nameHow}</p> : null}
+          </div>
         ) : null}
-        {!player.signedIn ? (
-          <button type="button" className="result__link" onClick={onLogin}>
-            {COPY.result.login}
+
+        {nextTrap ? (
+          <button type="button" className="result__next-trap" onClick={() => onPlay(nextTrap.id)}>
+            <span>{COPY.trap.next(nextTrap.author ?? 'someone')}</span>
+            <span className="result__stars">
+              <ToolStars count={nextTrap.spec.stars} label={COPY.stars(nextTrap.spec.stars)} />
+            </span>
           </button>
         ) : null}
-      </div>
 
-      <footer className="result__next">
-        <span className="label">{COPY.result.next}</span>
-        <span className="figures result__countdown">{countdown}</span>
-        <span className="result__tomorrow">{COPY.result.tomorrow(tomorrow.title, tomorrowStars, tomorrow.promise)}</span>
-      </footer>
+        {yourTrap && yourTrap.sheetId !== sheet.id ? (
+          <p className="result__your-trap">{COPY.result.yourTrap(yourTrap.caught, yourTrap.hands)}</p>
+        ) : null}
+
+        <div className="result__secondary">
+          {community ? (
+            <button type="button" className="result__link" onClick={onJoin}>
+              {COPY.result.join(community)}
+            </button>
+          ) : null}
+          {player.signedIn && !isTrap ? (
+            <label className="result__flair">
+              <input type="checkbox" checked={flair} onChange={toggleFlair} />
+              <span>
+                {COPY.flair.toggle}
+                <small>{COPY.flair.note}</small>
+              </span>
+            </label>
+          ) : null}
+          {!player.signedIn ? (
+            <button type="button" className="result__link" onClick={onLogin}>
+              {COPY.result.login}
+            </button>
+          ) : null}
+        </div>
+
+        <footer className="result__next">
+          <span className="label">{COPY.result.next}</span>
+          <span className="figures result__countdown">{countdown}</span>
+          <span className="result__tomorrow">
+            {COPY.result.tomorrow(tomorrow.title)}
+            {/* Stars only when they are certain (a Sunday may be a community trap of any difficulty). */}
+            {tomorrowStars === null ? null : (
+              <>
+                {' '}
+                <span className="result__stars">
+                  <ToolStars count={tomorrowStars} label={COPY.stars(tomorrowStars)} />
+                </span>
+              </>
+            )}
+            {COPY.result.tomorrowPromise(tomorrow.promise)}
+          </span>
+        </footer>
+      </div>
     </section>
   );
 };

@@ -1,4 +1,4 @@
-/* The Book: a bound ledger of sheets, newest first. */
+/* The Book: a marbler's sample book, a ledger of tipped-in sheets, newest first. */
 .book {
   max-width: 520px;
   min-height: 100dvh;
@@ -16,26 +16,33 @@
   margin-left: calc(-1 * var(--space-2));
 }
 
+/* Shelves as index tabs cut into the page edge: the open one joins the page. */
 .book__shelves {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border-bottom: var(--hairline) solid var(--rule);
+  gap: var(--space-1);
+  border-bottom: var(--hairline) solid var(--rule-strong);
 }
 
 .book__shelf {
   min-height: var(--touch-target);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
+  border: var(--hairline) solid var(--rule);
+  border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: color-mix(in oklab, var(--ink) 4%, transparent);
   color: var(--ink-soft);
   font-size: var(--text-md);
   cursor: pointer;
-  transition: color var(--duration-quick), border-color var(--duration-quick);
+  transition: color var(--duration-quick), background var(--duration-quick);
 }
 
 .book__shelf[aria-selected='true'] {
+  /* Over the shelf rule, so the open tab and its page are one sheet. */
+  margin-bottom: calc(-1 * var(--hairline));
+  border-color: var(--rule-strong);
+  border-top: 2px solid var(--gilt);
+  background: var(--room);
   color: var(--ink);
-  border-bottom-color: var(--gilt);
 }
 
 .book__count {
@@ -44,39 +51,119 @@
   color: var(--ink-faint);
 }
 
-.book__list {
+/* A week of the ledger, under a small-caps running head. */
+.book__week {
   display: grid;
   gap: var(--space-2);
+}
+
+.book__week-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--gilt-ink);
+}
+
+.book__week-head::before,
+.book__week-head::after {
+  content: '';
+  flex: 1;
+  height: var(--hairline);
+  background: var(--rule);
+}
+
+.book__list {
+  display: grid;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* A ledger entry: Nº in the gutter, the specimen, then the day and its seal. */
 .book__row {
+  position: relative;
   width: 100%;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 2.2em auto 1fr;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2);
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: none;
   text-align: left;
   cursor: pointer;
   transition: background var(--duration-quick);
 }
 
+.book__row[data-kind='trap'] {
+  grid-template-columns: auto 1fr;
+}
+
 .book__row:hover {
   background: var(--surface-raised);
+}
+
+.book__no {
+  align-self: start;
+  display: grid;
+  justify-items: end;
+  color: var(--ink-faint);
+  font-size: var(--text-sm);
+  line-height: 1.15;
+}
+
+.book__no-sign {
+  font-size: var(--text-xs);
+}
+
+/* Tipped in: square to the page (a tilt would soften the hairlines players compare), held by gilt corners. */
+.book__specimen {
+  position: relative;
+  display: grid;
 }
 
 .book__thumb {
   display: block;
   width: 48px;
   aspect-ratio: 3 / 4;
-  border-radius: 2px;
   box-shadow: var(--sheet-shadow);
+}
+
+.book__corner {
+  --corner: 9px;
+  /* How far the corner reaches past the sheet's edge. */
+  --corner-overhang: 2px;
+  position: absolute;
+  width: var(--corner);
+  height: var(--corner);
+  background: var(--gilt-foil);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.book__corner[data-corner='top-left'] {
+  top: calc(-1 * var(--corner-overhang));
+  left: calc(-1 * var(--corner-overhang));
+}
+
+.book__corner[data-corner='top-right'] {
+  top: calc(-1 * var(--corner-overhang));
+  right: calc(-1 * var(--corner-overhang));
+  transform: rotate(90deg);
+}
+
+.book__corner[data-corner='bottom-right'] {
+  bottom: calc(-1 * var(--corner-overhang));
+  right: calc(-1 * var(--corner-overhang));
+  transform: rotate(180deg);
+}
+
+.book__corner[data-corner='bottom-left'] {
+  bottom: calc(-1 * var(--corner-overhang));
+  left: calc(-1 * var(--corner-overhang));
+  transform: rotate(270deg);
 }
 
 .book__text {
@@ -85,11 +172,34 @@
   min-width: 0;
 }
 
+/* The day, then a dotted leader running out to the seal at the margin. */
+.book__line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.book__line .seal {
+  align-self: center;
+}
+
 .book__title {
+  min-width: 0;
   font-size: var(--text-md);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.book__row[data-kind='daily'] .book__title {
+  font-style: italic;
+}
+
+.book__leader {
+  flex: 1 1 auto;
+  min-width: 1em;
+  border-bottom: var(--hairline) dotted var(--rule-strong);
 }
 
 .book__subtitle {
@@ -99,9 +209,7 @@
 }
 
 .book__stars {
-  font-style: normal;
-  color: var(--gilt);
-  letter-spacing: 0.08em;
+  font-size: 0.8em;
 }
 
 .book__meta {
@@ -110,15 +218,20 @@
   letter-spacing: 0.02em;
 }
 
-.book__glyph {
-  min-width: 1.5em;
-  text-align: center;
-  font-size: var(--text-lg);
-  color: var(--gilt);
-}
-
-.book__row[data-status='torn'] .book__glyph {
-  color: var(--blot);
+/* Today's sheet keeps the ribbon: it hangs over the page edge, clear of the specimen and the seal. */
+.book__row[data-today]::after {
+  --ribbon: 10px;
+  /* The status seal's size (<Seal/>'s default), which the ribbon hangs just inside of. */
+  --seal: 14px;
+  content: '';
+  position: absolute;
+  top: calc(-1 * var(--space-1));
+  right: calc(var(--space-2) + var(--seal) + var(--space-3));
+  width: var(--ribbon);
+  height: calc(var(--ribbon) * 3.2);
+  background: var(--blot);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
 }
 
 .book__empty {

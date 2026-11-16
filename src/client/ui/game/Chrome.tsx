@@ -2,7 +2,21 @@ import { RULES } from '../../../shared/config.ts';
 import type { SheetDescriptor } from '../../../shared/protocol/api.ts';
 import { COPY } from '../copy.ts';
 import { LensIcon, SoundOffIcon, SoundOnIcon } from '../icons.tsx';
+import { Seal, TearStrip, ToolStars } from '../ornaments.tsx';
 import './chrome.css';
+
+/** Difficulty runs from one star to five. */
+const MAX_STARS = 5;
+
+/** "Nº", set as a compositor would: an N and a raised, underlined o. Read aloud as "Number". */
+export const Numero = () => (
+  <>
+    <span aria-hidden>
+      N<span className="numero__o">o</span>
+    </span>
+    <span className="visually-hidden">{COPY.number}</span>
+  </>
+);
 
 /** The sheet's plaque: wordmark, number, day, difficulty and palette. */
 export const Plaque = ({
@@ -23,15 +37,17 @@ export const Plaque = ({
     <h1 className="plaque__title">
       {number !== null ? (
         <>
-          <span className="plaque__no">No.</span> <span className="plaque__number">{number}</span>{' '}
+          <span className="plaque__no">
+            <Numero />
+          </span>{' '}
+          <span className="plaque__number figures">{number}</span>{' '}
         </>
       ) : null}
       <span className="plaque__day">{weekday}</span>
     </h1>
     <p className="plaque__meta">
-      <span className="plaque__stars" aria-label={`${stars} of 5 stars`}>
-        {'★'.repeat(stars)}
-        <span className="plaque__stars-off">{'★'.repeat(5 - stars)}</span>
+      <span className="plaque__stars" role="img" aria-label={`${stars} of ${MAX_STARS} stars`}>
+        <ToolStars count={stars} of={MAX_STARS} />
       </span>
       <span className="plaque__dot" aria-hidden>
         ·
@@ -82,7 +98,9 @@ export const SealRow = ({ total, remaining }: { readonly total: number; readonly
   return (
     <ol className="seals" aria-label={COPY.sealsLabel(done, total)}>
       {Array.from({ length: total }, (_, i) => (
-        <li key={i} className="seals__seal" data-done={i < done} />
+        <li key={i} className="seals__seal" data-done={i < done}>
+          <Seal state={i < done ? 'gilt' : 'empty'} />
+        </li>
       ))}
     </ol>
   );
@@ -94,7 +112,7 @@ export const TearMeter = ({ blots }: { readonly blots: number }) => {
   return (
     <div className="tears" aria-label={COPY.blotsLabel(left)}>
       {Array.from({ length: RULES.maxBlots }, (_, i) => (
-        <span key={i} className="tears__mark" data-torn={i < blots} />
+        <TearStrip key={i} torn={i < blots} />
       ))}
     </div>
   );

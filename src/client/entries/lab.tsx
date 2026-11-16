@@ -4,9 +4,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createLabPlatform } from '../platform/lab-platform.ts';
 import { CardApp } from '../ui/card/CardApp.tsx';
+import { probeSmallCaps } from '../ui/fonts.ts';
 import { GameApp } from '../ui/GameApp.tsx';
 import { FeedBoard } from '../ui/lab/FeedBoard.tsx';
 import { ParityBoard } from '../ui/lab/ParityBoard.tsx';
+import { FoilDefs } from '../ui/ornaments.tsx';
 import { mountRoot } from './mount.ts';
 
 /**
@@ -44,4 +46,10 @@ const app =
     <GameApp platform={platform} />
   );
 
-createRoot(mountRoot()).render(<StrictMode>{app}</StrictMode>);
+probeSmallCaps();
+createRoot(mountRoot()).render(
+  <StrictMode>
+    <FoilDefs />
+    {app}
+  </StrictMode>,
+);

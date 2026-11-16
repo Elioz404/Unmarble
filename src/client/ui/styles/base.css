@@ -57,8 +57,27 @@ button {
   color: var(--ink-faint);
 }
 
+/* Real small caps where the face ships them (fonts.ts sets data-smcp); the rule above is the fallback. */
+[data-smcp] .label {
+  text-transform: none;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.08em;
+}
+
+/* Lining tabular figures for tables and counts; prose keeps oldstyle. */
 .figures {
   font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Nº set by hand: a raised, underlined o (U+2116 would pull in the Cyrillic subset). */
+.numero__o {
+  /* A lowercase o even inside a caps label. */
+  text-transform: none;
+  font-variant-caps: normal;
+  font-size: 0.62em;
+  vertical-align: 0.55em;
+  text-decoration: underline 1px;
+  text-underline-offset: 0.12em;
 }
 
 .visually-hidden {

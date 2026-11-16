@@ -11,6 +11,21 @@
   letter-spacing: 0.32em;
 }
 
+/* A finisher's short gilt rule between the wordmark and the title. */
+.plaque__wordmark::after {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 1px;
+  margin-top: 3px;
+  background: var(--gilt-foil);
+}
+
+/* Real small caps are wider than tracked capitals: they need less air. */
+[data-smcp] .plaque__wordmark {
+  letter-spacing: 0.24em;
+}
+
 .plaque__title {
   margin: 0;
   font-size: var(--text-xl);
@@ -21,13 +36,8 @@
 }
 
 .plaque__no {
-  font-size: 0.62em;
-  font-style: italic;
+  font-size: 0.7em;
   color: var(--ink-soft);
-}
-
-.plaque__number {
-  font-variant-numeric: oldstyle-nums;
 }
 
 .plaque__day {
@@ -45,13 +55,7 @@
 }
 
 .plaque__stars {
-  color: var(--gilt);
-  letter-spacing: 0.1em;
   font-size: 0.8em;
-}
-
-.plaque__stars-off {
-  color: var(--rule-strong);
 }
 
 .plaque__dot {
@@ -108,7 +112,7 @@
   cursor: default;
 }
 
-/* Seals: tooled gilt circles, one per move. */
+/* Seals: a circle-and-dot tool per move, blind until the move is undone, then struck in gilt. */
 .seals {
   display: flex;
   justify-content: center;
@@ -119,42 +123,26 @@
 }
 
 .seals__seal {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1.5px solid var(--rule-strong);
-  transition:
-    background var(--duration-calm) var(--ease-settle),
-    border-color var(--duration-calm) var(--ease-settle),
-    transform var(--duration-calm) var(--ease-settle);
+  display: grid;
 }
 
+/* The strike: the tool comes down hot and bright, then settles. On the item, so the seal keeps its own shadow. */
 .seals__seal[data-done='true'] {
-  border-color: var(--gilt);
-  background:
-    radial-gradient(circle at 35% 30%, var(--gilt-bright), var(--gilt) 60%, color-mix(in oklab, var(--gilt) 70%, black));
-  box-shadow: 0 1px 2px var(--gilt-shadow);
-  transform: scale(1.08);
+  animation: seal-strike 520ms var(--ease-settle);
 }
 
-/* Tears: three notches of paper; each blot tears one. */
+@keyframes seal-strike {
+  30% {
+    transform: scale(1.35);
+    filter: brightness(1.6);
+  }
+}
+
+/* Tears: three deckled strips of paper; each blot tears one. */
 .tears {
   display: flex;
   gap: 6px;
   align-items: center;
-}
-
-.tears__mark {
-  width: 22px;
-  height: 5px;
-  border-radius: 2px;
-  background: var(--rule-strong);
-  transition: background var(--duration-calm);
-}
-
-.tears__mark[data-torn='true'] {
-  background: var(--blot);
-  clip-path: polygon(0 0, 40% 0, 50% 100%, 60% 0, 100% 0, 100% 100%, 0 100%);
 }
 
 /* The message line keeps its height so the sheet never jumps. */

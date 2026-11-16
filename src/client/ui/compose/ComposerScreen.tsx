@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import type { SheetDescriptor, TrapRejection } from '../../../shared/protocol/api.ts';
 import { DROP_SIZES, INK_SLOTS } from '../../../shared/puzzle/moves.ts';
 import type { TrapCheck } from '../../../shared/puzzle/trap.ts';
@@ -19,6 +19,10 @@ const TOOLS: readonly { tool: ComposerTool; label: string; Icon: typeof DropTool
   { tool: 'fold', label: COPY.trap.tools.fold, Icon: FoldToolIcon },
   { tool: 'swirl', label: COPY.trap.tools.swirl, Icon: SwirlToolIcon },
 ];
+
+/** An ink pot's colour, for its CSS to shade (the body of the pot stays the exact ink). */
+type InkPotStyle = CSSProperties & { readonly '--ink-swatch': string };
+const inkPot = (color: string): InkPotStyle => ({ '--ink-swatch': color });
 
 /** Refusals about the player rather than the trap: changing the trap won't lift them. */
 const STANDING_REFUSALS: ReadonlySet<TrapRejection> = new Set(['signed-out', 'daily-limit', 'banned']);
@@ -153,7 +157,9 @@ export const ComposerScreen = ({ platform, paper, signedIn, sound, onBack }: Pro
                 className="compose__tool"
                 onClick={() => composer.setTool(tool)}
               >
-                <Icon size={20} />
+                <span className="compose__roundel">
+                  <Icon size={20} />
+                </span>
                 <span>{label}</span>
               </button>
             ))}
@@ -163,7 +169,9 @@ export const ComposerScreen = ({ platform, paper, signedIn, sound, onBack }: Pro
               onClick={() => void composer.undo()}
               disabled={view.moves.length === 0 || view.busy}
             >
-              <UndoIcon size={20} />
+              <span className="compose__roundel">
+                <UndoIcon size={20} />
+              </span>
               <span>{COPY.trap.undo}</span>
             </button>
           </div>
@@ -193,7 +201,7 @@ export const ComposerScreen = ({ platform, paper, signedIn, sound, onBack }: Pro
                       role="radio"
                       aria-checked={view.ink === ink}
                       className="compose__ink"
-                      style={{ background: palette.inks[ink] }}
+                      style={inkPot(palette.inks[ink])}
                       onClick={() => composer.setInk(ink)}
                       aria-label={`Ink ${ink + 1}`}
                     />

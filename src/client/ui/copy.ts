@@ -35,6 +35,10 @@ export const COPY = Object.freeze({
   lens: 'Lens',
   lensUsed: 'Lens used',
   sound: 'Sound',
+  /** How "Nº" is read aloud. */
+  number: 'Number',
+  /** How a row of tooled stars is read aloud. */
+  stars: (stars: number) => `${stars} ${stars === 1 ? 'star' : 'stars'}`,
   close: 'Close',
   retry: 'Try again',
   sealsLabel: (done: number, total: number) => `${done} of ${total} moves undone`,
@@ -58,15 +62,17 @@ export const COPY = Object.freeze({
     perfect: 'Perfect.',
     clean: 'Clean.',
     torn: 'Torn.',
+    /** The bookplate's colophon opens "Sheet Nº 11". */
+    sheet: 'Sheet',
     cleanWithBlots: (blots: number) => `Clean, with ${blots} ${blots === 1 ? 'tear' : 'tears'}.`,
     rank: (rank: number, hands: number) => `${ordinal(rank)} of ${hands} ${hands === 1 ? 'hand' : 'hands'}`,
     /** While only a few have played, a rank says nothing: say how early they are instead. */
     early: (hands: number) => (hands <= 1 ? 'The first hand on this sheet' : `One of the first ${hands} hands`),
     streak: (days: number) => `${days}-day streak`,
     next: 'Next sheet in',
-    /** Stars only when they are certain (a Sunday may be a community trap of any difficulty). */
-    tomorrow: (weekday: string, stars: number | null, promise: string) =>
-      `Tomorrow, ${weekday}${stars === null ? '' : ` ${'★'.repeat(stars)}`}: ${promise}.`,
+    /** "Tomorrow, Tuesday", then its stars as tooled marks (when certain), then ": what it asks." */
+    tomorrow: (weekday: string) => `Tomorrow, ${weekday}`,
+    tomorrowPromise: (promise: string) => `: ${promise}.`,
     share: 'Share result',
     shared: 'Ready to share',
     copied: 'Copied — paste it in the comments',
@@ -97,6 +103,9 @@ export const COPY = Object.freeze({
     status: { unplayed: 'Not played', playing: 'In progress', clean: 'Clean', torn: 'Torn' },
     open: 'Open the Book',
     back: 'Back',
+    /** A running head over each week of sheets; `monday` is already written out ("16 November"). */
+    weekOf: (monday: string) => `Week of ${monday}`,
+    today: 'Today',
   },
   trap: {
     by: (author: string) => `A trap by u/${author}`,

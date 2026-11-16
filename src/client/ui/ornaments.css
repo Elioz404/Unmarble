@@ -1,0 +1,80 @@
+/* Finishing tools: gilt foil, blind impressions and oxblood, all themed by tokens. */
+.foil-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.foil-defs__lit {
+  stop-color: var(--gilt-bright);
+}
+
+.foil-defs__body {
+  stop-color: var(--gilt);
+}
+
+.foil-defs__deep {
+  stop-color: var(--foil-deep);
+}
+
+.ornament {
+  display: inline-block;
+  flex: none;
+  overflow: visible;
+  vertical-align: -0.1em;
+}
+
+/* Blind: the tool pressed without foil, its lower lip catching the lamp. */
+.ornament--blind {
+  filter: drop-shadow(0 1px 0 var(--blind-light));
+}
+
+.star:not(.star--on) path {
+  fill: var(--blind-dark);
+  stroke: var(--rule-strong);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+}
+
+.seal--empty,
+.seal--lens {
+  filter: drop-shadow(0 1px 0 var(--blind-light));
+}
+
+.seal--gilt {
+  filter: drop-shadow(0 1px 1px var(--gilt-shadow));
+}
+
+.seal__ring {
+  fill: none;
+  stroke: var(--rule-strong);
+}
+
+.seal__dot {
+  fill: var(--blind-dark);
+  stroke: var(--rule-strong);
+  stroke-width: 0.6;
+}
+
+.seal--split .seal__ring {
+  stroke: var(--blot);
+}
+
+.seal--split .seal__dot {
+  fill: var(--blot);
+  stroke: none;
+}
+
+.tear-strip path {
+  fill: var(--rule-strong);
+}
+
+.tear-strip--torn path {
+  fill: var(--blot);
+}
+
+.tool-stars {
+  display: inline-flex;
+  gap: 0.12em;
+}
