@@ -97,7 +97,8 @@ src/
     app-services.ts  The service graph, pure (tests compose it over in-memory fakes)
     reddit/      The Reddit port: every Devvit Reddit call the app makes
     routes/      /api (public, validated) and /internal (triggers, scheduler, menu)
-tools/         Sheet preview tool (renders PNG strips of every solving step)
+tools/         Sheet preview tool (PNG strips of every solving step) and the icon renderer
+assets/        The app icon, rendered by tools/render-icon.ts
 ```
 
 **Physics.** A drop at *c* with radius *r* maps *p ↦ c + (p − c)·√(1 + r²/|p − c|²)*. A stroke maps *p ↦ p + u·αλ/(|(p − b)·n| + λ)*. A swirl rotates each point around its eye by *τλ/(|p − c| + λ)*. All three are exact bijections, so each frame is rendered by pulling every pixel back through the moves. Undoing the top move restores the previous state exactly. Every animation only changes an amount (a drop's radius, a stroke's shift), so each frame is a physically valid sheet.
@@ -120,6 +121,7 @@ npm install
 npm run check      # types, lint, unit tests
 npm run lab        # the game in a plain browser at http://localhost:5199/lab.html
 npm run sheets -- 2026-11-25 7   # print and render a week of sheets to previews/
+npm run icon       # render the app icon (assets/icon.png) with the marbling engine
 npm run dev        # devvit playtest (requires `npm run login` first)
 npm run deploy     # checks, then devvit upload
 ```
