@@ -15,14 +15,26 @@ import type { Store } from './store.ts';
 export const postUrl = (subreddit: string, postId: string): string =>
   `https://www.reddit.com/r/${subreddit}/comments/${postId.replace(/^t3_/, '')}`;
 
-/** A daily post's title; a Sunday chosen from the community credits its maker. */
-export const sheetTitle = (sheet: SheetDescriptor): string =>
-  `Sheet No. ${sheet.number} · ${sheet.weekday} ${'★'.repeat(sheet.spec.stars)} · ` +
-  (sheet.author ? `the week’s best trap, set by u/${sheet.author}` : sheet.paletteName);
+/** Marks a special day's title in plain text. */
+const SPECIAL_MARK = '✦';
 
-const fallbackText = (sheet: SheetDescriptor): string =>
+/**
+ * A daily post's title: the recipe it features (a special marked as one); a
+ * Sunday chosen from the community credits its maker; a sheet from before
+ * recipes names its colourway.
+ */
+export const sheetTitle = (sheet: SheetDescriptor): string => {
+  const head = `Sheet No. ${sheet.number} · ${sheet.weekday} ${'★'.repeat(sheet.spec.stars)} · `;
+  if (sheet.author) return head + `the week’s best trap, set by u/${sheet.author}`;
+  if (sheet.recipe) return head + (sheet.recipe.special ? `${SPECIAL_MARK} ${sheet.recipe.title}` : sheet.recipe.title);
+  return head + sheet.paletteName;
+};
+
+/** The post body for clients that cannot show the game. */
+export const fallbackText = (sheet: SheetDescriptor): string =>
   [
     `**UNMARBLE — Sheet No. ${sheet.number}** (${sheet.weekday}, ${sheet.dateKey})`,
+    ...(sheet.recipe ? ['', `*${sheet.recipe.title}*: ${sheet.recipe.promise}.`] : []),
     '',
     'A marbled sheet to undo, last move first. Open this post in the Reddit app or on new Reddit to play.',
   ].join('\n');

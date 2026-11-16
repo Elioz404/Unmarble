@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cardSample, LESSONS } from './tutorial.ts';
-import { isReadable } from './generator.ts';
+import { cardSample, LESSONS, lessonsFor, readingsOf } from './tutorial.ts';
+import { generateSheet, isReadable } from './generator.ts';
+import { recipeById } from './recipes.ts';
 import { readSheet } from './analysis.ts';
 import { parseSheetSpec } from './sheet.ts';
 
@@ -20,4 +21,26 @@ test('the card specimen is fair and readable', () => {
   const spec = cardSample('harbor-cobalt');
   assert.ok(isReadable(spec.moves, spec.ground));
   assert.ok(readSheet(spec.moves).margin >= 2);
+});
+
+test('a twin sheet asks for the twins reading; a recipe that forbids twins never does', () => {
+  const twins = recipeById('twins');
+  const plain = recipeById('buried-swirl');
+  if (!twins || !plain) throw new Error('missing recipes');
+  for (const seed of ['alpha', 'beta', 'gamma']) {
+    assert.ok(readingsOf(generateSheet(seed, twins, 'cinnabar').spec).has('twins'), 'twins');
+    const readings = readingsOf(generateSheet(seed, plain, 'cinnabar').spec);
+    assert.ok(!readings.has('twins'), 'no twins');
+    assert.deepEqual([...readings].sort(), ['drop', 'stroke', 'swirl']);
+  }
+});
+
+test('the twins lesson is shown only before a sheet with twins', () => {
+  const unseen = () => false;
+  const twins = LESSONS.find((lesson) => lesson.teaches === 'twins');
+  assert.ok(twins);
+  const twinSpec = twins.spec;
+  assert.ok(lessonsFor(twinSpec, unseen).includes(twins));
+  const roundIsLast = LESSONS.find((lesson) => lesson.id === 'round-is-last');
+  assert.ok(roundIsLast && !lessonsFor(roundIsLast.spec, unseen).includes(twins));
 });

@@ -4,16 +4,83 @@ import type { FieldOp, Point, StrokeOp } from '../marbling/field-ops.ts';
 import { groundCrossPhase, groundPhase, type Ground } from '../sheet/ground.ts';
 import type { SheetReading } from './analysis.ts';
 import { seamSegment } from './evidence.ts';
-import { dropRadius, opsForPrefix, strokeOp, type Move, type StrokeMove } from './moves.ts';
-import type { Feature } from './templates.ts';
+import { dropRadius, opsForPrefix, strokeOp, type Move, type MoveKind, type StrokeMove, type SwirlMove } from './moves.ts';
 
 /**
- * Detectors for the design features a template asks for. Each detector reads
- * the sheet the way a player would experience it, so "the template promised a
- * crescent" is a checked fact, not a hope.
+ * Detectors for the design features a recipe asks for (or forbids). Each
+ * detector reads the sheet the way a player would experience it, so "the
+ * recipe promised a crescent" is a checked fact, not a hope. `L` below is the
+ * index of the top move.
  */
+export type Feature =
+  /** A stroke sits under other moves, not on top or at the bottom. */
+  | 'buried-seam'
+  /** A drop is squeezed into a crescent by a later neighbour. */
+  | 'crescent'
+  /** Two seams cross inside the sheet. */
+  | 'crossed-seams'
+  /** The finished sheet has a stroke on top. */
+  | 'top-seam'
+  /** With a stroke on top, a covered drop still reads nearly round. */
+  | 'decoy'
+  /** Two touching drops share an ink: their two centres must be read. */
+  | 'twin-inks'
+  /** The finished sheet has a swirl on top. */
+  | 'top-swirl'
+  /** The finished sheet has a drop on top: the roundest one. */
+  | 'top-drop'
+  /** A stroke at mid depth: neither the second move nor the top one. */
+  | 'mid-seam'
+  /** The second move is a stroke: an early fold, bent by everything after it. */
+  | 'deep-seam'
+  /** The last two moves are both strokes. */
+  | 'fold-pair'
+  /** A stroke on top, a drop or swirl under it, and an older stroke deeper down. */
+  | 'split-folds'
+  /** At least two strokes under the top move. */
+  | 'two-buried-seams'
+  /** A swirl lies under a later move. */
+  | 'buried-swirl'
+  /** With a swirl on top, a covered drop still reads nearly round. */
+  | 'swirl-decoy'
+  /** At least two swirls. */
+  | 'twin-swirls'
+  /** Two swirls turning opposite ways. */
+  | 'opposite-swirls'
+  /** Every move is a drop. */
+  | 'ink-only'
+  /** The ink fell first (at least two drops), then only strokes. */
+  | 'folds-only';
 
-const isStroke = (move: Move): move is StrokeMove => move.kind === 'stroke';
+/** Every feature, for checks that a catalogue only names features the detectors know. */
+export const FEATURES: readonly Feature[] = [
+  'buried-seam',
+  'crescent',
+  'crossed-seams',
+  'top-seam',
+  'decoy',
+  'twin-inks',
+  'top-swirl',
+  'top-drop',
+  'mid-seam',
+  'deep-seam',
+  'fold-pair',
+  'split-folds',
+  'two-buried-seams',
+  'buried-swirl',
+  'swirl-decoy',
+  'twin-swirls',
+  'opposite-swirls',
+  'ink-only',
+  'folds-only',
+];
+
+/** Folds Only needs this many drops before its folds, so each fold has ink to bend. */
+const FOLDS_ONLY_MIN_DROPS = 2;
+
+const isStroke = (move: Move | undefined): move is StrokeMove => move?.kind === 'stroke';
+
+const isSwirl = (move: Move): move is SwirlMove => move.kind === 'swirl';
 
 type PhaseField = (ground: Ground, x: number, y: number) => number | null;
 
@@ -95,7 +162,8 @@ const segmentsCross = (a: StrokeOp, b: StrokeOp): boolean => {
   return x >= inset && x <= SHEET.cols - inset && y >= inset && y <= SHEET.rows - inset;
 };
 
-const hasTwinInks = (moves: readonly Move[]): boolean => {
+/** Whether two touching drops of one ink sit side by side (not one inside the other). */
+export const hasTwinInks = (moves: readonly Move[]): boolean => {
   const ops = opsForPrefix(moves, moves.length);
   for (let j = 1; j < moves.length; j++) {
     const later = moves[j];
@@ -123,10 +191,11 @@ const hasCrescent = (reading: SheetReading): boolean => {
   );
 };
 
-const hasDecoy = (reading: SheetReading, minMargin: number): boolean =>
+/** Some step has `topKind` on top while a covered drop still reads nearly round. */
+const hasDecoy = (reading: SheetReading, minMargin: number, topKind: MoveKind): boolean =>
   reading.steps.some((step) => {
     const top = step.evidence[step.top];
-    if (top?.kind !== 'stroke') return false;
+    if (top?.kind !== topKind) return false;
     return step.evidence.some(
       (e) => e.move !== step.top && e.kind === 'drop' && e.strength >= minMargin && e.strength <= GENERATION.decoyCeiling,
     );
@@ -139,11 +208,13 @@ export const hasFeature = (
   minMargin: number,
 ): boolean => {
   const last = moves.length - 1;
+  const strokeAt = (i: number) => isStroke(moves[i]);
+  const strokesWithin = (from: number, to: number) => moves.filter((m, i) => isStroke(m) && i >= from && i <= to).length;
   switch (feature) {
     case 'buried-seam':
-      return moves.some((m, i) => isStroke(m) && i > 0 && i < last);
+      return strokesWithin(1, last - 1) > 0;
     case 'top-seam':
-      return !!moves[last] && isStroke(moves[last]);
+      return strokeAt(last);
     case 'crossed-seams': {
       const strokes = moves.map((m, i) => (isStroke(m) ? strokeOp(m, i) : null)).filter((op) => op !== null);
       return strokes.some((a, i) => strokes.slice(i + 1).some((b) => segmentsCross(a, b)));
@@ -151,10 +222,50 @@ export const hasFeature = (
     case 'crescent':
       return hasCrescent(reading);
     case 'decoy':
-      return hasDecoy(reading, minMargin);
+      return hasDecoy(reading, minMargin, 'stroke');
     case 'twin-inks':
       return hasTwinInks(moves);
     case 'top-swirl':
       return moves[last]?.kind === 'swirl';
+    case 'top-drop':
+      return moves[last]?.kind === 'drop';
+    case 'mid-seam':
+      return strokesWithin(2, last - 1) > 0;
+    case 'deep-seam':
+      return strokeAt(1);
+    case 'fold-pair':
+      return strokeAt(last) && strokeAt(last - 1);
+    case 'split-folds':
+      return strokeAt(last) && !strokeAt(last - 1) && strokesWithin(1, last - 2) > 0;
+    case 'two-buried-seams':
+      return strokesWithin(1, last - 1) >= 2;
+    case 'buried-swirl':
+      return moves.some((m, i) => isSwirl(m) && i < last);
+    case 'swirl-decoy':
+      return hasDecoy(reading, minMargin, 'swirl');
+    case 'twin-swirls':
+      return moves.filter(isSwirl).length >= 2;
+    case 'opposite-swirls': {
+      const swirls = moves.filter(isSwirl);
+      return swirls.length >= 2 && swirls.some((a) => swirls.some((b) => a.turn !== b.turn));
+    }
+    case 'ink-only':
+      return moves.every((m) => m.kind === 'drop');
+    case 'folds-only': {
+      const firstFold = moves.findIndex((m) => m.kind !== 'drop');
+      return firstFold >= FOLDS_ONLY_MIN_DROPS && moves.slice(firstFold).every((m) => isStroke(m));
+    }
   }
 };
+
+/** What a sheet must show and must not show; a recipe's identity, checked on the reading. */
+export type Signature = {
+  readonly features: readonly Feature[];
+  readonly forbid?: readonly Feature[];
+  readonly minMargin: number;
+};
+
+/** Whether a sheet has every required feature of `signature` and none of its forbidden ones. */
+export const matchesSignature = (signature: Signature, moves: readonly Move[], reading: SheetReading): boolean =>
+  signature.features.every((f) => hasFeature(f, moves, reading, signature.minMargin)) &&
+  !(signature.forbid ?? []).some((f) => hasFeature(f, moves, reading, signature.minMargin));

@@ -10,7 +10,8 @@ import type { Move } from './moves.ts';
  *    weakest mark. A sheet is fair when this bot solves it without a blot and
  *    with a comfortable margin at every step.
  *  - the *naive bot* only knows "the roundest drop fell last". Sheets that
- *    claim to teach seams must defeat it at least once.
+ *    claim to teach seams must defeat it at least once: every recipe but
+ *    Ink Only, the declared rest day (see `recipes.ts`).
  */
 export type StepReading = {
   /** Number of moves still on the sheet at this step. */

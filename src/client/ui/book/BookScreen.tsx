@@ -3,7 +3,7 @@ import type { BookEntry, BookResponse } from '../../../shared/protocol/api.ts';
 import { addDays, weekdayOf, type DateKey } from '../../../shared/time/calendar.ts';
 import type { Platform } from '../../platform/platform.ts';
 import { COPY } from '../copy.ts';
-import { Numero } from '../game/Chrome.tsx';
+import { Numero, SheetDetail } from '../game/Chrome.tsx';
 import { BackIcon, QuillIcon } from '../icons.tsx';
 import { Seal, ToolStars, type SealState } from '../ornaments.tsx';
 import { StatusScreen } from '../StatusScreen.tsx';
@@ -78,11 +78,7 @@ const Row = ({
   const { sheet, status } = entry;
   const daily = sheet.kind === 'daily';
   const title = daily ? sheet.weekday : COPY.trap.by(sheet.author ?? 'someone');
-  const subtitle = sheet.author && daily
-    ? COPY.trap.sheetOfWeek(sheet.author)
-    : sheet.name
-      ? COPY.communityName(sheet.name)
-      : sheet.paletteName;
+  const subtitle = sheet.author && daily ? COPY.trap.sheetOfWeek(sheet.author) : <SheetDetail sheet={sheet} />;
   return (
     <li>
       <button

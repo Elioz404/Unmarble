@@ -21,7 +21,7 @@ import type {
   TrapResponse,
 } from './api.ts';
 import { PALETTES } from '../sheet/palettes.ts';
-import { parseSheetDescriptor } from './post-data.ts';
+import { parseDayPreview, parseSheetDescriptor } from './post-data.ts';
 
 /** Validators for untrusted request bodies and stored records. */
 
@@ -153,6 +153,9 @@ export const parseSheetResponse = (value: unknown): SheetResponse | null => {
   const thread = parseThread(value.thread);
   const yourTrap = parseTrapCatch(value.yourTrap);
   if (thread === undefined || yourTrap === undefined) return null;
+  // A server from before announcements sends no preview: the client falls back to the weekly template.
+  const tomorrow = value.tomorrow === undefined || value.tomorrow === null ? null : parseDayPreview(value.tomorrow);
+  if (tomorrow === undefined) return null;
   return {
     sheet,
     stats,
@@ -162,6 +165,7 @@ export const parseSheetResponse = (value: unknown): SheetResponse | null => {
     todayId,
     thread,
     yourTrap,
+    tomorrow,
   };
 };
 

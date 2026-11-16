@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { generateSheet } from '../../../shared/puzzle/generator.ts';
 import { opsForPrefix } from '../../../shared/puzzle/moves.ts';
 import type { SheetSpec } from '../../../shared/puzzle/sheet.ts';
-import { templateForWeekday } from '../../../shared/puzzle/templates.ts';
+import { RECIPES } from '../../../shared/puzzle/recipes.ts';
 import { LESSONS } from '../../../shared/puzzle/tutorial.ts';
 import { createAdaptiveRaster, EDGE_SAMPLES, rasterizeAdaptive, rasterizeSheet } from '../../../shared/render/rasterize.ts';
 import { shadingPaletteOf } from '../../../shared/render/shading.ts';
@@ -17,7 +17,6 @@ const SIZE = Object.freeze({ width: 360, height: 480 });
 const BUDGET = 3;
 /** Differences are drawn this many times brighter, so a 1/255 miss is visible. */
 const DIFF_GAIN = 40;
-const WEEKDAYS = 7;
 /** What the feed spent per pixel before edge-adaptive sampling: a quick centre pass, then a full 2 × 2 pass. */
 const OLD_FEED_SAMPLES = 1 + 4;
 
@@ -37,12 +36,12 @@ type Comparison = {
 
 const specimens = (): Specimen[] => {
   const lessons = LESSONS.map((lesson) => ({ name: `Lesson: ${lesson.id}`, spec: lesson.spec }));
-  const days = Array.from({ length: WEEKDAYS }, (_, weekday) => {
-    const template = templateForWeekday(weekday);
-    const palette = PALETTES[weekday % PALETTES.length]?.id ?? 'harbor-cobalt';
-    return { name: `${template.title} (${palette})`, spec: generateSheet(`parity:${weekday}`, template, palette).spec };
+  // One sheet per recipe, each on its own colourway.
+  const recipes = RECIPES.map((recipe, i) => {
+    const palette = PALETTES[i % PALETTES.length]?.id ?? 'harbor-cobalt';
+    return { name: `${recipe.title} (${palette})`, spec: generateSheet(`parity:${recipe.id}`, recipe, palette).spec };
   });
-  return [...lessons, ...days];
+  return [...lessons, ...recipes];
 };
 
 const frameOf = (spec: SheetSpec): SheetFrame => ({

@@ -92,6 +92,7 @@ export class TrapService {
       paletteName: today.paletteName,
       spec: { paletteId: today.spec.paletteId, ground: today.spec.ground, moves, stars: check.stars },
       name: null,
+      recipe: null,
     };
     await this.#store.set(keys.trap(id), JSON.stringify(sheet));
     let postId: string;

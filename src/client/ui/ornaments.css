@@ -37,6 +37,14 @@
   stroke-linejoin: round;
 }
 
+.special-mark {
+  display: inline-flex;
+}
+
+.special-mark__tool {
+  filter: drop-shadow(0 1px 1px var(--gilt-shadow));
+}
+
 .seal--empty,
 .seal--lens {
   filter: drop-shadow(0 1px 0 var(--blind-light));

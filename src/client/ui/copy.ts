@@ -11,6 +11,10 @@ export const COPY = Object.freeze({
   wordmark: 'Unmarble',
   tagline: 'Every sheet remembers how it was made.',
   dailyPrompt: 'Undo the sheet, last move first.',
+  /** A special day opens on its rule instead: "Ink Only: a rest day: six drops, nothing else." */
+  specialPrompt: (title: string, promise: string) => `${title}: ${promise}.`,
+  /** How a special day's gilt mark is read aloud. */
+  specialDay: 'special day',
   cardQuestion: 'Which drop fell last?',
   cardPlay: 'Unmarble today’s sheet',
   cardResume: 'Continue today’s sheet',

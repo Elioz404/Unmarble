@@ -258,6 +258,12 @@
   font-style: italic;
 }
 
+/* A special day's rule, named in the teaser: the news of the day after. */
+.result__special {
+  font-style: normal;
+  color: var(--ink);
+}
+
 .result__primary {
   display: grid;
   gap: var(--space-2);

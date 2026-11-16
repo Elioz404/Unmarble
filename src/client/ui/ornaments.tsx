@@ -53,16 +53,23 @@ export const deckle = (count: number, seed: string): readonly number[] => {
   return Array.from({ length: count + 1 }, () => random.next());
 };
 
-/** A six-point binder's star on a 12-unit tool face; inner radius half the outer, as the brass is cut. */
-const STAR = Object.freeze({ points: 6, outer: 5.6, inner: 2.8, centre: 6 });
+type StarShape = { readonly points: number; readonly outer: number; readonly inner: number; readonly centre: number };
 
-const STAR_PATH = `${Array.from({ length: STAR.points * 2 }, (_, i) => {
-  const angle = -Math.PI / 2 + (i * Math.PI) / STAR.points;
-  const radius = i % 2 === 0 ? STAR.outer : STAR.inner;
-  const x = STAR.centre + radius * Math.cos(angle);
-  const y = STAR.centre + radius * Math.sin(angle);
-  return `${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`;
-}).join('')}Z`;
+/** A star tool's face as a path: `points` tips at `outer`, notches at `inner`, the first tip straight up. */
+const starPath = ({ points, outer, inner, centre }: StarShape): string =>
+  `${Array.from({ length: points * 2 }, (_, i) => {
+    const angle = -Math.PI / 2 + (i * Math.PI) / points;
+    const radius = i % 2 === 0 ? outer : inner;
+    const x = centre + radius * Math.cos(angle);
+    const y = centre + radius * Math.sin(angle);
+    return `${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`;
+  }).join('')}Z`;
+
+/** A six-point binder's star on a 12-unit tool face; inner radius half the outer, as the brass is cut. */
+const STAR_PATH = starPath({ points: 6, outer: 5.6, inner: 2.8, centre: 6 });
+
+/** A slim four-point star, the special day's tool: cut sharper than the difficulty star so the two never read alike. */
+const SPECIAL_PATH = starPath({ points: 4, outer: 5.8, inner: 1.8, centre: 6 });
 
 /** One difficulty star: gilt when the sheet earns it, blind when not. Sized by the font (1em). */
 export const ToolStar = ({ on }: { readonly on: boolean }) => (
@@ -86,6 +93,15 @@ export const ToolStars = ({
       <ToolStar key={i} on={i < count} />
     ))}
     {label ? <span className="visually-hidden">{label}</span> : null}
+  </span>
+);
+
+/** The gilt mark of a special day, beside its title; `label` is what a screen reader hears. */
+export const SpecialMark = ({ label }: { readonly label: string }) => (
+  <span className="special-mark" role="img" aria-label={label}>
+    <Ornament viewBox="0 0 12 12" width="1em" height="1em" className="special-mark__tool">
+      <path d={SPECIAL_PATH} fill={FOIL} />
+    </Ornament>
   </span>
 );
 

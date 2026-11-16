@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react';
 import { RULES } from '../../../shared/config.ts';
 import type { SheetDescriptor } from '../../../shared/protocol/api.ts';
+import type { RecipeTag } from '../../../shared/puzzle/recipes.ts';
 import { COPY } from '../copy.ts';
 import { LensIcon, SoundOffIcon, SoundOnIcon } from '../icons.tsx';
-import { Seal, TearStrip, ToolStars } from '../ornaments.tsx';
+import { Seal, SpecialMark, TearStrip, ToolStars } from '../ornaments.tsx';
 import './chrome.css';
 
 /** Difficulty runs from one star to five. */
@@ -18,18 +20,34 @@ export const Numero = () => (
   </>
 );
 
-/** The sheet's plaque: wordmark, number, day, difficulty and palette. */
+/** A recipe's title; a special day's carries its gilt mark. */
+export const RecipeTitle = ({ recipe }: { readonly recipe: RecipeTag }) => (
+  <>
+    {recipe.special ? (
+      <>
+        <SpecialMark label={COPY.specialDay} />{' '}
+      </>
+    ) : null}
+    {recipe.title}
+  </>
+);
+
+/** What a daily sheet goes by: the community's name for it, else its recipe, else its colourway. */
+export const SheetDetail = ({ sheet }: { readonly sheet: SheetDescriptor }) =>
+  sheet.name ? COPY.communityName(sheet.name) : sheet.recipe ? <RecipeTitle recipe={sheet.recipe} /> : sheet.paletteName;
+
+/** The sheet's plaque: wordmark, number, day, difficulty and a detail (the recipe or the colourway). */
 export const Plaque = ({
   number,
   weekday,
   stars,
-  paletteName,
+  detail,
   eyebrow,
 }: {
   readonly number: number | null;
   readonly weekday: string;
   readonly stars: number;
-  readonly paletteName: string;
+  readonly detail: ReactNode;
   readonly eyebrow?: string;
 }) => (
   <div className="plaque">
@@ -52,7 +70,7 @@ export const Plaque = ({
       <span className="plaque__dot" aria-hidden>
         ·
       </span>
-      <span className="plaque__palette">{paletteName}</span>
+      <span className="plaque__palette">{detail}</span>
     </p>
   </div>
 );
@@ -67,7 +85,7 @@ export const SheetPlaque = ({ sheet, eyebrow }: { readonly sheet: SheetDescripto
       number={null}
       weekday={sheet.name ?? COPY.trap.title}
       stars={sheet.spec.stars}
-      paletteName={sheet.paletteName}
+      detail={sheet.paletteName}
       eyebrow={COPY.trap.by(sheet.author ?? 'someone')}
     />
   ) : (
@@ -75,7 +93,7 @@ export const SheetPlaque = ({ sheet, eyebrow }: { readonly sheet: SheetDescripto
       number={sheet.number}
       weekday={sheet.weekday}
       stars={sheet.spec.stars}
-      paletteName={sheet.name ? COPY.communityName(sheet.name) : sheet.paletteName}
+      detail={<SheetDetail sheet={sheet} />}
       {...(sheet.author ? { eyebrow: COPY.trap.sheetOfWeek(sheet.author) } : eyebrow ? { eyebrow } : {})}
     />
   );

@@ -1,7 +1,8 @@
 /**
- * Developer tool: generates the sheets for a range of days, prints how each
- * one reads (fairness margin, naive-bot failures, generation effort) and
- * writes PNG previews of every solving step to `previews/`.
+ * Developer tool: generates the sheets for a range of days (on the preview
+ * calendar, whose seed is public), prints the recipe of each and how it
+ * reads (fairness margin, naive-bot failures, generation effort) and writes
+ * PNG previews of every solving step to `previews/`.
  *
  *   npm run sheets -- 2026-11-25 7
  */
@@ -9,12 +10,13 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { generateSheet } from '../src/shared/puzzle/generator.ts';
 import { opsForPrefix } from '../src/shared/puzzle/moves.ts';
+import { recipeForDay } from '../src/shared/puzzle/calendar-recipes.ts';
 import type { SheetSpec } from '../src/shared/puzzle/sheet.ts';
 import { templateForWeekday } from '../src/shared/puzzle/templates.ts';
 import { rasterizeSheet } from '../src/shared/render/rasterize.ts';
 import { shadingPaletteOf } from '../src/shared/render/shading.ts';
 import { getPalette } from '../src/shared/sheet/palettes.ts';
-import { addDays, paletteIdForDay, sheetNumberOf, weekdayOf } from '../src/shared/time/calendar.ts';
+import { addDays, paletteIdForDay, sheetNumberOf, weekdayNameOf, weekdayOf } from '../src/shared/time/calendar.ts';
 import { encodePng } from './png.ts';
 
 const [startArg, daysArg] = process.argv.slice(2);
@@ -24,6 +26,7 @@ const outDir = join(process.cwd(), 'previews');
 const WIDTH = 360;
 const HEIGHT = 480;
 const GAP = 12;
+const PREVIEW_CALENDAR = 'preview:calendar';
 
 /** One strip per sheet: the finished sheet first, then each step back to bare ground. */
 const renderStrip = (spec: SheetSpec): Buffer => {
@@ -49,23 +52,24 @@ const renderStrip = (spec: SheetSpec): Buffer => {
 mkdirSync(outDir, { recursive: true });
 for (let d = 0; d < days; d++) {
   const key = addDays(start, d);
-  const template = templateForWeekday(weekdayOf(key));
+  // Before the first calendar version, a day still has its weekly template.
+  const recipe = recipeForDay(PREVIEW_CALENDAR, key) ?? templateForWeekday(weekdayOf(key));
   const number = sheetNumberOf(key, start);
   const began = performance.now();
   try {
-    const { spec, reading, attempts } = generateSheet(`preview:${key}`, template, paletteIdForDay(key));
+    const { spec, reading, attempts } = generateSheet(`preview:${key}`, recipe, paletteIdForDay(key));
     const ms = Math.round(performance.now() - began);
     const kinds = spec.moves
       .map((m) => (m.kind === 'drop' ? `${m.size}${m.ink}` : m.kind === 'stroke' ? `~${m.heading}` : m.turn > 0 ? '@+' : '@-'))
       .join(' ');
     console.log(
-      `${key} No.${String(number).padStart(3)} ${template.title.padEnd(9)} ${'★'.repeat(spec.stars).padEnd(5)} ` +
+      `${key} No.${String(number).padStart(3)} ${weekdayNameOf(key).slice(0, 3)} ${recipe.id.padEnd(18)} ${'★'.repeat(spec.stars).padEnd(5)} ` +
         `${spec.ground.family.padEnd(7)} ${spec.paletteId.padEnd(14)} margin ${reading.margin.toFixed(2).padStart(5)} ` +
         `naive✗ ${reading.naiveFailures} tries ${String(attempts).padStart(4)} ${String(ms).padStart(5)}ms  ${kinds}`,
     );
-    writeFileSync(join(outDir, `${key}-${template.id}.png`), renderStrip(spec));
+    writeFileSync(join(outDir, `${key}-${recipe.id}.png`), renderStrip(spec));
   } catch (error) {
-    console.log(`${key} ${template.title}: ${(error as Error).message}`);
+    console.log(`${key} ${recipe.id}: ${(error as Error).message}`);
   }
 }
 console.log(`Previews written to ${outDir}`);

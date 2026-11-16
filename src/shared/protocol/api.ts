@@ -1,7 +1,8 @@
 import type { PlayerAction, SheetPoint, Verdict } from '../game/session.ts';
 import type { Result } from '../game/scoring.ts';
 import type { Move } from '../puzzle/moves.ts';
-import type { SheetSpec } from '../puzzle/sheet.ts';
+import type { RecipeTag } from '../puzzle/recipes.ts';
+import type { SheetSpec, Stars } from '../puzzle/sheet.ts';
 import type { DateKey } from '../time/calendar.ts';
 
 /**
@@ -36,6 +37,21 @@ export type SheetDescriptor = {
   readonly spec: SheetSpec;
   /** Name given by the community in the comments, once it is settled. */
   readonly name: string | null;
+  /** The recipe a daily sheet features; null for traps, featured Sundays and sheets made before recipes. */
+  readonly recipe: RecipeTag | null;
+};
+
+/** What tomorrow's daily sheet will ask, announced by the server (only it knows the calendar seed). */
+export type DayPreview = {
+  readonly dateKey: DateKey;
+  /** 'Tuesday'. */
+  readonly weekday: string;
+  /** Null on a Sunday, which may be a community trap of any difficulty; a special day's own stars. */
+  readonly stars: Stars | null;
+  /** Null on a Sunday (its recipe is revealed on the day) and before recipes. */
+  readonly recipe: RecipeTag | null;
+  /** The recipe's promise, or the generic Sunday line. */
+  readonly promise: string;
 };
 
 export type LoggedAction = {
@@ -90,6 +106,8 @@ export type SheetResponse = {
   readonly thread: SheetThread | null;
   /** The trap this player set most recently (within a week), if any. */
   readonly yourTrap: TrapCatch | null;
+  /** What tomorrow's sheet will ask; null from a server that does not announce it. */
+  readonly tomorrow: DayPreview | null;
 };
 
 export type ActionRequest = {

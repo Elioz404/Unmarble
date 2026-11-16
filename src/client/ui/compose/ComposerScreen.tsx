@@ -116,7 +116,7 @@ export const ComposerScreen = ({ platform, paper, signedIn, sound, onBack }: Pro
           number={null}
           weekday={COPY.trap.composeTitle}
           stars={view.check.stars}
-          paletteName={paper.paletteName}
+          detail={paper.paletteName}
           eyebrow={COPY.trap.composeEyebrow}
         />
       </header>

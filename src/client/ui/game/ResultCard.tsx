@@ -3,6 +3,7 @@ import { COMMUNITY } from '../../../shared/config.ts';
 import { isPerfect, shareLine } from '../../../shared/game/scoring.ts';
 import type { SessionState } from '../../../shared/game/session.ts';
 import type {
+  DayPreview,
   PlayerView,
   ScarMap,
   SheetDescriptor,
@@ -10,14 +11,14 @@ import type {
   Standing,
   TrapCatch,
 } from '../../../shared/protocol/api.ts';
-import { templateForWeekday } from '../../../shared/puzzle/templates.ts';
+import { templatePreview } from '../../../shared/puzzle/templates.ts';
 import { getPalette } from '../../../shared/sheet/palettes.ts';
-import { dateKeyOf, msUntilNextDay, weekdayOf } from '../../../shared/time/calendar.ts';
+import { dateKeyOf, msUntilNextDay } from '../../../shared/time/calendar.ts';
 import type { ShareOutcome } from '../../platform/platform.ts';
 import { COPY } from '../copy.ts';
 import { CheckIcon, CopyIcon, QuillIcon } from '../icons.tsx';
 import { deckle, Fillet, Fleuron, Seal, ToolStars } from '../ornaments.tsx';
-import { Numero } from './Chrome.tsx';
+import { Numero, RecipeTitle } from './Chrome.tsx';
 import './result-card.css';
 
 type Props = {
@@ -35,6 +36,8 @@ type Props = {
   readonly nextTrap: SheetDescriptor | null;
   /** When the next daily sheet appears (server time, ms). */
   readonly nextSheetAt: number;
+  /** What it will ask, as the server announced it (null from a server that does not). */
+  readonly tomorrow: DayPreview | null;
   /** The community to join, or null where there is none (the lab). */
   readonly community: string | null;
   readonly onPlay: (sheetId: string) => void;
@@ -69,8 +72,6 @@ const headlineOf = (state: SessionState, standing: Standing | null): string => {
   if (standing && isPerfect(standing.result)) return COPY.result.perfect;
   return state.blots > 0 ? COPY.result.cleanWithBlots(state.blots) : COPY.result.clean;
 };
-
-const SUNDAY = 0;
 
 /** A rank only means something once a few hands have played. */
 const standingLine = (standing: Standing): string =>
@@ -120,6 +121,34 @@ const Colophon = ({ sheet }: { readonly sheet: SheetDescriptor }) => (
   </p>
 );
 
+/**
+ * "Tomorrow, Tuesday ★★: an early fold, bent by three drops." A special day
+ * names its rule too, since the rule is the news; a Sunday shows no stars,
+ * because it may be a community trap of any difficulty.
+ */
+const Teaser = ({ preview }: { readonly preview: DayPreview }) => (
+  <span className="result__tomorrow">
+    {COPY.result.tomorrow(preview.weekday)}
+    {preview.stars === null ? null : (
+      <>
+        {' '}
+        <span className="result__stars">
+          <ToolStars count={preview.stars} label={COPY.stars(preview.stars)} />
+        </span>
+      </>
+    )}
+    {preview.recipe?.special ? (
+      <>
+        {' · '}
+        <span className="result__special">
+          <RecipeTitle recipe={preview.recipe} />
+        </span>
+      </>
+    ) : null}
+    {COPY.result.tomorrowPromise(preview.promise)}
+  </span>
+);
+
 const SHARE_LABEL: Record<ShareOutcome, string> = {
   shared: COPY.result.shared,
   copied: COPY.result.copied,
@@ -159,6 +188,7 @@ export const ResultCard = ({
   yourTrap,
   nextTrap,
   nextSheetAt,
+  tomorrow,
   community,
   onPlay,
   onCompose,
@@ -174,10 +204,7 @@ export const ResultCard = ({
   const isTrap = sheet.kind === 'trap';
   const marks = state.history.filter((h) => h.action.type !== 'magnify');
   // The next daily, whatever sheet this is (an old one from the Book, or a trap).
-  const nextDay = dateKeyOf(nextSheetAt);
-  const tomorrow = templateForWeekday(weekdayOf(nextDay));
-  // Sunday may be the week's best trap, whose difficulty is its own.
-  const tomorrowStars = weekdayOf(nextDay) === SUNDAY ? null : tomorrow.stars;
+  const preview = tomorrow ?? templatePreview(dateKeyOf(nextSheetAt));
   const duration = standing?.result.durationMs ?? state.history[state.history.length - 1]?.at ?? 0;
 
   const share = async (): Promise<void> => {
@@ -323,19 +350,7 @@ export const ResultCard = ({
         <footer className="result__next">
           <span className="label">{COPY.result.next}</span>
           <span className="figures result__countdown">{countdown}</span>
-          <span className="result__tomorrow">
-            {COPY.result.tomorrow(tomorrow.title)}
-            {/* Stars only when they are certain (a Sunday may be a community trap of any difficulty). */}
-            {tomorrowStars === null ? null : (
-              <>
-                {' '}
-                <span className="result__stars">
-                  <ToolStars count={tomorrowStars} label={COPY.stars(tomorrowStars)} />
-                </span>
-              </>
-            )}
-            {COPY.result.tomorrowPromise(tomorrow.promise)}
-          </span>
+          <Teaser preview={preview} />
         </footer>
       </div>
     </section>

@@ -22,10 +22,21 @@ export const isDateKey = (value: unknown): value is DateKey => {
 
 const dayIndex = (key: DateKey): number => Math.floor(Date.parse(`${key}T00:00:00Z`) / DAY_MS);
 
+/** Days since the Unix epoch: a day as a plain number, for walking long runs of days. */
+export const dayNumberOf = dayIndex;
+
+/** The date key of a day number (see `dayNumberOf`). */
+export const dateKeyOfDay = (day: number): DateKey => dateKeyOf(day * DAY_MS);
+
 export const addDays = (key: DateKey, days: number): DateKey => dateKeyOf((dayIndex(key) + days) * DAY_MS);
 
 /** 0 = Sunday … 6 = Saturday. */
 export const weekdayOf = (key: DateKey): number => new Date(`${key}T00:00:00Z`).getUTCDay();
+
+/** Indexed by `weekdayOf`. */
+export const WEEKDAY_NAMES: readonly string[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+export const weekdayNameOf = (key: DateKey): string => WEEKDAY_NAMES[weekdayOf(key)] as string;
 
 /**
  * Sheet number in a community: Sheet No. 1 is its `firstDay` (the day the app

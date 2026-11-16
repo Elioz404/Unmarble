@@ -1,8 +1,10 @@
-import type { SheetDescriptor } from '../protocol/api.ts';
+import type { DayPreview, SheetDescriptor } from '../protocol/api.ts';
 import { getPalette } from '../sheet/palettes.ts';
-import { isDateKey, paletteIdForDay, sheetNumberOf, weekdayOf, type DateKey } from '../time/calendar.ts';
+import { isDateKey, paletteIdForDay, sheetNumberOf, weekdayNameOf, weekdayOf, type DateKey } from '../time/calendar.ts';
+import { recipeForDay } from './calendar-recipes.ts';
 import { generateSheet } from './generator.ts';
-import { templateForWeekday } from './templates.ts';
+import { recipeTag } from './recipes.ts';
+import { templateForWeekday, templatePreview } from './templates.ts';
 
 /**
  * The daily sheet: one per UTC day, identical for every player, generated
@@ -11,6 +13,7 @@ import { templateForWeekday } from './templates.ts';
  */
 
 const ID_PREFIX = 'd-';
+const SUNDAY = 0;
 
 export const dailySheetId = (dateKey: DateKey): string => `${ID_PREFIX}${dateKey}`;
 
@@ -22,29 +25,36 @@ export const dateKeyOfSheetId = (id: string): DateKey | null => {
 
 /**
  * The daily sheet of `dateKey` in a community whose first sheet fell on
- * `firstDay` (which only sets its number).
+ * `firstDay` (which only sets its number). `seed` is the day's secret seed;
+ * `calendarSeed` decides its recipe (the legacy weekly template before the
+ * first calendar version).
  */
-export const buildDailySheet = (
-  dateKey: DateKey,
-  seed: string,
-  firstDay: DateKey,
-  name: string | null = null,
-): SheetDescriptor => {
-  const number = sheetNumberOf(dateKey, firstDay);
-  const template = templateForWeekday(weekdayOf(dateKey));
+export const buildDailySheet = (dateKey: DateKey, seed: string, calendarSeed: string, firstDay: DateKey): SheetDescriptor => {
+  const recipe = recipeForDay(calendarSeed, dateKey);
   const palette = getPalette(paletteIdForDay(dateKey));
-  const { spec } = generateSheet(`${seed}:${dateKey}`, template, palette.id);
+  const { spec } = generateSheet(`${seed}:${dateKey}`, recipe ?? templateForWeekday(weekdayOf(dateKey)), palette.id);
   return {
     id: dailySheetId(dateKey),
     kind: 'daily',
     author: null,
-    number,
+    number: sheetNumberOf(dateKey, firstDay),
     dateKey,
-    weekday: template.title,
+    weekday: weekdayNameOf(dateKey),
     paletteName: palette.name,
     spec,
-    name,
+    name: null,
+    recipe: recipe ? recipeTag(recipe) : null,
   };
+};
+
+/**
+ * What a day will ask, announced the day before: its recipe, with its own
+ * stars. A Sunday's recipe is kept for the day (it may be the week's trap).
+ */
+export const dayPreview = (calendarSeed: string, dateKey: DateKey): DayPreview => {
+  const recipe = weekdayOf(dateKey) === SUNDAY ? null : recipeForDay(calendarSeed, dateKey);
+  if (!recipe) return templatePreview(dateKey);
+  return { dateKey, weekday: weekdayNameOf(dateKey), stars: recipe.stars, recipe: recipeTag(recipe), promise: recipe.promise };
 };
 
 /**
@@ -57,8 +67,9 @@ export const featuredDailySheet = (dateKey: DateKey, trap: SheetDescriptor, firs
   author: trap.author,
   number: sheetNumberOf(dateKey, firstDay),
   dateKey,
-  weekday: templateForWeekday(weekdayOf(dateKey)).title,
+  weekday: weekdayNameOf(dateKey),
   paletteName: getPalette(trap.spec.paletteId).name,
   spec: trap.spec,
   name: null,
+  recipe: null,
 });

@@ -25,21 +25,23 @@ Misread the sheet and the paper tears: you keep a small scar, and the sheet show
 - New here and today's sheet is a ★★★★ or ★★★★★? The game offers an easier sheet from the Book to warm up on first, and its hints come sooner for your first few sheets.
 - **Tap** a drop to draw it back. **Drag** along a fold to undo it. **Circle** a swirl's eye, against its turn.
 - The **Lens** (once per sheet) briefly shows where the water moved. Using it is marked on your result.
-- A clean sheet lifts out of the bath and marbles itself again, quickly: what you just undid. Your result card shows your marks (● correct, ○ tear), your time, your standing among everyone who played today, your streak, and what tomorrow's sheet will ask.
+- A clean sheet lifts out of the bath and marbles itself again, quickly: what you just undid. Your result card shows your marks (● correct, ○ tear), your time, your standing among everyone who played today, your streak, and what tomorrow's sheet will ask (its recipe, or on Sunday: a mixed sheet or the week's best trap).
 
 ## The daily rhythm
 
-The week has a shape, like a crossword's:
+The week has a shape, like a crossword's: every weekday keeps its difficulty and its number of moves.
 
-| Day | Moves | What it asks |
-|---|---|---|
-| Monday ★ | 4 | the round drop, and one buried fold |
-| Tuesday ★★ | 5 | a drop squeezed into a crescent (on bands or a grid) |
-| Wednesday ★★ | 5 | two folds crossing: which is on top? |
-| Thursday ★★★ | 6 | a fold on top, and a drop that only *looks* round |
-| Friday ★★★★ | 6–7 | two drops of the same ink touching, and a swirl |
-| Saturday ★★★★★ | 7–8 | everything, on waves, chevrons or rings |
-| Sunday ★★★ | 5–6 | **the week's best community trap**, credited to its maker — or a mixed sheet with a swirl |
+| Day | Moves | Folds | Swirls | Paper |
+|---|---|---|---|---|
+| Monday ★ | 4 | 1 | — | calm: bands or combed |
+| Tuesday ★★ | 5 | 1 | — | ruled: bands, combed or a grid |
+| Wednesday ★★ | 5 | 2 | — | ruled |
+| Thursday ★★★ | 6 | 1–2 | — | any |
+| Friday ★★★★ | 6–7 | 1–2 | 1 | any |
+| Saturday ★★★★★ | 7–8 | 2 | 1 | lively: waves, chevrons or rings |
+| Sunday ★★★ | 5–6 | 1 | 1 | any — or **the week's best community trap**, credited to its maker |
+
+What changes is what each day features. Each weekday rotates 4 recipes (Sunday 5) — a buried fold or an early one, a fold or a swirl on top, crossed or parallel folds, a drop that only *looks* round, twins — and never repeats one within three weeks. About one day in ten is a **special** with its own rule: *Ink Only* (a Monday rest day), *Folds Only* (a Thursday) or *Storm* (two swirls turning opposite ways, on a Friday or Saturday), shown with its own stars. The post title names the day's recipe, and the result card says what tomorrow will ask.
 
 Sheet No. 1 is the day the app was installed in your community; the colourway of the day is the same everywhere. The paper itself changes too: plain bands, finely combed stripes, a grid (a ruler in both directions), chevrons, waves and concentric rings, across 28 colourways that never repeat within four weeks.
 
@@ -81,7 +83,7 @@ src/
   shared/      Pure TypeScript, no platform APIs. Runs on client, server and in tests.
     marbling/    Exact marbling transforms (Lu & Jaffer, "Mathematical Marbling"): drops, folds, swirls
     puzzle/      Moves, evidence (marks), analysis bots, the sheet contract and its diagnoses,
-                 gesture separability, weekly templates, generator, lessons, traps
+                 gesture separability, recipes and their calendar, generator, lessons, traps
     game/        Rules as a pure reducer, gesture resolution, blot explanations, scoring
     render/      The shading model shared by the CPU rasteriser and the GLSL shader
     sheet/       Ground patterns, colour science (OKLab, CVD simulation), the palette catalogue
@@ -110,9 +112,9 @@ assets/        The app icon, rendered by tools/render-icon.ts
 - *gesture separability*: every reasonable swipe (short, long, or the whole seam, slightly off-line) or circle (off-centre, squashed) that undoes the top move must resolve to it, and a straight swipe is never read as a circle, so a blot is always a misreading, never a misaim;
 - every drop stays visible and tappable at every step;
 - the coverage and composition are balanced;
-- the sheet has the features its weekday template promises.
+- the sheet has every feature its recipe promises, and none of the features that would make it pass for another recipe of its weekday.
 
-**Server authority.** The client applies actions optimistically. The server replays the same log through the same reducer, so a reload can't undo a tear and a result can only be what the rules allow. The daily seed is an HMAC of the date with a secret created at install, so future sheets can't be computed from this public source.
+**Server authority.** The client applies actions optimistically. The server replays the same log through the same reducer, so a reload can't undo a tear and a result can only be what the rules allow. The daily seed is an HMAC of the date with a secret created at install, so future sheets can't be computed from this public source. The recipe calendar has a seed of its own (another HMAC of the secret), so announcing tomorrow's recipe reveals nothing about its sheet; the server only ever announces tomorrow.
 
 ### Commands
 
@@ -121,6 +123,7 @@ npm install
 npm run check      # types, lint, unit tests
 npm run lab        # the game in a plain browser at http://localhost:5199/lab.html
 npm run sheets -- 2026-11-25 7   # print and render a week of sheets to previews/
+npm run year       # play out a year of the calendar for three secrets and check every sheet and rule
 npm run icon       # render the app icon (assets/icon.png) with the marbling engine
 npm run dev        # devvit playtest (requires `npm run login` first)
 npm run deploy     # checks, then devvit upload

@@ -196,7 +196,9 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
   const offerWarmUp = wantsWarmUp && !warmUpDismissed && warmUp !== null ? warmUp : null;
   const earlierSheet = currentLesson === null && sheet.kind === 'daily' && sheet.id !== response.todayId;
 
-  const fallback = currentLesson?.prompt ?? (view.remaining === view.total ? COPY.dailyPrompt : '');
+  const special = sheet.recipe?.special ? sheet.recipe : null;
+  const opening = special ? COPY.specialPrompt(special.title, special.promise) : COPY.dailyPrompt;
+  const fallback = currentLesson?.prompt ?? (view.remaining === view.total ? opening : '');
   const message = messageFor(view, fallback);
 
   return (
@@ -207,7 +209,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
             number={null}
             weekday="First sheets"
             stars={1}
-            paletteName={COPY.lessonOf(lessonIndex + 1, lessons.length)}
+            detail={COPY.lessonOf(lessonIndex + 1, lessons.length)}
             eyebrow={COPY.wordmark}
           />
         ) : (
@@ -276,6 +278,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           yourTrap={response.yourTrap}
           nextTrap={nextTrap?.sheet ?? null}
           nextSheetAt={response.nextSheetAt}
+          tomorrow={response.tomorrow}
           community={platform.community}
           onPlay={navigation.play}
           onCompose={navigation.compose}

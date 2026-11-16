@@ -1,48 +1,14 @@
-import type { GroundFamily } from '../sheet/ground.ts';
-import type { Stars } from './sheet.ts';
+import type { DayPreview } from '../protocol/api.ts';
+import { weekdayNameOf, weekdayOf, type DateKey } from '../time/calendar.ts';
+import { GROUNDS, SUNDAY_PROMISE, type SheetTemplate } from './recipes.ts';
 
 /**
- * Weekly difficulty curve. Every day contains at least one seam, so the
- * "round drop fell last" shortcut is never enough. Templates are pure data;
- * the generator turns them into sheets and the validator proves each sheet
- * satisfies its template.
+ * The weekly templates sheets were made from before recipes (see
+ * `recipes.ts`): one fixed template per weekday. They still decide the days
+ * before the first calendar version, and the "tomorrow" teaser of a client
+ * talking to a server that does not announce it yet. Frozen: never edited.
  */
-export type Feature =
-  /** A stroke sits under other moves, not on top or at the bottom. */
-  | 'buried-seam'
-  /** A drop is squeezed into a crescent by a later neighbour. */
-  | 'crescent'
-  /** Two seams cross inside the sheet. */
-  | 'crossed-seams'
-  /** The finished sheet has a stroke on top. */
-  | 'top-seam'
-  /** With a stroke on top, a covered drop still reads nearly round. */
-  | 'decoy'
-  /** Two touching drops share an ink: their two centres must be read. */
-  | 'twin-inks'
-  /** The finished sheet has a swirl on top. */
-  | 'top-swirl';
-
-export type SheetTemplate = {
-  readonly id: string;
-  readonly title: string;
-  /** What the day asks of the reader, in a few words (the "tomorrow" teaser). */
-  readonly promise: string;
-  readonly stars: Stars;
-  readonly moves: readonly [min: number, max: number];
-  readonly strokes: readonly [min: number, max: number];
-  readonly swirls: readonly [min: number, max: number];
-  readonly inks: number;
-  readonly features: readonly Feature[];
-  readonly grounds: readonly GroundFamily[];
-  /** Weakest covered mark allowed, in evidence strength. */
-  readonly minMargin: number;
-};
-
-const CALM: readonly GroundFamily[] = ['bands', 'combed'];
-const RULED: readonly GroundFamily[] = ['bands', 'combed', 'grid'];
-const ALL: readonly GroundFamily[] = ['bands', 'combed', 'grid', 'chevron', 'waves', 'rings'];
-const LIVELY: readonly GroundFamily[] = ['waves', 'chevron', 'rings'];
+const { CALM, RULED, ALL, LIVELY } = GROUNDS;
 
 /**
  * Indexed by UTC weekday: 0 = Sunday … 6 = Saturday. The week climbs from one
@@ -63,4 +29,17 @@ export const templateForWeekday = (weekday: number): SheetTemplate => {
   const template = WEEKLY_TEMPLATES[((weekday % 7) + 7) % 7];
   if (!template) throw new RangeError(`No template for weekday ${weekday}`);
   return template;
+};
+
+const SUNDAY = 0;
+
+/**
+ * What a day asks under the weekly templates. A Sunday stays generic: it may
+ * be the week's best trap, decided only on the day, at its own difficulty.
+ */
+export const templatePreview = (dateKey: DateKey): DayPreview => {
+  const weekday = weekdayNameOf(dateKey);
+  if (weekdayOf(dateKey) === SUNDAY) return { dateKey, weekday, stars: null, recipe: null, promise: SUNDAY_PROMISE };
+  const template = templateForWeekday(weekdayOf(dateKey));
+  return { dateKey, weekday, stars: template.stars, recipe: null, promise: template.promise };
 };

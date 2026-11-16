@@ -1,6 +1,6 @@
 import { replaySession } from '../../shared/game/session.ts';
 import { resultOf, type Result } from '../../shared/game/scoring.ts';
-import { buildDailySheet, dateKeyOfSheetId } from '../../shared/puzzle/daily.ts';
+import { buildDailySheet, dateKeyOfSheetId, dayPreview } from '../../shared/puzzle/daily.ts';
 import { checkTrap } from '../../shared/puzzle/trap.ts';
 import { parseSheetDescriptor } from '../../shared/protocol/post-data.ts';
 import type {
@@ -29,6 +29,8 @@ import { copyToClipboard, type Platform } from './platform.ts';
  * session log the facilitator can export for the gate analysis.
  */
 const LAB_SEED = 'lab';
+/** The lab's recipe calendar: public, unlike an installation's, which comes from its secret. */
+const LAB_CALENDAR = 'lab:calendar';
 const KEY = 'unmarble:lab:';
 
 const read = (key: string): unknown => {
@@ -110,7 +112,7 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
   const daily = (dateKey: DateKey): SheetDescriptor => {
     const cached = dailies.get(dateKey);
     if (cached) return cached;
-    const sheet = buildDailySheet(dateKey, LAB_SEED, firstDay);
+    const sheet = buildDailySheet(dateKey, LAB_SEED, LAB_CALENDAR, firstDay);
     dailies.set(dateKey, sheet);
     return sheet;
   };
@@ -167,6 +169,7 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
         // The lab has no Reddit posts to discuss sheets in.
         thread: null,
         yourTrap: latestTrapCatch(),
+        tomorrow: dayPreview(LAB_CALENDAR, addDays(today, 1)),
       };
     },
     sinkFor: (sheetId) => ({
@@ -211,6 +214,7 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
         paletteName: paper.paletteName,
         spec: { paletteId: paper.spec.paletteId, ground: paper.spec.ground, moves, stars: check.stars },
         name: null,
+        recipe: null,
       };
       write('traps', [...traps(), sheet]);
       return { kind: 'published', sheet, postUrl: null };

@@ -78,6 +78,31 @@ export const GENERATION = Object.freeze({
   swirlReach: 1.6,
   /** A swirl's eye keeps this distance (cells) from the sheet edge. */
   swirlEdgeMargin: 2.5,
+  /** Parallel folds: a later fold's heading strays at most this far (degrees) from the first one's. */
+  parallelSpread: 10,
+  /** Folds Only: a fold passes within this distance (cells) of the earlier drop it is anchored on. */
+  anchoredFoldReach: 2.5,
+  /** Folds Only: a fold leans this far (degrees) off square to the stripes; steep enough to kink them, slanted enough to cross the fold before. */
+  foldsOnlyLean: Object.freeze({ min: 25, max: 55 }),
+  /** Opposite swirls: their eyes stay at least this far apart (cells), so each turn reads on its own. */
+  stormEyeSpacing: 3,
+});
+
+/**
+ * The recipe calendar (`calendar-recipes.ts`): which recipe each day
+ * features, and where the special days fall.
+ */
+export const ROTATION = Object.freeze({
+  /** A weekday never repeats a recipe within 3 consecutive weeks: the last two are excluded. */
+  noRepeat: 2,
+  /** A recipe's weight grows with the weeks since it was last used, up to this cap (never used: the cap). */
+  maxAgeWeight: 8,
+  /** Special days come one per block of this many days (length drawn per block from the secret): about 1 in 10. */
+  specialBlock: Object.freeze({ min: 8, max: 12 }),
+  /** A special never falls on its block's first or last day, which keeps specials `specialGap` days apart. */
+  specialInset: 1,
+  /** Fewest days from one special to the next, also across a catalogue change. */
+  specialGap: 3,
 });
 
 export const GROUND_STYLE = Object.freeze({

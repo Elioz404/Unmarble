@@ -1,15 +1,19 @@
+import { hasTwinInks } from './features.ts';
 import type { MoveKind } from './moves.ts';
 import type { SheetSpec } from './sheet.ts';
 
+/** What a lesson teaches: a form of mark, or twins (two drops of one ink, each with its own centre). */
+export type Reading = MoveKind | 'twins';
+
 /**
- * Hand-made teaching sheets. Each introduces exactly one reading of one form,
- * is played the first time that form appears in a player's sheet, and is held
+ * Hand-made teaching sheets. Each introduces exactly one reading, is played
+ * the first time that reading appears in a player's sheet, and is held
  * to the same fairness contract as generated sheets (see `tutorial.test.ts`).
  */
 export type Lesson = {
   readonly id: string;
-  /** The form this lesson teaches; it is shown before the first sheet that has it. */
-  readonly teaches: MoveKind;
+  /** The reading this lesson teaches; it is shown before the first sheet that has it. */
+  readonly teaches: Reading;
   /** One line, shown above the sheet. */
   readonly prompt: string;
   readonly spec: SheetSpec;
@@ -32,7 +36,7 @@ export const LESSONS: readonly Lesson[] = [
   {
     id: 'round-is-last',
     teaches: 'drop',
-    prompt: 'The perfectly round drop fell last. Undo it first.',
+    prompt: 'The perfectly round drop fell last. Undo it first. A drop inside another fell after it.',
     spec: {
       paletteId: 'harbor-cobalt',
       ground: GROUND,
@@ -71,15 +75,36 @@ export const LESSONS: readonly Lesson[] = [
       ],
     },
   },
+  {
+    id: 'two-centres',
+    teaches: 'twins',
+    prompt: 'Two drops of one ink: each has its own centre. The round one fell last.',
+    spec: {
+      paletteId: 'harbor-cobalt',
+      ground: GROUND,
+      stars: 1,
+      moves: [
+        { kind: 'drop', x: 4.5, y: 8.5, size: 'L', ink: 1 },
+        { kind: 'drop', x: 8, y: 7.5, size: 'L', ink: 1 },
+      ],
+    },
+  },
 ];
+
+/** The readings a sheet asks for: its forms of mark, and twins where two drops of one ink touch. */
+export const readingsOf = (spec: SheetSpec): Set<Reading> => {
+  const readings = new Set<Reading>(spec.moves.map((move) => move.kind));
+  if (hasTwinInks(spec.moves)) readings.add('twins');
+  return readings;
+};
 
 /** The lessons a player still needs before playing `spec`, in teaching order. */
 export const lessonsFor = (spec: SheetSpec, seen: (lessonId: string) => boolean): Lesson[] => {
-  const forms = new Set(spec.moves.map((move) => move.kind));
+  const readings = readingsOf(spec);
   // Drops and folds are the basics: taught on the first visit, whatever the sheet.
-  forms.add('drop');
-  forms.add('stroke');
-  return LESSONS.filter((lesson) => forms.has(lesson.teaches) && !seen(lesson.id));
+  readings.add('drop');
+  readings.add('stroke');
+  return LESSONS.filter((lesson) => readings.has(lesson.teaches) && !seen(lesson.id));
 };
 
 /**

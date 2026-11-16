@@ -1,6 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto';
-import { buildDailySheet, dailySheetId, dateKeyOfSheetId, featuredDailySheet } from '../../shared/puzzle/daily.ts';
-import type { SheetDescriptor } from '../../shared/protocol/api.ts';
+import { buildDailySheet, dailySheetId, dateKeyOfSheetId, dayPreview, featuredDailySheet } from '../../shared/puzzle/daily.ts';
+import type { DayPreview, SheetDescriptor } from '../../shared/protocol/api.ts';
 import { parseSheetDescriptor } from '../../shared/protocol/post-data.ts';
 import { addDays, dateKeyOf, isDateKey, sheetNumberOf, weekdayOf, type DateKey } from '../../shared/time/calendar.ts';
 import { readJson } from './json.ts';
@@ -11,6 +11,9 @@ import type { Store } from './store.ts';
 export type FeaturedProvider = (sunday: DateKey) => Promise<SheetDescriptor | null>;
 
 const SUNDAY = 0;
+
+/** HMAC label of the calendar seed: separate from every day seed, so announcing recipes reveals no sheet. */
+const CALENDAR_LABEL = 'calendar';
 
 /**
  * Daily sheets for one installation. Only today's sheet is ever generated
@@ -24,6 +27,7 @@ export class SheetService {
   readonly #store: Store;
   readonly #now: () => number;
   #featured: FeaturedProvider = async () => null;
+  #calendar: string | null = null;
 
   constructor(store: Store, now: () => number = Date.now) {
     this.#store = store;
@@ -103,10 +107,21 @@ export class SheetService {
     await this.#store.set(keys.sheet(sheetId), JSON.stringify({ ...sheet, name }));
   }
 
+  /** What tomorrow's sheet will ask. Only ever tomorrow's: no request can see further ahead. */
+  async tomorrow(): Promise<DayPreview> {
+    return dayPreview(await this.#calendarSeed(), addDays(this.today(), 1));
+  }
+
   async #generate(dateKey: DateKey): Promise<SheetDescriptor> {
     const secret = await this.ensureSecret();
     const seed = createHmac('sha256', secret).update(dateKey).digest('hex');
-    return buildDailySheet(dateKey, seed, await this.firstDay());
+    return buildDailySheet(dateKey, seed, await this.#calendarSeed(), await this.firstDay());
+  }
+
+  /** The seed of the recipe calendar, derived from the secret once per service. */
+  async #calendarSeed(): Promise<string> {
+    this.#calendar ??= createHmac('sha256', await this.ensureSecret()).update(CALENDAR_LABEL).digest('hex');
+    return this.#calendar;
   }
 
   async #cached(sheetId: string): Promise<SheetDescriptor | null> {
