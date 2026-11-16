@@ -64,3 +64,42 @@ export const groundPhase = (ground: Ground, x: number, y: number): number => {
  */
 export const groundCrossPhase = (ground: Ground, x: number, y: number): number | null =>
   ground.family === 'grid' ? stripeFrame(ground, x, y).s / ground.period : null;
+
+/** A gradient (phase per cell), written into by the functions below. */
+export type Gradient = { x: number; y: number };
+
+/** Gradient of `groundPhase` at an original point, into `out`. Matches the shader. */
+export const groundPhaseGradient = (ground: Ground, x: number, y: number, out: Gradient): Gradient => {
+  if (ground.family === 'rings') {
+    const dx = x - CENTER_X;
+    const dy = y - CENTER_Y;
+    const l = Math.hypot(dx, dy);
+    // The centre has no direction; any unit vector is a valid subgradient (the shader's too).
+    out.x = (l > 0 ? dx / l : 1) / ground.period;
+    out.y = (l > 0 ? dy / l : 0) / ground.period;
+    return out;
+  }
+  const a = (ground.angle * Math.PI) / 180;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  // ∇t = (−sin, cos); ∇s = (cos, sin). Chevron and waves add a multiple of ∇s.
+  const { s } = stripeFrame(ground, x, y);
+  const along =
+    ground.family === 'chevron'
+      ? ground.amplitude * Math.sign(s)
+      : ground.family === 'waves'
+        ? ground.amplitude * (TAU / ground.wavelength) * Math.cos((TAU * s) / ground.wavelength)
+        : 0;
+  out.x = (-sin + along * cos) / ground.period;
+  out.y = (cos + along * sin) / ground.period;
+  return out;
+};
+
+/** Gradient of `groundCrossPhase` (uniform; zero where there is no crossing field), into `out`. */
+export const groundCrossGradient = (ground: Ground, out: Gradient): Gradient => {
+  const a = (ground.angle * Math.PI) / 180;
+  const grid = ground.family === 'grid' ? 1 / ground.period : 0;
+  out.x = Math.cos(a) * grid;
+  out.y = Math.sin(a) * grid;
+  return out;
+};

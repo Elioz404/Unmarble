@@ -1,5 +1,5 @@
 import { SHEET } from '../config.ts';
-import { fieldScratch, sampleFieldInto } from '../marbling/field.ts';
+import { fieldScratchJ, sampleFieldJ } from '../marbling/field.ts';
 import type { FieldOp } from '../marbling/field-ops.ts';
 import type { Ground } from '../sheet/ground.ts';
 import { paperFinish, shadeSample, toSrgbByte, type GroundPlace, type ShadingPalette } from './shading.ts';
@@ -52,7 +52,7 @@ export const rasterizeSheet = (
   const sy = SHEET.rows / height;
   const pattern = samplePattern(Math.max(1, Math.floor(supersample)));
   const weight = 1 / pattern.length;
-  const field = fieldScratch();
+  const field = fieldScratchJ();
   const sample: [number, number, number] = [0, 0, 0];
   const color: [number, number, number] = [0, 0, 0];
   for (let j = rowFrom; j < rowTo; j++) {
@@ -64,7 +64,7 @@ export const rasterizeSheet = (
       color[2] = 0;
       let coverage = 0;
       for (const [u, v] of pattern) {
-        coverage += shadeSample(sampleFieldInto(ops, x + u * sx, y + v * sy, field), ground, palette, sx, sample);
+        coverage += shadeSample(sampleFieldJ(ops, x + u * sx, y + v * sy, field), ground, palette, sx, sample);
         color[0] += sample[0];
         color[1] += sample[1];
         color[2] += sample[2];
@@ -144,13 +144,13 @@ export const shadeCentres = (raster: AdaptiveRaster, ops: readonly FieldOp[], gr
   const { width, height, rgb, coverage, region, phase, cross } = raster;
   const sx = SHEET.cols / width;
   const sy = SHEET.rows / height;
-  const field = fieldScratch();
+  const field = fieldScratchJ();
   const place: GroundPlace = { phase: 0, cross: 0, line: 0 };
   const color: [number, number, number] = [0, 0, 0];
   for (let j = 0; j < height; j++) {
     for (let i = 0; i < width; i++) {
       const p = j * width + i;
-      const sample = sampleFieldInto(ops, (i + 0.5) * sx, (j + 0.5) * sy, field);
+      const sample = sampleFieldJ(ops, (i + 0.5) * sx, (j + 0.5) * sy, field);
       const ink = shadeSample(sample, ground, palette, sx, color, place);
       rgb[p * 3] = color[0];
       rgb[p * 3 + 1] = color[1];
@@ -203,7 +203,7 @@ export const refineEdges = (
   const sy = SHEET.rows / height;
   const pattern = samplePattern(n);
   const weight = 1 / pattern.length;
-  const field = fieldScratch();
+  const field = fieldScratchJ();
   const color: [number, number, number] = [0, 0, 0];
   for (let p = 0; p < width * height; p++) {
     if (flagged[p] === 0) continue;
@@ -214,7 +214,7 @@ export const refineEdges = (
     let b = 0;
     let ink = 0;
     for (const [u, v] of pattern) {
-      ink += shadeSample(sampleFieldInto(ops, x + u * sx, y + v * sy, field), ground, palette, sx, color);
+      ink += shadeSample(sampleFieldJ(ops, x + u * sx, y + v * sy, field), ground, palette, sx, color);
       r += color[0];
       g += color[1];
       b += color[2];

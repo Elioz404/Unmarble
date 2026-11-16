@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleField } from '../marbling/field.ts';
+import { fieldScratchJ, sampleFieldJ } from '../marbling/field.ts';
 import type { FieldOp } from '../marbling/field-ops.ts';
 import { opsForPrefix } from '../puzzle/moves.ts';
 import { LESSONS } from '../puzzle/tutorial.ts';
@@ -21,19 +21,20 @@ const PX = 12 / 360;
 /** One pixel at a single centre sample, as the rasteriser shades it. */
 const pixel = (ops: readonly FieldOp[], x: number, y: number): [number, number, number] => {
   const out: [number, number, number] = [0, 0, 0];
-  const coverage = shadeSample(sampleField(ops, x, y), LESSON.ground, PALETTE, PX, out);
+  const coverage = shadeSample(sampleFieldJ(ops, x, y, fieldScratchJ()), LESSON.ground, PALETTE, PX, out);
   const finish = paperFinish(x, y, coverage, PX);
   return [out[0] * finish, out[1] * finish, out[2] * finish];
 };
 
 test('shading matches its golden values (a change here is a change of the look: update the shader too)', () => {
   const golden: readonly { at: readonly [number, number]; rgb: readonly [number, number, number] }[] = [
-    { at: [8, 7], rgb: [0.709286, 0.388641, 0.083718] }, // the round drop's centre wash
+    { at: [8, 7], rgb: [0.707153, 0.384756, 0.081368] }, // the round drop's centre wash, granulated
     { at: [9.746, 7], rgb: [0.695203, 0.362602, 0.068645] }, // its tide line
-    { at: [5.6, 9.9], rgb: [0.008468, 0.041747, 0.198596] }, // inside the crescent
+    { at: [5.6, 9.9], rgb: [0.007849, 0.039751, 0.1943] }, // inside the crescent, compressed and granulated
     { at: [1.5, 2.5], rgb: [0.893235, 0.844006, 0.75795] }, // bare paper
     { at: [1, 13.2], rgb: [0.75128, 0.678338, 0.564182] }, // band
     { at: [1, 14.98], rgb: [0.363699, 0.307311, 0.214355] }, // rule
+    { at: [1, 14.95], rgb: [0.557645, 0.504121, 0.414076] }, // the rule's analytic pen edge
   ];
   for (const { at, rgb } of golden) {
     const got = pixel(OPS, at[0], at[1]);
@@ -61,7 +62,7 @@ test("a pristine drop's tide line is a perfect ring", () => {
     const ring = Array.from({ length: 36 }, (_, i) => {
       const a = (i / 36) * Math.PI * 2;
       const out: [number, number, number] = [0, 0, 0];
-      shadeSample(sampleField(PRISTINE, 6 + Math.cos(a) * depth * 2.6, 8 + Math.sin(a) * depth * 2.6), LESSON.ground, PALETTE, PX, out);
+      shadeSample(sampleFieldJ(PRISTINE, 6 + Math.cos(a) * depth * 2.6, 8 + Math.sin(a) * depth * 2.6, fieldScratchJ()), LESSON.ground, PALETTE, PX, out);
       return out;
     });
     for (const rgb of ring) rgb.forEach((c, k) => close(c, ring[0]?.[k] as number, 1e-9, `depth ${depth.toFixed(3)}`));
@@ -72,7 +73,7 @@ test('the ink only deepens toward its outline: no ring is drawn inside a drop', 
   let previous = Infinity;
   for (let depth = LOOK.mottleMaskTo; depth < 1; depth += 0.002) {
     const out: [number, number, number] = [0, 0, 0];
-    shadeSample(sampleField(PRISTINE, 6 + depth * 2.6, 8), LESSON.ground, PALETTE, PX, out);
+    shadeSample(sampleFieldJ(PRISTINE, 6 + depth * 2.6, 8, fieldScratchJ()), LESSON.ground, PALETTE, PX, out);
     assert.ok(luminance(out) <= previous + 1e-12, `lighter again at depth ${depth.toFixed(3)}`);
     previous = luminance(out);
   }
@@ -87,4 +88,36 @@ test('laid and chain lines never show through ink; tooth shows faintly', () => {
       close(paperFinish(x, y, 0, px), 1, LOOK.toothStrength + LOOK.laidStrength / 2 + LOOK.chainStrength, `paper at (${x}, ${y})`);
     }
   }
+});
+
+/**
+ * The on-screen width (half coverage to half coverage) of the lesson's rule
+ * through the sheet's centre, where the water scales the ground by `squeeze`
+ * across the stripes (above 1 crowds them, below 1 stretches them).
+ */
+const ruleWidthOnScreen = (squeeze: number, px: number): number => {
+  const sample = fieldScratchJ();
+  const out: [number, number, number] = [0, 0, 0];
+  const band = PALETTE.paper[1] as number;
+  const rule = PALETTE.rule[1] as number;
+  let half = 0;
+  for (let offset = 0; offset < 1; offset += px / 8) {
+    Object.assign(sample, { kind: 'ground', x: 6, y: 8 + squeeze * offset, jxx: 1, jxy: 0, jyx: 0, jyy: squeeze });
+    shadeSample(sample, LESSON.ground, PALETTE, px, out);
+    if ((out[1] - band) / (rule - band) < 0.5) break;
+    half = offset;
+  }
+  return 2 * half;
+};
+
+test('rules are ruled with a pen: near-constant weight on screen, strain shown only within bounds', () => {
+  const px = 0.002;
+  const period = LESSON.ground.period;
+  const nominal = LOOK.ruleWidth * period;
+  const near = (squeeze: number, want: number) => close(ruleWidthOnScreen(squeeze, px), want, px / 4, `squeezed ×${squeeze}`);
+  near(1, nominal);
+  near(0.1, LOOK.penMax * nominal); // stretched tenfold
+  near(2, LOOK.penMin * nominal); // crowded twofold
+  // Crowded until the stripes are tighter than the pen allows: the rule keeps to its share of the stripe.
+  near(30, (LOOK.penShare * period) / 30);
 });

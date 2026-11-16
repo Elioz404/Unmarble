@@ -1,7 +1,14 @@
 import { parseHex, srgbToLinear, type Rgb } from '../sheet/color.ts';
-import { groundCrossPhase, groundPhase, type Ground } from '../sheet/ground.ts';
+import {
+  groundCrossGradient,
+  groundCrossPhase,
+  groundPhase,
+  groundPhaseGradient,
+  type Gradient,
+  type Ground,
+} from '../sheet/ground.ts';
 import type { Palette } from '../sheet/palettes.ts';
-import type { FieldSample } from '../marbling/field.ts';
+import type { FieldScratchJ } from '../marbling/field.ts';
 
 /**
  * The look of a marbled sheet, shared by the CPU rasteriser and (line for
@@ -21,8 +28,25 @@ import type { FieldSample } from '../marbling/field.ts';
  * coverage), then `paperFinish` once per pixel.
  */
 export const LOOK = Object.freeze({
-  /** Hairline width in stripe-phase units. */
-  ruleWidth: 0.07,
+  /**
+   * A rule's width on undistorted ground, in stripe-phase units (half
+   * coverage to half coverage): the pen's nominal weight.
+   */
+  ruleWidth: 0.105,
+  /**
+   * The pen rules every hairline at near-constant weight on screen. Strain
+   * still shows within these bounds (multiples of the nominal weight) …
+   */
+  penMin: 0.6,
+  penMax: 1.6,
+  /** … a rule is never thinner than this many device pixels, so compressed rules never break into aliased hairs … */
+  penFloorPx: 1.25,
+  /**
+   * … but never takes more than this share of its stripe's period on screen,
+   * so where the water crowds the stripes they never merge into a dark fill
+   * or a false outline hugging the ink.
+   */
+  penShare: 0.15,
   /**
    * Ink density at a drop's centre per ink slot (deep → light), where 1 is the
    * palette colour: a thinner, luminous wash. Each is the thinnest wash that
@@ -47,12 +71,22 @@ export const LOOK = Object.freeze({
   /** Pigment mottle: relative density swing, and blotches per cell in the ink's own coordinates. */
   mottle: 0.03,
   mottleScale: 0.8,
-  /** Noise offset per source move, so no two drops mottle alike. */
+  /** Noise offset per source move, so no two drops mottle or granulate alike. */
   mottleSeedX: 13.1,
   mottleSeedY: 7.3,
-  /** Depths over which the mottle fades out, so the outline stays a clean step. */
+  /** Depths over which the mottle and the granulation fade out, so the outline stays a clean step. */
   mottleMaskFrom: 0.86,
   mottleMaskTo: 0.96,
+  /**
+   * Pigment granulation: relative density a grain adds at its densest, and
+   * grains per cell in the ink's own coordinates. Grains only add pigment,
+   * so the thinnest wash (where the palette contract is checked) is unchanged.
+   */
+  grain: 0.035,
+  grainScale: 4.5,
+  /** Grains per pixel over which the granulation fades out, so compressed ink never sparkles (Nyquist is 0.5). */
+  grainFadeFrom: 0.35,
+  grainFadeTo: 0.7,
   /** Paper tooth: relative brightness swing, and the share of it that shows through ink. */
   toothStrength: 0.02,
   toothThroughInk: 0.35,
@@ -136,11 +170,34 @@ export const valueNoise = (x: number, y: number): number => {
   return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
 };
 
-/** Distance to the nearest integer phase, i.e. to the nearest hairline. */
-const hairline = (phase: number, width: number): number => {
-  const d = Math.abs(fract(phase + 0.5) - 0.5);
-  return 1 - smoothstep(width * 0.5, width, d);
+/** Below this many phases per cell the stripes are flat: no rule is near. */
+export const FLAT_GRADIENT = 1e-6;
+
+/**
+ * Coverage of the rule nearest `phase`, ruled with a pen: `gradient` is the
+ * phase's change per cell of screen, `nominal` the rule's width (cells) on
+ * undistorted ground, `px` a pixel's size (cells). The width follows the
+ * strain within bounds, with a 1 px analytic edge.
+ */
+const penLine = (phase: number, gradient: number, nominal: number, px: number): number => {
+  const g = Math.max(gradient, FLAT_GRADIENT);
+  const pen = Math.min(Math.max(LOOK.ruleWidth / g, LOOK.penMin * nominal, LOOK.penFloorPx * px), LOOK.penMax * nominal);
+  // 1/g is the stripe period on screen; the natural width ruleWidth/g always fits within the share.
+  const width = Math.min(pen, LOOK.penShare / g);
+  const distance = Math.abs(fract(phase + 0.5) - 0.5) / g;
+  return 1 - smoothstep((width - px) / 2, (width + px) / 2, distance);
 };
+
+/** Length of Jᵀ·∇φ: how fast a phase whose ground gradient is `gradient` changes per cell of screen. */
+const screenGradient = (j: FieldScratchJ, gradient: Gradient): number => {
+  const x = j.jxx * gradient.x + j.jyx * gradient.y;
+  const y = j.jxy * gradient.x + j.jyy * gradient.y;
+  return Math.sqrt(x * x + y * y);
+};
+
+/** Scratch gradients for `shadeSample`, which allocates nothing. */
+const PHASE_GRADIENT: Gradient = { x: 0, y: 0 };
+const CROSS_GRADIENT: Gradient = { x: 0, y: 0 };
 
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
 
@@ -174,7 +231,7 @@ export type GroundPlace = { phase: number; cross: number; line: number };
  * 1 for ink, 0 for bare ground. For ground, also reports its `place`.
  */
 export const shadeSample = (
-  sample: FieldSample,
+  sample: FieldScratchJ,
   ground: Ground,
   palette: ShadingPalette,
   px: number,
@@ -186,18 +243,30 @@ export const shadeSample = (
     const body = mix(inkBodyOf(sample.ink), 1, smoothstep(LOOK.inkBodyFrom, LOOK.inkBodyTo, depth));
     const t = Math.min(0, depth - LOOK.tideAt) / LOOK.tideWidth;
     const tide = LOOK.tide * smoothstep(LOOK.tideFromPx, LOOK.tideToPx, (LOOK.tideWidth * sample.r) / px) * Math.exp(-t * t);
+    const inner = 1 - smoothstep(LOOK.mottleMaskFrom, LOOK.mottleMaskTo, depth);
     const blotch = valueNoise(
       sample.lx * LOOK.mottleScale + LOOK.mottleSeedX * source,
       sample.ly * LOOK.mottleScale + LOOK.mottleSeedY * source,
     );
-    const mottle = 2 * LOOK.mottle * (blotch - 0.5) * (1 - smoothstep(LOOK.mottleMaskFrom, LOOK.mottleMaskTo, depth));
-    layInk(palette, sample.ink, (body + tide) * (1 + mottle), out);
+    const mottle = 2 * LOOK.mottle * (blotch - 0.5) * inner;
+    // Grains per pixel: the ink's own coordinates move ‖J‖ cells per cell of screen.
+    const { jxx, jxy, jyx, jyy } = sample;
+    const grains = LOOK.grainScale * Math.sqrt(jxx * jxx + jxy * jxy + jyx * jyx + jyy * jyy) * px;
+    const grit = valueNoise(
+      sample.lx * LOOK.grainScale + LOOK.mottleSeedX * source,
+      sample.ly * LOOK.grainScale + LOOK.mottleSeedY * source,
+    );
+    const grain = LOOK.grain * grit * inner * (1 - smoothstep(LOOK.grainFadeFrom, LOOK.grainFadeTo, grains));
+    layInk(palette, sample.ink, (body + tide) * (1 + mottle + grain), out);
     return 1;
   }
   const phase = groundPhase(ground, sample.x, sample.y);
   const band = Math.floor(phase) % 2 === 0 ? palette.paper : palette.band;
   const cross = groundCrossPhase(ground, sample.x, sample.y);
-  const line = Math.max(hairline(phase, LOOK.ruleWidth), cross === null ? 0 : hairline(cross, LOOK.ruleWidth));
+  const nominal = LOOK.ruleWidth * ground.period;
+  const rule = penLine(phase, screenGradient(sample, groundPhaseGradient(ground, sample.x, sample.y, PHASE_GRADIENT)), nominal, px);
+  const crossRule = cross === null ? 0 : penLine(cross, screenGradient(sample, groundCrossGradient(ground, CROSS_GRADIENT)), nominal, px);
+  const line = Math.max(rule, crossRule);
   out[0] = mix(band[0], palette.rule[0], line);
   out[1] = mix(band[1], palette.rule[1], line);
   out[2] = mix(band[2], palette.rule[2], line);
