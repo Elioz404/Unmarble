@@ -145,7 +145,7 @@ type Props = {
   readonly onPractice: () => void;
 };
 
-/** The Book: every past sheet and every recent trap, each playable again; and the way to practice sheets. */
+/** The Book: the last month of sheets and the newest traps, each playable again; and the way to practice sheets. */
 export const BookScreen = ({ platform, onBack, onPlay, onCompose, onPractice }: Props) => {
   const [book, setBook] = useState<BookResponse | null>(null);
   const [failed, setFailed] = useState(false);

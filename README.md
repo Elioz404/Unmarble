@@ -21,7 +21,7 @@ Misread the sheet and the paper tears: you keep a small scar, and the sheet show
 ## How to play
 
 - Open today's post (or the pinned **Atelier** post, which always shows today's sheet).
-- The first time you meet a form, a ten-second lesson teaches it — the first visit covers drops and folds, and the first sheet with a swirl teaches swirls. A ghost finger shows each gesture until you try it.
+- The first time you meet a form, a short lesson teaches it — the first visit covers drops and folds, and the first sheet with a swirl teaches swirls. A ghost finger shows each gesture until you try it.
 - New here and today's sheet is a ★★★★ or ★★★★★? The game offers an easier sheet from the Book to warm up on first (or a ★ practice sheet), and its hints come sooner for your first few sheets.
 - **Tap** a drop to draw it back. **Drag** along a fold to undo it. **Circle** a swirl's eye, against its turn.
 - The **Lens** (once per sheet) briefly shows where the water moved. Using it is marked on your result.
@@ -52,10 +52,10 @@ Every sheet is generated fresh each day and **checked before anyone sees it**: a
 ## The community
 
 - **Everyone gets the same sheet each day.** You're compared with your subreddit, not the whole internet.
-- **Set a trap.** Once a day, marble a sheet of your own on today's paper — drops, folds and swirls — to catch other players. The editor checks your trap live against the same fairness rules as the daily sheets (it names the move at fault and outlines it on the paper), and tells you when it is *devious*: when it fools anyone who trusts the roundest drop. The server checks it again. Your trap is posted to the subreddit under your name, with a pinned comment that keeps count of who it caught; your result card tells you too. The week's most-played trap that was devious but fair becomes **Sunday's sheet**, credited to you in its title — the Book marks the trap currently in the running.
-- **The Book.** Every past daily sheet and every recent trap, with a thumbnail and your result on each. Old sheets stay playable any time.
+- **Set a trap.** Once a day, marble a sheet of your own on today's paper — drops, folds and swirls — to catch other players. The editor checks your trap live against the same fairness rules as the daily sheets (it names the move at fault and outlines it on the paper), and tells you when it is *devious*: when it fools anyone who trusts the roundest drop. The server checks it again. Your trap is posted to the subreddit with your name in its title, and a pinned comment keeps count of who it caught; your result card tells you too. The week's most-played trap that at least three signed-in players tried, and that between 30% and 85% of them solved cleanly, becomes **Sunday's sheet**, credited to you in its title — the Book marks the trap currently in the running. If no trap qualifies, Sunday is a mixed sheet.
+- **The Book.** The last month of daily sheets and the newest traps, with a thumbnail and your result on each. Old sheets stay playable any time.
 - **Streak flair (opt-in).** Tick a box on your result card to show *"12-day Unmarble streak"* next to your name in the subreddit. Untick it and your previous flair comes back. If a moderator gives you a flair meanwhile, theirs wins and the app stops updating yours.
-- **Name the sheet.** Each daily post has a pinned comment asking *"What does this sheet look like?"* The result card takes you there: reply with up to three words. The best-voted reply names the sheet (shown in quotes, on the card and in the Book). Nothing is generated: the names come from people, in normal Reddit comments that you can report.
+- **Name the sheet.** Each daily post has a pinned comment asking *"What does this sheet look like?"* The result card takes you there: reply with up to three words. Once it has enough upvotes, the best-voted reply names the sheet (shown in quotes, on the card and in the Book). Nothing is generated: the names come from people, in normal Reddit comments that you can report.
 - **Scars are shared.** Once you finish, you see where everyone else tore the sheet, and — once a few hands have played — which move caught the most of them ("42% tore on this drop", with the move outlined on the paper).
 - **Join.** The result card links to the subreddit, where Reddit's own Join button subscribes you. The app never subscribes anyone itself.
 - **Streaks** count consecutive days of finished sheets.
@@ -83,7 +83,7 @@ The app stores, per subreddit: your moves on each sheet (to resume and verify re
 ```
 src/
   shared/      Pure TypeScript, no platform APIs. Runs on client, server and in tests.
-    marbling/    Exact marbling transforms (Lu & Jaffer, "Mathematical Marbling"): drops, folds, swirls
+    marbling/    Exact marbling transforms (after Lu, Jaffer et al., "Mathematical Marbling"): drops, folds, swirls
     puzzle/      Moves, evidence (marks), analysis bots, the sheet contract and its diagnoses,
                  gesture separability, recipes and their calendar, generator, lessons, traps,
                  practice sheets
