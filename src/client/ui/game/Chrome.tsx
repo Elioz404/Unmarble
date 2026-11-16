@@ -93,7 +93,10 @@ export const LensButton = ({
 
 /** A single line under the plaque: feedback, hint or lesson prompt. Never a paragraph. */
 export const MessageLine = ({ text, tone }: { readonly text: string; readonly tone: 'quiet' | 'alert' | 'gilt' }) => (
-  <p className="message" data-tone={tone} aria-live="polite" key={text}>
-    {text}
+  // The live region stays mounted so screen readers hear every change; only the text is re-keyed to animate.
+  <p className="message" data-tone={tone} aria-live="polite">
+    <span className="message__text" key={text}>
+      {text}
+    </span>
   </p>
 );

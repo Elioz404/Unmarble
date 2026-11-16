@@ -30,20 +30,22 @@ const boundSheet = async (): Promise<SheetDescriptor> => {
     const sheet = await services.sheets.byId(binding.sheet.id);
     if (sheet) return sheet;
   }
-  return services.sheets.byDate(services.sheets.today());
+  return services.sheets.todaySheet();
 };
 
 api.get('/sheet', async (c) => {
   const sheet = await boundSheet();
   const player = playerId();
-  const [view, stats] = await Promise.all([
+  const [view, stats, standing] = await Promise.all([
     services.attempts.playerView(sheet.id, player),
     services.attempts.stats(sheet.id),
+    player ? services.attempts.standing(sheet, player) : Promise.resolve(null),
   ]);
   const now = Date.now();
   return c.json<SheetResponse>({
     sheet,
     player: { ...view, signedIn: Boolean(context.userId) },
+    standing,
     stats,
     nextSheetAt: now + msUntilNextDay(now),
     todayId: dailySheetId(services.sheets.today()),
@@ -57,8 +59,8 @@ api.post('/attempt/action', async (c) => {
   if (!player) return c.json<ErrorResponse>({ error: 'No player identity' }, 401);
   const sheet = await services.sheets.byId(request.sheetId);
   if (!sheet) return c.json<ErrorResponse>({ error: 'Unknown sheet' }, 404);
-  const response = await services.attempts.record(sheet, player, request.entry);
-  return c.json<ActionResponse>(response);
+  const response = await services.attempts.record(sheet, player, request.seq, request.entry);
+  return c.json<ActionResponse>(response, response.kind === 'conflict' ? 409 : 200);
 });
 
 api.get('/sheet/scars', async (c) => {

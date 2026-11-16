@@ -1,4 +1,4 @@
-import { SHEET } from '../config.ts';
+import { RULES, SHEET } from '../config.ts';
 import type { PlayerAction, SheetPoint } from '../game/session.ts';
 import { MAX_MOVES } from '../puzzle/sheet.ts';
 import type { Result } from '../game/scoring.ts';
@@ -20,9 +20,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isMoveIndex = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < MAX_MOVES;
-
-/** Longest attempt we record: a day. */
-const MAX_AT_MS = 86_400_000;
 
 export const parseAction = (value: unknown): PlayerAction | null => {
   if (!isRecord(value)) return null;
@@ -55,14 +52,16 @@ export const parseLoggedAction = (value: unknown): LoggedAction | null => {
   const point = parsePoint(value.point);
   const { at } = value;
   if (!action || point === undefined) return null;
-  if (typeof at !== 'number' || !Number.isFinite(at) || at < 0 || at > MAX_AT_MS) return null;
-  return { action, at: Math.round(at), point };
+  if (typeof at !== 'number' || !Number.isFinite(at) || at < 0) return null;
+  return { action, at: Math.round(Math.min(at, RULES.maxAttemptMs)), point };
 };
 
 export const parseActionRequest = (value: unknown): ActionRequest | null => {
   if (!isRecord(value) || typeof value.sheetId !== 'string' || value.sheetId.length > 64) return null;
+  const { seq } = value;
+  if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 0) return null;
   const entry = parseLoggedAction(value.entry);
-  return entry ? { sheetId: value.sheetId, entry } : null;
+  return entry ? { sheetId: value.sheetId, seq, entry } : null;
 };
 
 export const parseActionLog = (value: unknown): LoggedAction[] | null => {
@@ -102,9 +101,13 @@ export const parseStanding = (value: unknown): Standing | null => {
 
 export const parseActionResponse = (value: unknown): ActionResponse | null => {
   if (!isRecord(value)) return null;
+  if (value.kind === 'conflict') {
+    const log = parseActionLog(value.log);
+    return log ? { kind: 'conflict', log } : null;
+  }
   const { verdict } = value;
-  if (verdict !== 'correct' && verdict !== 'blot' && verdict !== 'ignored') return null;
-  return { verdict, standing: value.standing === null ? null : parseStanding(value.standing) };
+  if (value.kind !== 'applied' || (verdict !== 'correct' && verdict !== 'blot' && verdict !== 'ignored')) return null;
+  return { kind: 'applied', verdict, standing: value.standing === null ? null : parseStanding(value.standing) };
 };
 
 export const parseSheetResponse = (value: unknown): SheetResponse | null => {
@@ -117,7 +120,15 @@ export const parseSheetResponse = (value: unknown): SheetResponse | null => {
   const { nextSheetAt, todayId } = value;
   if (!log || typeof player.signedIn !== 'boolean' || typeof player.streak !== 'number') return null;
   if (typeof nextSheetAt !== 'number' || typeof todayId !== 'string') return null;
-  return { sheet, stats, player: { signedIn: player.signedIn, log, streak: player.streak }, nextSheetAt, todayId };
+  const standing = value.standing === null || value.standing === undefined ? null : parseStanding(value.standing);
+  return {
+    sheet,
+    stats,
+    player: { signedIn: player.signedIn, log, streak: player.streak },
+    standing,
+    nextSheetAt,
+    todayId,
+  };
 };
 
 export const parseScarMap = (value: unknown): ScarMap | null => {

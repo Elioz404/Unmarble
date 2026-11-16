@@ -90,7 +90,20 @@ export class SoundBank {
   constructor(muted: boolean, onMuteChange: (muted: boolean) => void) {
     this.#muted = muted;
     this.#onMuteChange = onMuteChange;
+  }
+
+  /**
+   * Follows page visibility while attached; returns the matching teardown.
+   * Symmetric so it survives React's mount → unmount → mount in StrictMode.
+   */
+  attach(): () => void {
     document.addEventListener('visibilitychange', this.#onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', this.#onVisibility);
+      void this.#context?.close();
+      this.#context = null;
+      this.#master = null;
+    };
   }
 
   get muted(): boolean {
@@ -121,11 +134,6 @@ export class SoundBank {
     const ctx = this.#context;
     if (!ctx || !this.#master || this.#muted || ctx.state !== 'running') return;
     VOICES[cue](ctx, this.#master, ctx.currentTime + 0.01);
-  }
-
-  dispose(): void {
-    document.removeEventListener('visibilitychange', this.#onVisibility);
-    void this.#context?.close();
   }
 
   readonly #onVisibility = (): void => {

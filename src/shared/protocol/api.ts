@@ -49,6 +49,8 @@ export type SheetStats = {
 export type SheetResponse = {
   readonly sheet: SheetDescriptor;
   readonly player: PlayerView;
+  /** The player's standing, once their attempt on this sheet is over. */
+  readonly standing: Standing | null;
   readonly stats: SheetStats;
   /** Epoch ms of the next daily sheet. */
   readonly nextSheetAt: number;
@@ -58,6 +60,8 @@ export type SheetResponse = {
 
 export type ActionRequest = {
   readonly sheetId: string;
+  /** Length of the log the client believes the server holds before this entry. */
+  readonly seq: number;
   readonly entry: LoggedAction;
 };
 
@@ -69,11 +73,15 @@ export type Standing = {
   readonly streak: number;
 };
 
-export type ActionResponse = {
-  readonly verdict: Verdict;
-  /** Present once the attempt is over. */
-  readonly standing: Standing | null;
-};
+export type ActionResponse =
+  | {
+      readonly kind: 'applied';
+      readonly verdict: Verdict;
+      /** Present once the attempt is over. */
+      readonly standing: Standing | null;
+    }
+  /** The client's log diverged from the server's; here is the truth. */
+  | { readonly kind: 'conflict'; readonly log: readonly LoggedAction[] };
 
 /** Where players tore the sheet, aggregated; only shown after finishing. */
 export type ScarMap = {

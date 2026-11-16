@@ -13,11 +13,14 @@ const toPostData = (binding: PostBinding): PostData => JSON.parse(JSON.stringify
  */
 export type RedditPort = {
   submitSheetPost(options: { title: string; binding: PostBinding; fallback: string }): Promise<string>;
+  suggestTopComments(postId: string): Promise<void>;
   stickyPost(postId: string, slot: 1 | 2): Promise<void>;
   replaceBinding(postId: string, binding: PostBinding): Promise<void>;
-  submitPinnedComment(postId: string, text: string): Promise<string>;
+  submitComment(postId: string, text: string): Promise<string>;
+  /** Distinguishes a comment as the app and pins it to the top of the thread. */
+  pinComment(commentId: string): Promise<void>;
   editComment(commentId: string, text: string): Promise<void>;
-  /** Current score of a comment, or null if it is gone, removed or spam. */
+  /** Current score of a comment, or null if it was removed or marked spam. Throws when the lookup fails. */
   liveCommentScore(commentId: string): Promise<number | null>;
   subscribeCurrentUser(): Promise<void>;
 };
@@ -46,8 +49,11 @@ export const devvitReddit: RedditPort = {
       postData: toPostData(binding),
       textFallback: { text: fallback },
     });
-    await post.setSuggestedCommentSort('TOP');
     return post.id;
+  },
+  async suggestTopComments(postId) {
+    const post = await reddit.getPostById(asPostId(postId));
+    await post.setSuggestedCommentSort('TOP');
   },
   async stickyPost(postId, slot) {
     const post = await reddit.getPostById(asPostId(postId));
@@ -57,22 +63,21 @@ export const devvitReddit: RedditPort = {
     const post = await reddit.getPostById(asPostId(postId));
     await post.setPostData(toPostData(binding));
   },
-  async submitPinnedComment(postId, text) {
+  async submitComment(postId, text) {
     const comment = await reddit.submitComment({ id: asPostId(postId), text });
-    await comment.distinguish(true);
     return comment.id;
+  },
+  async pinComment(commentId) {
+    const comment = await reddit.getCommentById(asCommentId(commentId));
+    await comment.distinguish(true);
   },
   async editComment(commentId, text) {
     const comment = await reddit.getCommentById(asCommentId(commentId));
     await comment.edit({ text });
   },
   async liveCommentScore(commentId) {
-    try {
-      const comment = await reddit.getCommentById(asCommentId(commentId));
-      return comment.removed || comment.spam ? null : comment.score;
-    } catch {
-      return null;
-    }
+    const comment = await reddit.getCommentById(asCommentId(commentId));
+    return comment.removed || comment.spam ? null : comment.score;
   },
   async subscribeCurrentUser() {
     await reddit.subscribeToCurrentSubreddit();

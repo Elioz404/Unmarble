@@ -17,9 +17,10 @@ export const internal = new Hono();
 
 /** Makes sure today's post and the Atelier exist and point at today's sheet. */
 const publishToday = async (): Promise<string> => {
-  const sheet = await services.sheets.byDate(services.sheets.today());
-  const post = await services.posts.ensureDailyPost(sheet);
+  const sheet = await services.sheets.todaySheet();
+  // The Atelier takes sticky slot 1 first; the daily post then takes slot 2.
   await services.posts.ensureAtelier(sheet);
+  const post = await services.posts.ensureDailyPost(sheet);
   return post.postId;
 };
 

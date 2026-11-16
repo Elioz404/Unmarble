@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../dist/types/client-tests",
+    "tsBuildInfoFile": "../dist/types/client-tests/tsconfig.tsbuildinfo",
+    "types": [
+      "node"
+    ],
+    "rootDir": "../src/client"
+  },
+  "include": [
+    "../src/client/**/*.test.ts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.client.json"
+    },
+    {
+      "path": "./tsconfig.shared.json"
+    }
+  ]
+}

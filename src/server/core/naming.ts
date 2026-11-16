@@ -1,4 +1,5 @@
 import { nameThreshold, parseSheetName } from '../../shared/naming/sheet-name.ts';
+import { dailySheetId } from '../../shared/puzzle/daily.ts';
 import { addDays } from '../../shared/time/calendar.ts';
 import type { RedditPort } from '../reddit/reddit-port.ts';
 import type { AttemptService } from './attempts.ts';
@@ -54,8 +55,8 @@ export class NamingService {
   async tally(): Promise<void> {
     const today = this.#sheets.today();
     for (let back = 0; back <= NAMING_WINDOW_DAYS; back++) {
-      const sheet = await this.#sheets.byDate(addDays(today, -back));
-      await this.#tallySheet(sheet.id);
+      const sheet = await this.#sheets.byId(dailySheetId(addDays(today, -back)));
+      if (sheet) await this.#tallySheet(sheet.id);
     }
   }
 
@@ -70,20 +71,36 @@ export class NamingService {
     const candidates = await this.#store.hGetAll(keys.names(sheetId));
     const stats = await this.#attempts.stats(sheetId);
     let best: { name: string; score: number } | null = null;
+    const live = new Set<string>();
+    let complete = true;
     for (const [commentId, name] of Object.entries(candidates)) {
-      const score = await this.#reddit.liveCommentScore(commentId);
+      let score: number | null;
+      try {
+        score = await this.#reddit.liveCommentScore(commentId);
+      } catch (error) {
+        // A failed lookup says nothing about the reply: keep it, settle nothing this run.
+        console.warn(`Could not read naming reply ${commentId}`, error);
+        complete = false;
+        continue;
+      }
       if (score === null) {
         await this.#store.hDel(keys.names(sheetId), [commentId]);
         continue;
       }
+      live.add(name);
       if (!best || score > best.score) best = { name, score };
     }
-    const settled = best && best.score >= nameThreshold(stats.hands) ? best.name : null;
     const sheet = await this.#sheets.byId(sheetId);
     if (!sheet) return;
-    if (settled && settled !== sheet.name) {
-      await this.#sheets.setName(sheetId, settled);
-      await this.#posts.refreshDailyPost({ ...sheet, name: settled });
+    if (complete) {
+      const settled = best && best.score >= nameThreshold(stats.hands) ? best.name : null;
+      // A name stays only while a live reply still carries it.
+      const kept = sheet.name !== null && live.has(sheet.name) ? sheet.name : null;
+      const next = settled ?? kept;
+      if (next !== sheet.name) {
+        await this.#sheets.setName(sheetId, next);
+        await this.#posts.refreshDailyPost({ ...sheet, name: next });
+      }
     }
     const post = await this.#posts.sheetPost(sheetId);
     if (post?.commentId) await this.#reddit.editComment(post.commentId, fieldNotes(stats.hands, stats.cleans, best?.name ?? null));

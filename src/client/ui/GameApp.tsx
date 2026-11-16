@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SheetResponse } from '../../shared/protocol/api.ts';
 import { SoundBank } from '../audio/sound.ts';
 import { localPrefs } from '../lib/local-prefs.ts';
@@ -14,7 +14,9 @@ export const GameApp = ({ platform }: { readonly platform: Platform }) => {
   const [muted, setMuted] = useState(localPrefs.muted);
   const sound = useMemo(() => new SoundBank(localPrefs.muted(), localPrefs.setMuted), []);
 
-  useEffect(() => () => sound.dispose(), [sound]);
+  const [generation, setGeneration] = useState(0);
+
+  useEffect(() => sound.attach(), [sound]);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +30,9 @@ export const GameApp = ({ platform }: { readonly platform: Platform }) => {
     return () => {
       cancelled = true;
     };
-  }, [platform]);
+  }, [platform, generation]);
+
+  const reload = useCallback(() => setGeneration((n) => n + 1), []);
 
   const toggleMute = (): void => {
     sound.unlock();
@@ -39,6 +43,14 @@ export const GameApp = ({ platform }: { readonly platform: Platform }) => {
   if (load.kind === 'loading') return <StatusScreen kind="loading" />;
   if (load.kind === 'failed') return <StatusScreen kind="failed" />;
   return (
-    <GameScreen platform={platform} response={load.response} sound={sound} muted={muted} onToggleMute={toggleMute} />
+    <GameScreen
+      key={generation}
+      platform={platform}
+      response={load.response}
+      sound={sound}
+      muted={muted}
+      onToggleMute={toggleMute}
+      onReload={reload}
+    />
   );
 };

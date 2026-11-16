@@ -11,10 +11,14 @@ export type DateKey = string;
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
 
-export const isDateKey = (value: unknown): value is DateKey =>
-  typeof value === 'string' && DATE_KEY.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
-
 export const dateKeyOf = (epochMs: number): DateKey => new Date(epochMs).toISOString().slice(0, 10);
+
+/** A real calendar date in `YYYY-MM-DD` form (rejects roll-overs such as 2026-02-31). */
+export const isDateKey = (value: unknown): value is DateKey => {
+  if (typeof value !== 'string' || !DATE_KEY.test(value)) return false;
+  const ms = Date.parse(`${value}T00:00:00Z`);
+  return !Number.isNaN(ms) && dateKeyOf(ms) === value;
+};
 
 const dayIndex = (key: DateKey): number => Math.floor(Date.parse(`${key}T00:00:00Z`) / DAY_MS);
 

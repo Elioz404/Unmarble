@@ -43,3 +43,13 @@ test('far-apart moves leave no evidence, so the sheet is unfair', () => {
   const reading = readSheet(moves);
   assert.equal(reading.fair, false);
 });
+
+test('a same-ink drop inside another is not an unmistakable ring', () => {
+  const moves: Move[] = [
+    { kind: 'drop', x: 6, y: 8, size: 'L', ink: 2 },
+    { kind: 'drop', x: 6.5, y: 8.5, size: 'L', ink: 2 },
+  ];
+  const [first] = measureEvidence(moves, 2);
+  assert.notEqual(first?.mark, 'ring');
+  assert.ok((first?.strength ?? UNMISTAKABLE) < UNMISTAKABLE);
+});

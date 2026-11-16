@@ -1,5 +1,5 @@
 import type { ScarMap, SheetResponse } from '../../shared/protocol/api.ts';
-import type { AttemptSink } from '../game/controller.ts';
+import type { AttemptSink } from '../game/attempt-sink.ts';
 
 /**
  * Everything the UI needs from its host. Two implementations exist:
@@ -12,7 +12,8 @@ export type Platform = {
   readonly kind: 'reddit' | 'lab';
   /** The sheet this post shows, with the player's progress on it. */
   loadSheet(): Promise<SheetResponse>;
-  sinkFor(sheetId: string): AttemptSink;
+  /** Where this player's actions on a sheet are recorded; `startSeq` is the log length already stored. */
+  sinkFor(sheetId: string, startSeq: number): AttemptSink;
   fetchScars(sheetId: string): Promise<ScarMap | null>;
   /** From the in-feed card: open the full game. Must run inside a click handler. */
   openGame(event: MouseEvent): void;

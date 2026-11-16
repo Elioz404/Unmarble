@@ -17,7 +17,7 @@ export type Services = {
 
 export const createServices = (store: Store, reddit: RedditPort): Services => {
   const sheets = new SheetService(store);
-  const attempts = new AttemptService(store, () => sheets.today());
+  const attempts = new AttemptService(store);
   const posts = new PostService(store, reddit);
   const naming = new NamingService({ store, reddit, sheets, attempts, posts });
   return { sheets, attempts, posts, naming, reddit };

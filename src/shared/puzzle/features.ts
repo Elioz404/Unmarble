@@ -85,8 +85,11 @@ const hasTwinInks = (moves: readonly Move[]): boolean => {
       if (earlier?.kind !== 'drop' || earlier.ink !== later.ink) continue;
       const p = { x: later.x, y: later.y };
       if (!pullThrough(ops, i + 1, j, p)) continue;
-      const gap = Math.hypot(p.x - earlier.x, p.y - earlier.y) - dropRadius(earlier.size) - dropRadius(later.size);
-      if (gap <= GENERATION.twinGap) return true;
+      const separation = Math.hypot(p.x - earlier.x, p.y - earlier.y);
+      // Twins touch side by side: the later centre lies outside the earlier disk.
+      const nested = separation < dropRadius(earlier.size);
+      const gap = separation - dropRadius(earlier.size) - dropRadius(later.size);
+      if (!nested && gap <= GENERATION.twinGap) return true;
     }
   }
   return false;

@@ -6,7 +6,7 @@ import { opsForPrefix, type Move } from './moves.ts';
 /**
  * Evidence is what a careful eye can read on the sheet about the order of
  * moves. A move that something fell on afterwards carries a *mark*: a drop
- * outline that is no longer round, a ring of later ink inside it, or a seam
+ * outline that is no longer round, a ring of later ink of another colour, or a seam
  * that no longer runs straight. The move on top carries none.
  *
  * `strength` is the mark normalised by its human-readability threshold, so
@@ -75,16 +75,16 @@ export const dropOutline = (ops: readonly FieldOp[], index: number, prefix: numb
 };
 
 /**
- * True when a later drop fell inside drop `index`, turning it into a ring.
- * The later drop's centre is pulled back to just before `index`'s successor
- * ops; if it lands inside the original disk, ink fell on ink.
+ * True when a later drop of a *different* ink fell inside drop `index`,
+ * turning it into an unmistakable ring. Same-ink nesting reads as one blob,
+ * so it is judged by the outline's ovality like any other mark.
  */
 const holdsLaterInk = (ops: readonly FieldOp[], index: number, prefix: number): boolean => {
   const op = ops[index];
   if (op?.type !== 'drop') return false;
   for (let j = index + 1; j < prefix; j++) {
     const later = ops[j];
-    if (later?.type !== 'drop') continue;
+    if (later?.type !== 'drop' || later.ink === op.ink) continue;
     const p = { x: later.cx, y: later.cy };
     if (!pullThrough(ops, index + 1, j, p)) continue;
     if (Math.hypot(p.x - op.cx, p.y - op.cy) < op.r) return true;

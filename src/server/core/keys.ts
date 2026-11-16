@@ -7,10 +7,16 @@ export const keys = Object.freeze({
   secret: () => 'config:secret',
   /** Cached descriptor of a sheet (JSON). */
   sheet: (sheetId: string) => `sheet:${sheetId}`,
-  /** Post bound to a daily sheet, and the pinned naming comment. */
+  /** Hash: publishing progress of a sheet's daily post (post id, comment id, steps done). */
   sheetPost: (sheetId: string) => `sheet:${sheetId}:post`,
+  /** Short-lived lock held while a sheet's daily post is being published. */
+  publishLock: (sheetId: string) => `sheet:${sheetId}:publishing`,
   /** Hash: player → JSON action log. */
   attempts: (sheetId: string) => `attempts:${sheetId}`,
+  /** Hash: player → server time (ms) of their first recorded action. */
+  attemptStarts: (sheetId: string) => `attempt-starts:${sheetId}`,
+  /** Hash: player → final Result (JSON), written once when the attempt ends. */
+  results: (sheetId: string) => `results:${sheetId}`,
   /** Sorted set: player → rank score (lower is better). */
   board: (sheetId: string) => `board:${sheetId}`,
   /** Hash: hands, cleans. */

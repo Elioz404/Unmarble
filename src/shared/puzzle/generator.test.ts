@@ -6,9 +6,10 @@ import { hasFeature } from './features.ts';
 import { readSheet } from './analysis.ts';
 import { parseSheetSpec } from './sheet.ts';
 import { EVIDENCE } from '../config.ts';
+import { gesturesAreSeparable } from './gesture-contract.ts';
 import { PALETTES } from '../sheet/palettes.ts';
 
-const SEEDS = ['alpha', 'beta', 'gamma'];
+const SEEDS = ['alpha', 'beta', 'gamma', 's8', 's10', 's12', 'q18'];
 
 for (const template of WEEKLY_TEMPLATES) {
   test(`${template.id}: generated sheets honour the template and the golden rule`, () => {
@@ -24,6 +25,7 @@ for (const template of WEEKLY_TEMPLATES) {
       for (const feature of template.features) {
         assert.ok(hasFeature(feature, spec.moves, reading, template.minMargin), `missing ${feature}`);
       }
+      assert.ok(gesturesAreSeparable(spec.moves), 'every top seam can be swiped unambiguously');
       assert.deepEqual(parseSheetSpec(JSON.parse(JSON.stringify(spec))), spec, 'round-trips through JSON');
     }
   });

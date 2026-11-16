@@ -120,6 +120,8 @@ export const RULES = Object.freeze({
   maxBlots: 3,
   /** Magnifier uses per sheet. */
   magnifiers: 1,
+  /** Longest attempt time recorded; later timestamps are clamped to it. */
+  maxAttemptMs: 86_400_000,
 });
 
 export const TIMING = Object.freeze({

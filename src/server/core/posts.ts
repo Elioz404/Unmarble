@@ -39,13 +39,32 @@ export const fieldNotes = (hands: number, cleans: number, leading: string | null
 
 type SheetPost = { readonly postId: string; readonly commentId: string | null };
 
+/** How long a publishing run may hold the per-sheet lock. */
+const PUBLISH_LOCK_MS = 60_000;
+
+export class PublishInProgressError extends Error {
+  constructor(sheetId: string) {
+    super(`Sheet ${sheetId} is being published by another run`);
+    this.name = 'PublishInProgressError';
+  }
+}
+
+/**
+ * Publishing steps for a daily post, recorded as they complete so that a run
+ * that failed halfway is finished by the next one (cron, menu or upgrade)
+ * instead of producing a duplicate post.
+ */
+const STEPS = ['postId', 'sorted', 'commentId', 'pinned', 'stickied'] as const;
+
 export class PostService {
   readonly #store: Store;
   readonly #reddit: RedditPort;
+  readonly #now: () => number;
 
-  constructor(store: Store, reddit: RedditPort) {
+  constructor(store: Store, reddit: RedditPort, now: () => number = Date.now) {
     this.#store = store;
     this.#reddit = reddit;
+    this.#now = now;
   }
 
   async sheetPost(sheetId: string): Promise<SheetPost | null> {
@@ -53,23 +72,51 @@ export class PostService {
     return raw.postId ? { postId: raw.postId, commentId: raw.commentId ?? null } : null;
   }
 
-  /** Creates the daily post for a sheet if it does not exist yet (idempotent). */
+  /** Creates (or finishes creating) the daily post for a sheet. Idempotent. */
   async ensureDailyPost(sheet: SheetDescriptor): Promise<SheetPost> {
-    const existing = await this.sheetPost(sheet.id);
-    if (existing) return existing;
-    const binding: PostBinding = { kind: 'daily', sheet };
-    const postId = await this.#reddit.submitSheetPost({
-      title: sheetTitle(sheet),
-      binding,
-      fallback: fallbackText(sheet),
-    });
-    await this.#store.hSet(keys.sheetPost(sheet.id), { postId });
-    await this.#store.hSet(keys.postSheets(), { [postId]: sheet.id });
-    const commentId = await this.#reddit.submitPinnedComment(postId, namingPrompt());
-    await this.#store.hSet(keys.sheetPost(sheet.id), { commentId });
-    await this.#store.hSet(keys.namingComments(), { [commentId]: sheet.id });
-    await this.#reddit.stickyPost(postId, 2);
-    return { postId, commentId };
+    const progressKey = keys.sheetPost(sheet.id);
+    const done = await this.#store.hGetAll(progressKey);
+    if (done.postId && STEPS.every((step) => done[step])) {
+      return { postId: done.postId, commentId: done.commentId ?? null };
+    }
+
+    const lockKey = keys.publishLock(sheet.id);
+    const expiration = new Date(this.#now() + PUBLISH_LOCK_MS);
+    if (!(await this.#store.set(lockKey, '1', { nx: true, expiration }))) throw new PublishInProgressError(sheet.id);
+    try {
+      const mark = (fields: Record<string, string>) => this.#store.hSet(progressKey, fields);
+      let postId = done.postId;
+      if (!postId) {
+        postId = await this.#reddit.submitSheetPost({
+          title: sheetTitle(sheet),
+          binding: { kind: 'daily', sheet },
+          fallback: fallbackText(sheet),
+        });
+        await mark({ postId });
+        await this.#store.hSet(keys.postSheets(), { [postId]: sheet.id });
+      }
+      if (!done.sorted) {
+        await this.#reddit.suggestTopComments(postId);
+        await mark({ sorted: '1' });
+      }
+      let commentId = done.commentId;
+      if (!commentId) {
+        commentId = await this.#reddit.submitComment(postId, namingPrompt());
+        await mark({ commentId });
+        await this.#store.hSet(keys.namingComments(), { [commentId]: sheet.id });
+      }
+      if (!done.pinned) {
+        await this.#reddit.pinComment(commentId);
+        await mark({ pinned: '1' });
+      }
+      if (!done.stickied) {
+        await this.#reddit.stickyPost(postId, 2);
+        await mark({ stickied: '1' });
+      }
+      return { postId, commentId };
+    } finally {
+      await this.#store.del(lockKey);
+    }
   }
 
   /** Creates the Atelier hub once, and points it at today's sheet. */

@@ -12,9 +12,13 @@ export type OverlayModel = {
   highlight: { points: readonly SheetPoint[]; closed: boolean; opacity: number } | null;
   ripple: { at: SheetPoint; progress: number } | null;
   trail: SheetPoint[];
+  /** Where everyone else tore the sheet today, weighted by how many hands. */
+  community: readonly { readonly x: number; readonly y: number; readonly weight: number }[];
 };
 
-export const emptyOverlay = (): OverlayModel => ({ scars: [], highlight: null, ripple: null, trail: [] });
+export type OverlayColors = { ink: string; paper: string; accent: string; blot: string };
+
+export const emptyOverlay = (): OverlayModel => ({ scars: [], highlight: null, ripple: null, trail: [], community: [] });
 
 /** Deterministic jitter so each scar is ragged but stable across frames. */
 const jitter = (seed: number): number => {
@@ -40,13 +44,14 @@ export class OverlayPainter {
     this.#scale = width / SHEET.cols;
   }
 
-  paint(model: OverlayModel, colors: { ink: string; paper: string; accent: string }): void {
+  paint(model: OverlayModel, colors: OverlayColors): void {
     const ctx = this.#context;
     const s = this.#scale;
     ctx.clearRect(0, 0, this.#canvas.width, this.#canvas.height);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
+    this.#paintCommunity(model.community, colors);
     model.scars.forEach((scar, index) => this.#paintScar(scar, index, colors));
 
     if (model.highlight && model.highlight.points.length > 1) {
@@ -88,6 +93,24 @@ export class OverlayPainter {
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  /** Everyone's tears as soft oxblood stains, the heaviest the darkest. */
+  #paintCommunity(points: OverlayModel['community'], colors: { blot: string }): void {
+    if (points.length === 0) return;
+    const ctx = this.#context;
+    const s = this.#scale;
+    const heaviest = Math.max(...points.map((p) => p.weight));
+    ctx.save();
+    ctx.fillStyle = colors.blot;
+    for (const p of points) {
+      const strength = p.weight / heaviest;
+      ctx.globalAlpha = 0.18 + 0.5 * strength;
+      ctx.beginPath();
+      ctx.arc(p.x * s, p.y * s, (0.14 + 0.26 * strength) * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   /** A small tear in the paper: a ragged slit with lifted fibres. */

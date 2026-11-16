@@ -1,3 +1,4 @@
+import { RULES } from '../../shared/config.ts';
 import { rankScore, resultOf, type Result } from '../../shared/game/scoring.ts';
 import { applyAction, replaySession, type SessionState } from '../../shared/game/session.ts';
 import type {
@@ -9,29 +10,51 @@ import type {
   SheetStats,
   Standing,
 } from '../../shared/protocol/api.ts';
-import { parseActionLog } from '../../shared/protocol/parse.ts';
-import { addDays } from '../../shared/time/calendar.ts';
+import { parseActionLog, parseResult } from '../../shared/protocol/parse.ts';
+import { addDays, dateKeyOf, type DateKey } from '../../shared/time/calendar.ts';
 import { readJson } from './json.ts';
 import { keys, RETENTION_SECONDS } from './keys.ts';
 import type { Store } from './store.ts';
 
 /** Grid (cells) on which scars are pooled for the scar map. */
 const SCAR_GRID = 0.5;
+/** Optimistic-transaction retries before giving up on a contended write. */
+const MAX_TX_ATTEMPTS = 4;
 
 type Progress = { readonly lastDay: string | null; readonly streak: number; readonly best: number };
 
+const sameEntry = (a: LoggedAction | undefined, b: LoggedAction): boolean =>
+  a !== undefined && JSON.stringify(a) === JSON.stringify(b);
+
+export class ContentionError extends Error {
+  constructor(sheetId: string) {
+    super(`Attempt on ${sheetId} is too contended to record`);
+    this.name = 'ContentionError';
+  }
+}
+
 /**
- * Server-authoritative attempts. Every action is validated by replaying the
- * player's log through the shared reducer, so reloading never undoes a blot
- * and a result can only be what the rules allow.
+ * Server-authoritative attempts.
+ *
+ * - Every action is validated by replaying the player's log through the
+ *   shared reducer, so reloading never undoes a blot.
+ * - Actions are sequenced (`seq` = log length the client expects) and
+ *   appended in an optimistic transaction: retries are idempotent, gaps and
+ *   races come back as a conflict carrying the true log.
+ * - Ranked time is measured by the server from the first recorded action; a
+ *   client can report a slower time but never a faster one.
  */
 export class AttemptService {
   readonly #store: Store;
-  readonly #today: () => string;
+  readonly #now: () => number;
 
-  constructor(store: Store, today: () => string) {
+  constructor(store: Store, now: () => number = Date.now) {
     this.#store = store;
-    this.#today = today;
+    this.#now = now;
+  }
+
+  #today(): DateKey {
+    return dateKeyOf(this.#now());
   }
 
   async logOf(sheetId: string, playerId: string): Promise<LoggedAction[]> {
@@ -61,27 +84,54 @@ export class AttemptService {
     return { signedIn: !playerId.startsWith('anon:'), log, streak };
   }
 
-  /** Validates and records one action; returns the verdict and, at the end, the standing. */
-  async record(sheet: SheetDescriptor, playerId: string, entry: LoggedAction): Promise<ActionResponse> {
-    const log = await this.logOf(sheet.id, playerId);
-    const previous = log[log.length - 1];
-    if (previous && entry.at < previous.at) return { verdict: 'ignored', standing: null };
-    const state = replaySession(sheet.spec, log);
-    const transition = applyAction(sheet.spec, state, entry.action, entry.at, entry.point);
-    if (transition.verdict === 'ignored') return { verdict: 'ignored', standing: null };
-
+  /** Validates and records the action at position `seq` of the player's log. */
+  async record(sheet: SheetDescriptor, playerId: string, seq: number, entry: LoggedAction): Promise<ActionResponse> {
     const attemptsKey = keys.attempts(sheet.id);
-    await this.#store.hSet(attemptsKey, { [playerId]: JSON.stringify([...log, entry]) });
-    await this.#store.expire(attemptsKey, RETENTION_SECONDS);
-    if (transition.verdict === 'blot') await this.#recordScar(sheet.id, state, entry);
-    if (transition.state.status === 'playing') return { verdict: transition.verdict, standing: null };
-    return { verdict: transition.verdict, standing: await this.#finish(sheet, playerId, transition.state) };
+    for (let attempt = 0; attempt < MAX_TX_ATTEMPTS; attempt++) {
+      const tx = await this.#store.watch(attemptsKey);
+      const log = await this.logOf(sheet.id, playerId);
+
+      if (seq < log.length) {
+        await tx.unwatch();
+        // A retry of an action we already hold: answer again, change nothing.
+        return sameEntry(log[seq], entry)
+          ? this.#acknowledge(sheet, playerId, log.slice(0, seq + 1))
+          : { kind: 'conflict', log };
+      }
+      if (seq > log.length || (log.length > 0 && entry.at < (log[log.length - 1]?.at ?? 0))) {
+        await tx.unwatch();
+        return { kind: 'conflict', log };
+      }
+
+      const before = replaySession(sheet.spec, log);
+      const transition = applyAction(sheet.spec, before, entry.action, entry.at, entry.point);
+      if (transition.verdict === 'ignored') {
+        await tx.unwatch();
+        return { kind: 'applied', verdict: 'ignored', standing: null };
+      }
+
+      await tx.multi();
+      await tx.hSet(attemptsKey, { [playerId]: JSON.stringify([...log, entry]) });
+      await tx.expire(attemptsKey, RETENTION_SECONDS);
+      if (log.length === 0) {
+        await tx.hSetNX(keys.attemptStarts(sheet.id), playerId, String(this.#now()));
+        await tx.expire(keys.attemptStarts(sheet.id), RETENTION_SECONDS);
+      }
+      const committed = await tx.exec().catch(() => null);
+      if (!committed) continue; // Someone else wrote first: re-read and re-judge.
+
+      if (transition.verdict === 'blot') await this.#recordScar(sheet.id, before, entry);
+      const standing =
+        transition.state.status === 'playing' ? null : await this.#finish(sheet, playerId, transition.state);
+      return { kind: 'applied', verdict: transition.verdict, standing };
+    }
+    throw new ContentionError(sheet.id);
   }
 
+  /** The standing of a finished attempt, or null while it is still in play. */
   async standing(sheet: SheetDescriptor, playerId: string): Promise<Standing | null> {
-    const state = replaySession(sheet.spec, await this.logOf(sheet.id, playerId));
-    if (state.status === 'playing') return null;
-    return this.#standingOf(sheet.id, playerId, resultOf(state));
+    const stored = parseResult(readJson(await this.#store.hGet(keys.results(sheet.id), playerId)));
+    return stored ? this.#standingOf(sheet.id, playerId, stored) : null;
   }
 
   async scarMap(sheet: SheetDescriptor, playerId: string | null): Promise<ScarMap | null> {
@@ -105,6 +155,13 @@ export class AttemptService {
     return { points, trap, hands: stats.hands };
   }
 
+  async #acknowledge(sheet: SheetDescriptor, playerId: string, prefix: LoggedAction[]): Promise<ActionResponse> {
+    const state = replaySession(sheet.spec, prefix);
+    const verdict = state.history[state.history.length - 1]?.verdict ?? 'ignored';
+    const standing = state.status === 'playing' ? null : await this.standing(sheet, playerId);
+    return { kind: 'applied', verdict, standing };
+  }
+
   async #recordScar(sheetId: string, before: SessionState, entry: LoggedAction): Promise<void> {
     if (entry.point) {
       const snap = (v: number) => Math.round(v / SCAR_GRID) * SCAR_GRID;
@@ -119,18 +176,34 @@ export class AttemptService {
     if (!alreadyCaught) await this.#store.hIncrBy(keys.traps(sheetId), String(action.move), 1);
   }
 
-  async #finish(sheet: SheetDescriptor, playerId: string, state: SessionState): Promise<Standing> {
-    const result = resultOf(state);
-    const added = await this.#store.zAdd(keys.board(sheet.id), { member: playerId, score: rankScore(result) });
-    if (added > 0) {
-      await this.#store.hIncrBy(keys.stats(sheet.id), 'hands', 1);
-      if (result.clean) await this.#store.hIncrBy(keys.stats(sheet.id), 'cleans', 1);
-      if (sheet.dateKey === this.#today()) await this.#advanceStreak(playerId, sheet.dateKey);
-    }
-    return this.#standingOf(sheet.id, playerId, result);
+  /** Server-observed time since the player's first action on this sheet. */
+  async #serverElapsed(sheetId: string, playerId: string): Promise<{ elapsed: number; startDay: DateKey }> {
+    const raw = await this.#store.hGet(keys.attemptStarts(sheetId), playerId);
+    const startedAt = raw === undefined ? this.#now() : Number(raw);
+    return {
+      elapsed: Math.min(RULES.maxAttemptMs, Math.max(0, this.#now() - startedAt)),
+      startDay: dateKeyOf(startedAt),
+    };
   }
 
-  async #advanceStreak(playerId: string, day: string): Promise<void> {
+  async #finish(sheet: SheetDescriptor, playerId: string, state: SessionState): Promise<Standing> {
+    const claimed = resultOf(state);
+    const { elapsed, startDay } = await this.#serverElapsed(sheet.id, playerId);
+    // The client may report a slower time (it counts from first sight), never a faster one.
+    const result: Result = { ...claimed, durationMs: Math.max(claimed.durationMs, elapsed) };
+    const stored = await this.#store.hSetNX(keys.results(sheet.id), playerId, JSON.stringify(result));
+    await this.#store.expire(keys.results(sheet.id), RETENTION_SECONDS);
+    if (stored > 0) {
+      await this.#store.zAdd(keys.board(sheet.id), { member: playerId, score: rankScore(result) });
+      await this.#store.hIncrBy(keys.stats(sheet.id), 'hands', 1);
+      if (result.clean) await this.#store.hIncrBy(keys.stats(sheet.id), 'cleans', 1);
+      // A sheet counts for the streak when it was begun on its own day.
+      if (sheet.dateKey === startDay) await this.#advanceStreak(playerId, sheet.dateKey);
+    }
+    return (await this.standing(sheet, playerId)) ?? this.#standingOf(sheet.id, playerId, result);
+  }
+
+  async #advanceStreak(playerId: string, day: DateKey): Promise<void> {
     const { lastDay, streak, best } = await this.progress(playerId);
     if (lastDay === day) return;
     const next = lastDay === addDays(day, -1) ? streak + 1 : 1;
@@ -150,4 +223,3 @@ export class AttemptService {
     return { result, rank: (rank ?? 0) + 1, stats, streak };
   }
 }
-

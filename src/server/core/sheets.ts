@@ -8,9 +8,11 @@ import { keys } from './keys.ts';
 import type { Store } from './store.ts';
 
 /**
- * Daily sheets for one installation. Each is generated once from the date and
- * a secret created at install time (so tomorrow cannot be computed from the
- * public source), then cached so every request sees the identical sheet.
+ * Daily sheets for one installation. Only today's sheet is ever generated
+ * (from the date and a secret created at install time, so tomorrow cannot be
+ * computed from the public source); it is cached on its day, and past sheets
+ * are served from that cache only. No public request can make the server
+ * generate or store a sheet for an arbitrary date.
  */
 export class SheetService {
   readonly #store: Store;
@@ -35,27 +37,35 @@ export class SheetService {
     return secret;
   }
 
-  async byDate(dateKey: DateKey): Promise<SheetDescriptor> {
-    const id = dailySheetId(dateKey);
-    const cached = parseSheetDescriptor(readJson(await this.#store.get(keys.sheet(id))));
+  /** Today's sheet, generated and cached on first request. */
+  async todaySheet(): Promise<SheetDescriptor> {
+    const dateKey = this.today();
+    const cached = await this.#cached(dailySheetId(dateKey));
     if (cached) return cached;
     const secret = await this.ensureSecret();
     const seed = createHmac('sha256', secret).update(dateKey).digest('hex');
     const sheet = buildDailySheet(dateKey, seed);
-    await this.#store.set(keys.sheet(sheet.id), JSON.stringify(sheet));
-    return sheet;
+    await this.#store.set(keys.sheet(sheet.id), JSON.stringify(sheet), { nx: true });
+    return (await this.#cached(sheet.id)) ?? sheet;
   }
 
-  /** A sheet by id; only past and present sheets exist. */
+  /** Today's sheet, or a past sheet that was published on its day; never a future one. */
   async byId(sheetId: string): Promise<SheetDescriptor | null> {
     const dateKey = dateKeyOfSheetId(sheetId);
-    if (!dateKey || dateKey > this.today()) return null;
-    return this.byDate(dateKey);
+    if (!dateKey) return null;
+    const today = this.today();
+    if (dateKey === today) return this.todaySheet();
+    if (dateKey > today) return null;
+    return this.#cached(sheetId);
   }
 
   async setName(sheetId: string, name: string | null): Promise<void> {
-    const sheet = await this.byId(sheetId);
+    const sheet = await this.#cached(sheetId);
     if (!sheet) return;
     await this.#store.set(keys.sheet(sheetId), JSON.stringify({ ...sheet, name }));
+  }
+
+  async #cached(sheetId: string): Promise<SheetDescriptor | null> {
+    return parseSheetDescriptor(readJson(await this.#store.get(keys.sheet(sheetId))));
   }
 }

@@ -1,5 +1,5 @@
 import { replaySession } from '../../shared/game/session.ts';
-import { resultOf } from '../../shared/game/scoring.ts';
+import { resultOf, type Result } from '../../shared/game/scoring.ts';
 import { buildDailySheet } from '../../shared/puzzle/daily.ts';
 import type { LoggedAction, ScarMap, SheetResponse, Standing } from '../../shared/protocol/api.ts';
 import { parseActionLog } from '../../shared/protocol/parse.ts';
@@ -61,6 +61,14 @@ export type LabHooks = {
   readonly now?: () => number;
 };
 
+/** In the lab every player is alone: first of one. */
+const localStanding = (result: Result): Standing => ({
+  result,
+  rank: 1,
+  stats: { hands: 1, cleans: result.clean ? 1 : 0 },
+  streak: result.clean ? 1 : 0,
+});
+
 export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Platform => {
   const now = hooks.now ?? Date.now;
   if (search.has('fresh')) clearAll();
@@ -74,11 +82,13 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
     kind: 'lab',
     loadSheet: async (): Promise<SheetResponse> => {
       const log = logOf(sheet.id);
-      const finished = replaySession(sheet.spec, log).status !== 'playing';
+      const state = replaySession(sheet.spec, log);
+      const finished = state.status !== 'playing';
       return {
         sheet,
         player: { signedIn: false, log, streak: 0 },
-        stats: { hands: finished ? 1 : 0, cleans: 0 },
+        standing: finished ? localStanding(resultOf(state)) : null,
+        stats: { hands: finished ? 1 : 0, cleans: finished && state.status === 'clean' ? 1 : 0 },
         nextSheetAt: Date.parse(`${addDays(dateKey, 1)}T00:00:00Z`),
         todayId: sheet.id,
       };
@@ -90,9 +100,7 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
         const event: LabEvent = { sheetId, entry, wallClock: new Date(now()).toISOString() };
         write('events', [...readLabEvents(), event]);
         const state = replaySession(sheet.spec, log);
-        if (state.status === 'playing') return null;
-        const result = resultOf(state);
-        return { result, rank: 1, stats: { hands: 1, cleans: result.clean ? 1 : 0 }, streak: result.clean ? 1 : 0 };
+        return state.status === 'playing' ? null : localStanding(resultOf(state));
       },
     }),
     fetchScars: async (sheetId): Promise<ScarMap | null> => {

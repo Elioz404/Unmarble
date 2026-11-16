@@ -4,6 +4,7 @@ import type { Ground, GroundFamily } from '../sheet/ground.ts';
 import { readSheet, type SheetReading } from './analysis.ts';
 import { seamLength } from './evidence.ts';
 import { hasFeature, steepCrossingShare } from './features.ts';
+import { gesturesAreSeparable } from './gesture-contract.ts';
 import {
   DROP_SIZES,
   INK_SLOTS,
@@ -176,12 +177,14 @@ const strokesReadable = (moves: readonly Move[], ground: Ground): boolean =>
 
 /**
  * Readability, the non-negotiable part of the contract: every seam cuts the
- * stripes steeply enough to kink them, and at every step every drop keeps
+ * stripes steeply enough to kink them, a swipe on the top seam can only mean
+ * that seam, and at every step every drop keeps
  * enough visible ink and a tappable core. Applies to every sheet, hand-made
  * ones included.
  */
 export const isReadable = (moves: readonly Move[], ground: Ground): boolean => {
   if (!strokesReadable(moves, ground)) return false;
+  if (!gesturesAreSeparable(moves)) return false;
   for (let prefix = moves.length; prefix >= 1; prefix--) {
     const step = measureVisibility(moves, prefix);
     if (step.inks.some((ink) => ink.visibleShare < VISIBILITY.minVisibleInk || !ink.tappable)) return false;

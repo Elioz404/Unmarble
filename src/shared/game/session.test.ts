@@ -87,3 +87,17 @@ test('a swipe along the seam resolves to the stroke and reads its direction', ()
   assert.deepEqual(resolveSwipe(spec, 3, to, from), { type: 'unstroke', move: 2, against: false });
   assert.equal(resolveSwipe(spec, 3, { x: 1, y: 2 }, { x: 1, y: 2.5 }), null);
 });
+
+test('regression: a swipe beside the top seam never resolves to a nearby buried seam', () => {
+  // Two near-parallel seams: buried stroke 1 and top stroke 2, half a cell apart.
+  const tight: SheetSpec = {
+    ...spec,
+    moves: [
+      { kind: 'drop', x: 6, y: 9, size: 'L', ink: 0 },
+      { kind: 'stroke', x: 4.5, y: 7, heading: 0 },
+      { kind: 'stroke', x: 8.5, y: 7.5, heading: 180 },
+    ],
+  };
+  const action = resolveSwipe(tight, 3, { x: 7, y: 7.5 }, { x: 10, y: 7.5 });
+  assert.deepEqual(action, { type: 'unstroke', move: 2, against: true });
+});

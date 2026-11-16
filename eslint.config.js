@@ -35,11 +35,16 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/client/**/*.test.ts'],
+    languageOptions: { ...project('client-tests'), globals: globals.node },
+  },
+  {
     files: ['src/server/**/*.ts'],
     languageOptions: { ...project('server'), globals: globals.node },
   },
   {
     files: ['src/client/**/*.{ts,tsx}'],
+    ignores: ['src/client/**/*.test.ts'],
     languageOptions: { ...project('client'), globals: globals.browser },
     plugins: { 'react-hooks': reactHooks },
     rules: {

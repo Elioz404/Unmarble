@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import type { SheetSpec } from '../../../shared/puzzle/sheet.ts';
-import type { LoggedAction } from '../../../shared/protocol/api.ts';
+import type { LoggedAction, Standing } from '../../../shared/protocol/api.ts';
 import { getPalette } from '../../../shared/sheet/palettes.ts';
 import type { SoundBank } from '../../audio/sound.ts';
-import { GameController, type AttemptSink } from '../../game/controller.ts';
+import type { AttemptSink } from '../../game/attempt-sink.ts';
+import { GameController } from '../../game/controller.ts';
 import { localPrefs } from '../../lib/local-prefs.ts';
 import { prefersReducedMotion } from '../hooks/use-store.ts';
 
@@ -15,10 +16,13 @@ export type GameSetup = {
   readonly sink: AttemptSink;
   /** Whether contextual hints may appear (off during lessons). */
   readonly hints: boolean;
+  /** Standing already known for a finished attempt. */
+  readonly standing: Standing | null;
 };
 
-/** Overlay ink: the colour of a pen line on paper, independent of theme. */
+/** Overlay colours are paper colours: independent of the app's light or dark theme. */
 const OVERLAY_INK = '#1F1A14';
+const OVERLAY_BLOT = '#8E3328';
 
 const createController = (setup: GameSetup, sound: SoundBank): GameController => {
   const palette = getPalette(setup.spec.paletteId);
@@ -28,8 +32,9 @@ const createController = (setup: GameSetup, sound: SoundBank): GameController =>
     sink: setup.sink,
     sound,
     reducedMotion: prefersReducedMotion,
-    colors: () => ({ ink: OVERLAY_INK, paper: palette.paper, accent: OVERLAY_INK }),
+    colors: () => ({ ink: OVERLAY_INK, paper: palette.paper, accent: OVERLAY_INK, blot: OVERLAY_BLOT }),
     hints: setup.hints ? localPrefs : null,
+    standing: setup.standing,
   });
 };
 
@@ -41,5 +46,3 @@ export const useGame = (setup: GameSetup, sound: SoundBank): GameController =>
   // eslint-disable-next-line react-hooks/exhaustive-deps -- the key fully identifies spec, log and sink
   useMemo(() => createController(setup, sound), [setup.key, sound]);
 
-/** An attempt that is not recorded anywhere (lessons). */
-export const NOWHERE: AttemptSink = { record: async () => null };

@@ -16,13 +16,11 @@ import type { SoundBank } from '../audio/sound.ts';
 import { Animator, ease } from '../lib/animator.ts';
 import { Store } from '../lib/store.ts';
 import type { SheetRenderer } from '../render/renderer.ts';
-import { emptyOverlay, type OverlayModel, type OverlayPainter } from './overlay.ts';
+import { emptyOverlay, type OverlayColors, type OverlayModel, type OverlayPainter } from './overlay.ts';
+import { AttemptConflictError, type AttemptSink } from './attempt-sink.ts';
 import { SheetScene } from './scene.ts';
 
-/** Records an action wherever attempts are kept (server, local storage, nowhere). */
-export type AttemptSink = {
-  record(entry: LoggedAction): Promise<Standing | null>;
-};
+export type { AttemptSink } from './attempt-sink.ts';
 
 export type Feedback =
   | { readonly id: number; readonly kind: 'correct' }
@@ -58,6 +56,8 @@ export type GameView = {
   readonly standing: Standing | null;
   /** A contextual hint after a long pause, if one is due. */
   readonly hint: HintKind | null;
+  /** The stored attempt diverged from this device; the screen should reload it. */
+  readonly desynced: boolean;
 };
 
 export type ControllerOptions = {
@@ -66,9 +66,11 @@ export type ControllerOptions = {
   readonly sink: AttemptSink;
   readonly sound: SoundBank;
   readonly reducedMotion: () => boolean;
-  readonly colors: () => { ink: string; paper: string; accent: string };
+  readonly colors: () => OverlayColors;
   /** Contextual hints; null disables them (e.g. during lessons). */
   readonly hints: HintPolicy | null;
+  /** Standing already known for a finished attempt (when reopening it). */
+  readonly standing: Standing | null;
 };
 
 /**
@@ -93,6 +95,9 @@ export class GameController {
   readonly #hints: HintPolicy | null;
   #feedbackTimer: number | null = null;
   #hintTimer: number | null = null;
+  #drawHandle: number | null = null;
+  #renderedRevision = -1;
+  #disposed = false;
 
   constructor(options: ControllerOptions) {
     this.#spec = options.spec;
@@ -101,6 +106,7 @@ export class GameController {
     this.#colors = options.colors;
     this.#hints = options.hints;
     this.#animator = new Animator(() => this.#draw(), options.reducedMotion);
+    this.#disposed = false;
 
     let state = startSession(options.spec);
     for (const entry of options.log) {
@@ -121,8 +127,9 @@ export class GameController {
       feedback: null,
       replayStep: null,
       settled: state.status !== 'playing',
-      standing: null,
+      standing: state.status === 'playing' ? null : options.standing,
       hint: null,
+      desynced: false,
     });
   }
 
@@ -136,16 +143,22 @@ export class GameController {
 
   /** Connects drawing surfaces. Call `resize` whenever their CSS size changes. */
   attach(renderer: SheetRenderer, painter: OverlayPainter): void {
+    this.#disposed = false;
     this.#renderer = renderer;
     this.#painter = painter;
-    if (this.#state.status === 'torn') this.#scene.visible = this.#spec.moves.length;
+    this.#renderedRevision = -1;
+    // A finished sheet reopens as it was made: the sheet the player unmarbled (or that tore).
+    if (this.#state.status !== 'playing' && this.view.get().settled) this.#scene.visible = this.#spec.moves.length;
     this.#draw();
     this.#armHint();
   }
 
   detach(): void {
+    this.#disposed = true;
     this.#clearTimer('feedback');
     this.#clearTimer('hint');
+    if (this.#drawHandle !== null) cancelAnimationFrame(this.#drawHandle);
+    this.#drawHandle = null;
     this.#animator.cancelAll();
     this.#renderer = null;
     this.#painter = null;
@@ -154,7 +167,14 @@ export class GameController {
   resize(width: number, height: number): void {
     this.#renderer?.resize(width, height);
     this.#painter?.resize(width, height);
+    this.#renderedRevision = -1;
     this.#draw();
+  }
+
+  /** Shows where everyone else tore today's sheet (only after finishing). */
+  showCommunityScars(points: OverlayModel['community']): void {
+    this.#overlay.community = [...points];
+    this.#requestDraw();
   }
 
   tap(point: SheetPoint): void {
@@ -186,7 +206,7 @@ export class GameController {
   /** Live trail while a finger drags across the sheet. */
   trace(points: readonly SheetPoint[]): void {
     this.#overlay.trail = [...points];
-    this.#draw();
+    this.#requestDraw();
   }
 
   magnify(): void {
@@ -200,7 +220,7 @@ export class GameController {
   }
 
   #now(): number {
-    return Math.round(performance.now() - this.#startedAt);
+    return Math.min(RULES.maxAttemptMs, Math.round(performance.now() - this.#startedAt));
   }
 
   async #act(action: PlayerAction, point: SheetPoint | null): Promise<void> {
@@ -227,11 +247,19 @@ export class GameController {
 
     if (this.#state.status !== 'playing') {
       await this.#playEnding();
-      const standing = await recording.catch(() => null);
-      this.#publish({ settled: true, standing });
-    } else {
-      recording.catch((error: unknown) => console.error('Failed to record action', error));
+      // The card appears now; the standing fills in whenever the network answers.
+      this.#publish({ settled: true });
     }
+    recording.then(
+      (standing) => {
+        if (standing && !this.#disposed) this.#publish({ standing });
+      },
+      (error: unknown) => {
+        if (this.#disposed) return;
+        if (error instanceof AttemptConflictError) this.#publish({ desynced: true });
+        else console.error('Failed to record action', error);
+      },
+    );
   }
 
   async #playUnmarble(action: PlayerAction): Promise<void> {
@@ -388,8 +416,21 @@ export class GameController {
     this.view.update({ status: s.status, remaining: s.remaining, blots: s.blots, ...patch });
   }
 
+  /** Coalesces overlay-only updates (e.g. a dragging finger) into one paint per frame. */
+  #requestDraw(): void {
+    if (this.#drawHandle !== null) return;
+    this.#drawHandle = requestAnimationFrame(() => {
+      this.#drawHandle = null;
+      this.#draw();
+    });
+  }
+
   #draw(): void {
-    this.#renderer?.render(this.#scene.frame());
+    // The marbled sheet is costly (and on the CPU fallback, very costly): redraw it only when it changed.
+    if (this.#renderer && this.#scene.revision !== this.#renderedRevision) {
+      this.#renderer.render(this.#scene.frame());
+      this.#renderedRevision = this.#scene.revision;
+    }
     this.#painter?.paint(this.#overlay, this.#colors());
   }
 }

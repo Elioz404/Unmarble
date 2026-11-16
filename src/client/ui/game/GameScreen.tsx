@@ -10,7 +10,8 @@ import { useStore } from '../hooks/use-store.ts';
 import { LensButton, MessageLine, Plaque, SealRow, SoundToggle, TearMeter } from './Chrome.tsx';
 import { ResultCard } from './ResultCard.tsx';
 import { SheetStage } from './SheetStage.tsx';
-import { NOWHERE, useGame } from './use-game.ts';
+import { NOWHERE } from '../../game/attempt-sink.ts';
+import { useGame } from './use-game.ts';
 import './game-screen.css';
 
 type Props = {
@@ -19,6 +20,8 @@ type Props = {
   readonly sound: SoundBank;
   readonly muted: boolean;
   readonly onToggleMute: () => void;
+  /** Reloads the sheet from the platform (after the attempt diverged). */
+  readonly onReload: () => void;
 };
 
 type Message = { text: string; tone: 'quiet' | 'alert' | 'gilt' };
@@ -48,7 +51,7 @@ const messageFor = (view: GameView, fallback: string): Message => {
 };
 
 /** The full game: three short lessons for newcomers, then the sheet. */
-export const GameScreen = ({ platform, response, sound, muted, onToggleMute }: Props) => {
+export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onReload }: Props) => {
   const [lesson, setLesson] = useState<number | null>(() =>
     platform.needsLessons() && response.player.log.length === 0 ? 0 : null,
   );
@@ -59,9 +62,23 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute }: P
   const setup = useMemo(
     () =>
       currentLesson
-        ? { key: `lesson:${currentLesson.id}:${lessonAttempt}`, spec: currentLesson.spec, log: [], sink: NOWHERE, hints: false }
-        : { key: sheet.id, spec: sheet.spec, log: response.player.log, sink: platform.sinkFor(sheet.id), hints: true },
-    [currentLesson, lessonAttempt, sheet, response.player.log, platform],
+        ? {
+            key: `lesson:${currentLesson.id}:${lessonAttempt}`,
+            spec: currentLesson.spec,
+            log: [],
+            sink: NOWHERE,
+            hints: false,
+            standing: null,
+          }
+        : {
+            key: sheet.id,
+            spec: sheet.spec,
+            log: response.player.log,
+            sink: platform.sinkFor(sheet.id, response.player.log.length),
+            hints: true,
+            standing: response.standing,
+          },
+    [currentLesson, lessonAttempt, sheet, response.player.log, response.standing, platform],
   );
   const controller = useGame(setup, sound);
   const view = useStore(controller.view);
@@ -86,6 +103,24 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute }: P
     platform.markLessonsDone();
     setLesson(null);
   };
+
+  // The attempt changed elsewhere (another device or tab): show the truth.
+  useEffect(() => {
+    if (view.desynced) onReload();
+  }, [view.desynced, onReload]);
+
+  // Once finished, show where everyone else tore today's sheet.
+  const finishedDaily = lesson === null && view.settled;
+  useEffect(() => {
+    if (!finishedDaily) return;
+    let cancelled = false;
+    void platform.fetchScars(sheet.id).then((map) => {
+      if (!cancelled && map) controller.showCommunityScars(map.points);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [finishedDaily, platform, sheet.id, controller]);
 
   const fallback = currentLesson?.prompt ?? (view.remaining === view.total ? COPY.dailyPrompt : '');
   const message = messageFor(view, fallback);
