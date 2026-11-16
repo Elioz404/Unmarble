@@ -25,7 +25,7 @@ const render = (spec: SheetSpec, width: number, height: number): ImageData => {
     opsForPrefix(spec.moves, spec.moves.length),
     spec.ground,
     shadingPaletteOf(getPalette(spec.paletteId)),
-    { width, height, supersample: 1, ghost: 0 },
+    { width, height, supersample: 1 },
     image.data,
   );
   return image;

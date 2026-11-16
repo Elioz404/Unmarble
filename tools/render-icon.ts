@@ -39,7 +39,7 @@ const renderSquare = (size: number): Uint8ClampedArray => {
     opsForPrefix(ICON.moves, ICON.moves.length),
     ICON.ground,
     shadingPaletteOf(getPalette(ICON.paletteId)),
-    { width: size, height: fullHeight, supersample: ICON.supersample, ghost: 0, rows: [top, top + size] },
+    { width: size, height: fullHeight, supersample: ICON.supersample, rows: [top, top + size] },
   );
   return sheet.slice(top * size * 4, (top + size) * size * 4);
 };

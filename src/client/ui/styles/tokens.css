@@ -39,6 +39,10 @@
   --duration-calm: 420ms;
   --touch-target: 44px;
 
+  /* The Lens tracing is drawn on the paper, so it is never themed. Bare channels, so the overlay can fade them. */
+  --lens-ink: 43 74 107;
+  --lens-light: 240 248 255;
+
   /* Light: linen by day */
   --room: #ede6d8;
   --room-deep: #e1d8c6;

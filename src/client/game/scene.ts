@@ -20,7 +20,6 @@ export class SheetScene {
   #visible: number;
   #topAmount = 1;
   #transient: FieldOp | null = null;
-  #ghost = 0;
   #revision = 0;
 
   constructor(spec: SheetSpec, visible: number) {
@@ -55,12 +54,6 @@ export class SheetScene {
     this.#revision++;
   }
 
-  /** Magnifier ghost strength, 0–1. */
-  set ghost(value: number) {
-    this.#ghost = value;
-    this.#revision++;
-  }
-
   ops(): FieldOp[] {
     const ops: FieldOp[] = [];
     for (let i = 0; i < this.#visible; i++) {
@@ -73,6 +66,6 @@ export class SheetScene {
   }
 
   frame(): SheetFrame {
-    return { ops: this.ops(), ground: this.spec.ground, palette: this.palette, ghost: this.#ghost };
+    return { ops: this.ops(), ground: this.spec.ground, palette: this.palette };
   }
 }

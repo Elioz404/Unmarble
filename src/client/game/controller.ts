@@ -16,7 +16,8 @@ import type { SoundBank } from '../audio/sound.ts';
 import { Animator, ease } from '../lib/animator.ts';
 import { Store } from '../lib/store.ts';
 import type { SheetRenderer } from '../render/renderer.ts';
-import { emptyOverlay, type OverlayColors, type OverlayModel, type OverlayPainter } from './overlay.ts';
+import { groundTracing } from './ghost-paths.ts';
+import { emptyOverlay, LENS, type OverlayColors, type OverlayModel, type OverlayPainter } from './overlay.ts';
 import { AttemptConflictError, type AttemptSink } from './attempt-sink.ts';
 import { SheetScene } from './scene.ts';
 import type { StageController } from './stage.ts';
@@ -378,17 +379,28 @@ export class GameController implements StageController {
     }
   }
 
+  /** The Lens sweeps a tracing of the untouched ground over the sheet, holds it, then lifts it away. Overlay only. */
   async #playLens(): Promise<void> {
     this.#sound.play('lens');
     this.#publish({ lensLeft: 0 });
-    await this.#animator.play({
-      duration: TIMING.magnifierMs,
-      easing: ease.linear,
-      update: (t) => {
-        this.#scene.ghost = Math.sin(t * Math.PI) ** 0.5;
-      },
-    });
-    this.#scene.ghost = 0;
+    const path = groundTracing(this.#spec.ground);
+    if (this.#reducedMotion()) {
+      // No sweep: the tracing simply shows for as long as the Lens lasts.
+      this.#overlay.lens = { path, reveal: 1, fade: 0 };
+      this.#draw();
+      await new Promise((resolve) => window.setTimeout(resolve, TIMING.magnifierMs));
+    } else {
+      await this.#animator.play({
+        duration: TIMING.magnifierMs,
+        easing: ease.linear,
+        update: (t) => {
+          const reveal = ease.outCubic(Math.min(1, t / LENS.sweep));
+          const fade = ease.inOutCubic(Math.max(0, (t - LENS.liftFrom) / (1 - LENS.liftFrom)));
+          this.#overlay.lens = { path, reveal, fade };
+        },
+      });
+    }
+    this.#overlay.lens = null;
     this.#draw();
   }
 

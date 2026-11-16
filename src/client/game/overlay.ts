@@ -4,7 +4,7 @@ import type { SheetPoint } from '../../shared/game/session.ts';
 /**
  * Everything drawn over the marbled sheet in paper space: scars left by
  * blots, the outline of the move that gave the order away, a ripple where a
- * tap found no ink, and the trail of a swipe in progress.
+ * tap found no ink, the trail of a swipe in progress, and the Lens tracing.
  */
 export type OverlayModel = {
   scars: SheetPoint[];
@@ -14,11 +14,33 @@ export type OverlayModel = {
   trail: SheetPoint[];
   /** Where everyone else tore the sheet today, weighted by how many hands. */
   community: readonly { readonly x: number; readonly y: number; readonly weight: number }[];
+  /** The Lens: the untouched rulings (in cells), swept in down to `reveal` (0–1) and lifting away by `fade` (0–1). */
+  lens: { path: Path2D; reveal: number; fade: number } | null;
 };
 
 export type OverlayColors = { ink: string; paper: string; accent: string; blot: string };
 
-export const emptyOverlay = (): OverlayModel => ({ scars: [], highlight: null, ripple: null, trail: [], community: [] });
+export const emptyOverlay = (): OverlayModel => ({ scars: [], highlight: null, ripple: null, trail: [], community: [], lens: null });
+
+/**
+ * The Lens tracing: the untouched ground as a crisp vellum tracing, swept in
+ * by a band of cool light. Widths are CSS pixels, so it is equally crisp at
+ * every pixel ratio; colours are the `--lens-ink` and `--lens-light` tokens.
+ */
+export const LENS = Object.freeze({
+  /** Share of the Lens time spent sweeping down the sheet, and the point from which the tracing lifts away. */
+  sweep: 0.45,
+  liftFrom: 0.7,
+  /** Soft leading edge of the tracing, and the band of light just ahead of it, in cells. */
+  feather: 1.2,
+  band: 1.5,
+  bandAlpha: 0.1,
+  /** A pale under-glow, so the line reads on dark ink too, then the blue core over it. */
+  glowWidth: 3,
+  glowAlpha: 0.35,
+  coreWidth: 1.25,
+  coreAlpha: 0.85,
+});
 
 /** Deterministic jitter so each scar is ragged but stable across frames. */
 const jitter = (seed: number): number => {
@@ -53,6 +75,7 @@ export class OverlayPainter {
 
     this.#paintCommunity(model.community, colors);
     model.scars.forEach((scar, index) => this.#paintScar(scar, index, colors));
+    if (model.lens) this.#paintLens(model.lens);
 
     if (model.highlight && model.highlight.points.length > 1) {
       const { points, closed, opacity } = model.highlight;
@@ -157,6 +180,40 @@ export class OverlayPainter {
       ctx.lineTo(x - uy * fl * side + ux * fl * 0.3, y + ux * fl * side + uy * fl * 0.3);
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  /** The Lens tracing: a double line (pale glow, blue core) fading in behind a sweeping band of light. */
+  #paintLens({ path, reveal, fade }: NonNullable<OverlayModel['lens']>): void {
+    const ctx = this.#context;
+    const s = this.#scale;
+    const style = getComputedStyle(this.#canvas);
+    const ink = style.getPropertyValue('--lens-ink').trim();
+    const light = style.getPropertyValue('--lens-light').trim();
+    // Device pixels per CSS pixel: the line widths are CSS pixels.
+    const ratio = this.#canvas.width / (this.#canvas.clientWidth || this.#canvas.width);
+    // The front runs on past the bottom edge, so a full reveal shows all of the tracing and none of the band.
+    const front = reveal * (SHEET.rows + LENS.feather + LENS.band);
+    const fadingIn = (channels: string, alpha: number): CanvasGradient => {
+      const gradient = ctx.createLinearGradient(0, front - LENS.feather, 0, front);
+      gradient.addColorStop(0, `rgb(${channels} / ${alpha})`);
+      gradient.addColorStop(1, `rgb(${channels} / 0)`);
+      return gradient;
+    };
+    ctx.save();
+    ctx.scale(s, s);
+    ctx.globalAlpha = 1 - fade;
+    ctx.lineWidth = (LENS.glowWidth * ratio) / s;
+    ctx.strokeStyle = fadingIn(light, LENS.glowAlpha);
+    ctx.stroke(path);
+    ctx.lineWidth = (LENS.coreWidth * ratio) / s;
+    ctx.strokeStyle = fadingIn(ink, LENS.coreAlpha);
+    ctx.stroke(path);
+    const band = ctx.createLinearGradient(0, front - LENS.band, 0, front);
+    band.addColorStop(0, `rgb(${light} / 0)`);
+    band.addColorStop(1, `rgb(${light} / ${LENS.bandAlpha})`);
+    ctx.fillStyle = band;
+    ctx.fillRect(0, front - LENS.band, SHEET.cols, LENS.band);
     ctx.restore();
   }
 }

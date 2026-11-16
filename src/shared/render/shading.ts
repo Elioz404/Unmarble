@@ -71,9 +71,6 @@ export const LOOK = Object.freeze({
   chainWidth: 0.061,
   /** A pixel's footprint as a Gaussian σ in pixels: what the chain line is prefiltered with. */
   pixelFootprint: 0.5,
-  /** Magnifier ghost: undeformed hairlines drawn over the sheet. */
-  ghostWidth: 0.05,
-  ghostColor: '#1C2A3A',
 });
 
 /** Floor of a linear ink channel before its logarithm, so a black ink stays finite. */
@@ -83,7 +80,6 @@ export type ShadingPalette = {
   readonly paper: Rgb;
   readonly band: Rgb;
   readonly rule: Rgb;
-  readonly ghost: Rgb;
   /** Per ink, ln(ink / paper): its optical density over this paper, per channel (Beer–Lambert). */
   readonly inkLog: readonly Rgb[];
 };
@@ -102,7 +98,6 @@ export const shadingPaletteOf = (palette: Palette): ShadingPalette => {
     paper,
     band: linear(palette.band),
     rule: linear(palette.rule),
-    ghost: linear(LOOK.ghostColor),
     inkLog: palette.inks.map(linear).map(densityOver(paper)),
   };
 };
@@ -226,29 +221,6 @@ export const paperFinish = (x: number, y: number, coverage: number, px: number):
     2 * LOOK.toothStrength * tooth * mix(1, LOOK.toothThroughInk, coverage) +
     (1 - coverage) * (laid * LOOK.laidStrength - chain * LOOK.chainStrength)
   );
-};
-
-/** Lays the magnifier ghost (strength 0–1) over a finished pixel at `x, y`. */
-export const applyGhost = (
-  x: number,
-  y: number,
-  ground: Ground,
-  palette: ShadingPalette,
-  ghost: number,
-  out: [number, number, number],
-): void => {
-  // The ghost shows where the water moved: every ruling of the untouched ground.
-  const crossGhost = groundCrossPhase(ground, x, y);
-  const line =
-    Math.max(
-      hairline(groundPhase(ground, x, y), LOOK.ghostWidth),
-      crossGhost === null ? 0 : hairline(crossGhost, LOOK.ghostWidth),
-    ) *
-    ghost *
-    0.7;
-  out[0] = mix(out[0], palette.ghost[0], line);
-  out[1] = mix(out[1], palette.ghost[1], line);
-  out[2] = mix(out[2], palette.ghost[2], line);
 };
 
 /** Linear → sRGB byte. */

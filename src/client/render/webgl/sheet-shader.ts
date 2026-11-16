@@ -43,9 +43,7 @@ uniform vec4 uOpB[MAX_OPS];   // drop: (ink, source, -, -)          stroke: (ux,
 uniform vec3 uPaper;
 uniform vec3 uBand;
 uniform vec3 uRule;
-uniform vec3 uGhostColor;
 uniform vec3 uInkLog[4];      // per ink, ln(ink / paper)
-uniform float uGhost;
 
 uniform int uGroundFamily;    // 0 bands/combed, 1 chevron, 2 waves, 3 grid, 4 rings
 uniform float uGroundPeriod;
@@ -89,14 +87,13 @@ float groundPhase(vec2 p) {
   return t / uGroundPeriod;
 }
 
-/** A grid's crossing lines at a given line width; 0 everywhere else. */
-float crossLineW(vec2 p, float width) {
+/** A grid's crossing hairlines; 0 everywhere else. */
+float crossLine(vec2 p) {
   if (uGroundFamily != 3) return 0.0;
   vec2 d = p - uSheet * 0.5;
   float s = d.x * uGroundRot.x + d.y * uGroundRot.y;
-  return hairline(s / uGroundPeriod, width);
+  return hairline(s / uGroundPeriod, ${f(LOOK.ruleWidth)});
 }
-float crossLine(vec2 p) { return crossLineW(p, ${f(LOOK.ruleWidth)}); }
 
 const float INK_BODY[4] = float[4](${LOOK.inkBody.map(f).join(', ')});
 
@@ -174,10 +171,5 @@ void main() {
     + shade(base + cell * vec2(0.375, -0.125), px)
     + shade(base + cell * vec2(0.125, 0.375), px)
     + shade(base + cell * vec2(-0.375, 0.125), px);
-  vec3 color = sum.rgb * 0.25 * paperFinish(base, sum.w * 0.25, px);
-  if (uGhost > 0.0) {
-    float line = max(hairline(groundPhase(base), ${f(LOOK.ghostWidth)}), crossLineW(base, ${f(LOOK.ghostWidth)})) * uGhost * 0.7;
-    color = mix(color, uGhostColor, line);
-  }
-  outColor = vec4(toSrgb(color), 1.0);
+  outColor = vec4(toSrgb(sum.rgb * 0.25 * paperFinish(base, sum.w * 0.25, px)), 1.0);
 }`;

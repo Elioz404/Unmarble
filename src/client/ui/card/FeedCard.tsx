@@ -44,7 +44,6 @@ export const FeedCard = ({ sheet, progress, stats, onPlay }: Props) => {
       ops: opsForPrefix(sheet.spec.moves, sheet.spec.moves.length),
       ground: sheet.spec.ground,
       palette: shadingPaletteOf(getPalette(sheet.spec.paletteId)),
-      ghost: 0,
     }),
     [sheet],
   );

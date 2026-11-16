@@ -43,7 +43,7 @@ export class CpuSheetRenderer implements SheetRenderer {
       frame.ops,
       frame.ground,
       frame.palette,
-      { width: image.width, height: image.height, supersample: this.#options.supersample, ghost: frame.ghost },
+      { width: image.width, height: image.height, supersample: this.#options.supersample },
       image.data,
     );
     this.#context.putImageData(image, 0, 0);

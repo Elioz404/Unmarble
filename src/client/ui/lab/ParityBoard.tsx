@@ -45,7 +45,6 @@ const frameOf = (spec: SheetSpec): SheetFrame => ({
   ops: opsForPrefix(spec.moves, spec.moves.length),
   ground: spec.ground,
   palette: shadingPaletteOf(getPalette(spec.paletteId)),
-  ghost: 0,
 });
 
 /** Renders on the GPU and reads the pixels back, top row first. */
@@ -69,7 +68,7 @@ const compare = ({ name, spec }: Specimen): Comparison => {
   const gpu = renderGpu(frame);
   const cpu = new ImageData(SIZE.width, SIZE.height);
   const began = performance.now();
-  rasterizeSheet(frame.ops, frame.ground, frame.palette, { ...SIZE, supersample: 2, ghost: 0 }, cpu.data);
+  rasterizeSheet(frame.ops, frame.ground, frame.palette, { ...SIZE, supersample: 2 }, cpu.data);
   const cpuMs = performance.now() - began;
   const diff = new ImageData(SIZE.width, SIZE.height);
   let maxDiff = 0;

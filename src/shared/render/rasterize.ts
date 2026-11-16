@@ -2,15 +2,13 @@ import { SHEET } from '../config.ts';
 import { sampleField } from '../marbling/field.ts';
 import type { FieldOp } from '../marbling/field-ops.ts';
 import type { Ground } from '../sheet/ground.ts';
-import { applyGhost, paperFinish, shadeSample, toSrgbByte, type ShadingPalette } from './shading.ts';
+import { paperFinish, shadeSample, toSrgbByte, type ShadingPalette } from './shading.ts';
 
 export type RasterOptions = {
   readonly width: number;
   readonly height: number;
   /** Samples per pixel axis (2 → 4 samples per pixel). */
   readonly supersample: number;
-  /** Magnifier ghost strength, 0–1. */
-  readonly ghost: number;
   /** Optional row range for incremental rendering. */
   readonly rows?: readonly [from: number, to: number];
 };
@@ -44,7 +42,7 @@ export const rasterizeSheet = (
   options: RasterOptions,
   target: Uint8ClampedArray = new Uint8ClampedArray(options.width * options.height * 4),
 ): Uint8ClampedArray => {
-  const { width, height, supersample, ghost } = options;
+  const { width, height, supersample } = options;
   const [rowFrom, rowTo] = options.rows ?? [0, height];
   const sx = SHEET.cols / width;
   const sy = SHEET.rows / height;
@@ -70,7 +68,6 @@ export const rasterizeSheet = (
       color[0] *= finish;
       color[1] *= finish;
       color[2] *= finish;
-      if (ghost > 0) applyGhost(x, y, ground, palette, ghost, color);
       const o = (j * width + i) * 4;
       target[o] = toSrgbByte(color[0]);
       target[o + 1] = toSrgbByte(color[1]);

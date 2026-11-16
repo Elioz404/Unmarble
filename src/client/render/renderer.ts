@@ -7,8 +7,6 @@ export type SheetFrame = {
   readonly ops: readonly FieldOp[];
   readonly ground: Ground;
   readonly palette: ShadingPalette;
-  /** Magnifier ghost strength, 0–1. */
-  readonly ghost: number;
 };
 
 /** A drawing backend for sheets. WebGL2 when available, CPU otherwise. */

@@ -16,6 +16,6 @@ export const paintStaticSheet = (canvas: HTMLCanvasElement, frame: SheetFrame, s
     canvas.height = height;
   }
   const image = context.createImageData(width, height);
-  rasterizeSheet(frame.ops, frame.ground, frame.palette, { width, height, supersample, ghost: frame.ghost }, image.data);
+  rasterizeSheet(frame.ops, frame.ground, frame.palette, { width, height, supersample }, image.data);
   context.putImageData(image, 0, 0);
 };

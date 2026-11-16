@@ -37,7 +37,6 @@ const renderStrip = (spec: SheetSpec): Buffer => {
       width: WIDTH,
       height: HEIGHT,
       supersample: 2,
-      ghost: 0,
     });
     const x0 = f * (WIDTH + GAP);
     for (let y = 0; y < HEIGHT; y++) {

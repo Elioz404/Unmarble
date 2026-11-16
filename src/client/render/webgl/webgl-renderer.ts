@@ -19,9 +19,7 @@ const UNIFORMS = [
   'uPaper',
   'uBand',
   'uRule',
-  'uGhostColor',
   'uInkLog',
-  'uGhost',
   'uGroundFamily',
   'uGroundPeriod',
   'uGroundRot',
@@ -129,9 +127,7 @@ export class WebGlSheetRenderer implements SheetRenderer {
     gl.uniform3fv(u('uPaper'), palette.paper);
     gl.uniform3fv(u('uBand'), palette.band);
     gl.uniform3fv(u('uRule'), palette.rule);
-    gl.uniform3fv(u('uGhostColor'), palette.ghost);
     gl.uniform3fv(u('uInkLog'), this.#inkLog);
-    gl.uniform1f(u('uGhost'), frame.ghost);
     gl.uniform1i(u('uGroundFamily'), GROUND_FAMILY_CODES[ground.family]);
     gl.uniform1f(u('uGroundPeriod'), ground.period);
     gl.uniform2f(u('uGroundRot'), Math.cos(angle), Math.sin(angle));
