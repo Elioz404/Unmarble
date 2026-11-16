@@ -35,12 +35,17 @@ export const SampleQuestion = ({ paletteId }: { readonly paletteId: string }) =>
 
   return (
     <div className="sample" data-answer={answer}>
-      <canvas
-        ref={canvasRef}
-        className="sample__sheet"
-        onClick={onClick}
-        aria-label="Two drops: tap the one that fell last"
-      />
+      {/* Four gilt photo corners hold the specimen: the mount's ::before and ::after, and two spans. */}
+      <span className="sample__mount">
+        <canvas
+          ref={canvasRef}
+          className="sample__sheet"
+          onClick={onClick}
+          aria-label="Two drops: tap the one that fell last"
+        />
+        <span className="sample__corner" aria-hidden />
+        <span className="sample__corner" aria-hidden />
+      </span>
       <div className="sample__text">
         <p className="sample__question">{COPY.cardQuestion}</p>
         <p className="sample__reply" aria-live="polite">

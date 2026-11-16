@@ -14,7 +14,16 @@ const progressOf = (response: SheetResponse): CardProgress => {
  * Hosts the feed card. The first paint comes from post data (no network);
  * the player's progress arrives afterwards and only refines the button.
  */
-export const CardApp = ({ platform, initial }: { readonly platform: Platform; readonly initial: SheetDescriptor | null }) => {
+export const CardApp = ({
+  platform,
+  initial,
+  atelier,
+}: {
+  readonly platform: Platform;
+  readonly initial: SheetDescriptor | null;
+  /** The pinned hub post, which always shows today's sheet. */
+  readonly atelier: boolean;
+}) => {
   const [sheet, setSheet] = useState<SheetDescriptor | null>(initial);
   const [response, setResponse] = useState<SheetResponse | null>(null);
   const [failed, setFailed] = useState(false);
@@ -43,6 +52,7 @@ export const CardApp = ({ platform, initial }: { readonly platform: Platform; re
       sheet={sheet}
       progress={response ? progressOf(response) : 'fresh'}
       stats={response?.stats ?? null}
+      atelier={atelier}
       onPlay={(event: MouseEvent) => platform.openGame(event.nativeEvent)}
     />
   );

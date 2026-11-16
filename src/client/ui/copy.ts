@@ -19,6 +19,8 @@ export const COPY = Object.freeze({
   cardSampleWrong: 'Look again: only one is perfectly round.',
   cardSamplePrompt: 'Tap it.',
   cardHeroHint: 'Tap to unmarble',
+  /** Over the plaque on the pinned hub post, which always shows today's sheet. */
+  atelierEyebrow: 'The Atelier · today’s sheet',
   /** A name the community gave a sheet, set apart from the colourway's name. */
   communityName: (name: string) => `“${name}”`,
   cardHands: (hands: number) => `${hands} ${hands === 1 ? 'hand has' : 'hands have'} worked this sheet`,

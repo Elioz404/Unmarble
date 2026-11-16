@@ -31,13 +31,41 @@
   cursor: default;
 }
 
+/*
+ * The spine label: the one action on a screen, lettered in gilt on dark
+ * leather inside a double fillet. Shared by the feed card's button and every
+ * primary button, so the call to act looks the same everywhere.
+ */
+.spine,
 .button--primary {
-  border-color: transparent;
-  background: var(--ink);
-  color: var(--room);
+  --spine-fillet: 60%;
+  min-height: var(--spine-height);
+  border: 0;
+  border-radius: var(--radius-binding);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--spine) 92%, white), var(--spine));
+  color: var(--board-gilt-bright);
+  letter-spacing: 0.1em;
+  /* Real small caps where the face has them; synthesized capitals otherwise. */
+  font-variant-caps: all-small-caps;
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.5),
+    inset 0 0 0 3px var(--spine),
+    inset 0 0 0 4px color-mix(in oklab, var(--board-gilt) var(--spine-fillet), transparent),
+    inset 0 0 0 6px var(--spine),
+    inset 0 0 0 7px color-mix(in oklab, var(--board-gilt) 30%, transparent),
+    0 6px 14px -8px rgb(0 0 0 / 0.6);
+  cursor: pointer;
+  transition: box-shadow var(--duration-quick);
 }
 
+.spine:hover:not(:disabled),
 .button--primary:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--ink) 88%, var(--gilt));
+  --spine-fillet: 85%;
 }
 
+.spine:disabled,
+.button--primary:disabled {
+  --spine-fillet: 25%;
+  color: color-mix(in oklab, var(--board-gilt-bright) 45%, var(--spine));
+  cursor: default;
+}

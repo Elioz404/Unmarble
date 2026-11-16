@@ -15,6 +15,7 @@ import { mountRoot } from './mount.ts';
  *
  *   lab.html                 the full game (default)
  *   lab.html?view=card       the in-feed card alone
+ *   lab.html?view=card&post=atelier   the card as the pinned hub post
  *   lab.html?view=board      the card at several feed widths
  *   lab.html?view=parity     the WebGL and CPU renderers side by side, and how far apart they are
  */
@@ -38,7 +39,7 @@ const app =
   ) : view === 'parity' ? (
     <ParityBoard />
   ) : view === 'card' ? (
-    <CardApp platform={platform} initial={null} />
+    <CardApp platform={platform} initial={null} atelier={search.get('post') === 'atelier'} />
   ) : (
     <GameApp platform={platform} />
   );

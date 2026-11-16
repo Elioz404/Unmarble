@@ -14,12 +14,27 @@ body {
   height: 100dvh;
 }
 
+/*
+ * The sheet is a finished specimen tipped into a marbler's sample book: a
+ * backing leaf with a deckled edge, on a dark leather board inside a gilt
+ * double fillet, under one warm lamp. The hint is a gilt slip under the board,
+ * never on the evidence.
+ */
 .card {
+  /* Board margin around the leaf; the leaf's peek around the sheet; the slip's line under the board. */
+  --board-pad: 14px;
+  --leaf-peek: 5px;
+  --slip-height: 18px;
   height: 100%;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: var(--space-3);
+  /* The slip already parts the board from the plaque: every pixel saved goes to the sheet. */
+  gap: var(--space-2);
   padding: var(--space-3) var(--space-4) var(--space-4);
+  background:
+    radial-gradient(90% 60% at 50% 12%, var(--board-lamp), transparent 65%),
+    radial-gradient(140% 100% at 50% 50%, transparent 55%, var(--room-deep)),
+    var(--room);
 }
 
 .card__preview {
@@ -29,53 +44,104 @@ body {
   container-type: size;
 }
 
-.card__tray {
-  position: relative;
-  padding: 10px;
+/* The whole mount opens the game: the sheet is the way in, not only the button. */
+.card__open {
+  display: grid;
+  justify-items: center;
+  padding: 0;
   border: 0;
-  color: inherit;
-  font: inherit;
+  border-radius: var(--radius-binding);
+  background: none;
   cursor: pointer;
   touch-action: pan-y;
-  border-radius: var(--radius-md);
-  background:
-    radial-gradient(130% 80% at 25% 0%, rgb(255 255 255 / 0.08), transparent 55%),
-    linear-gradient(180deg, var(--tray-top), var(--tray-bottom));
+}
+
+.card__tray {
+  display: block;
+  padding: var(--board-pad);
+  border-radius: var(--radius-binding);
+  background: linear-gradient(160deg, var(--board-top), var(--board-bottom));
   box-shadow:
-    inset 0 0 0 var(--hairline) var(--tray-edge),
-    inset 0 12px 28px -14px rgb(0 0 0 / 0.5);
+    inset 0 0 0 1px var(--fillet),
+    inset 0 0 0 4px var(--board-bottom),
+    inset 0 0 0 5px var(--fillet-soft),
+    var(--board-shadow);
+}
+
+/* The filter casts one shadow for leaf and sheet together, so it follows the deckle. */
+.card__leaf {
+  position: relative;
+  display: block;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)) drop-shadow(0 8px 10px rgb(0 0 0 / 0.45));
+}
+
+/* The backing leaf: one fixed deckle (60 jittered points), stretched to the leaf. */
+.card__leaf::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--leaf-peek));
+  z-index: -1;
+  background: var(--leaf);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 320' preserveAspectRatio='none'%3E%3Cpath d='M0 1L18.5 3L37 3.5L55.5 1.5L74 3L92.5 3.5L111 3.5L129 4L147.5 1.5L166 3.5L184.5 2.5L203 0.5L221.5 2.5L236.5 0L238.5 19L239.5 37.5L239 56.5L237.5 75.5L235.5 94L238 113L236.5 132L238 150.5L238 169.5L238.5 188L237 207L239.5 226L238.5 244.5L239 263.5L237.5 282.5L237 301L240 317L221.5 319.5L203 317.5L184.5 316.5L166 316L147.5 318.5L129 318.5L111 319.5L92.5 316L74 317L55.5 318L37 318.5L18.5 319L3 320L1.5 301L3.5 282.5L3 263.5L4 244.5L3.5 226L1 207L3 188L3.5 169.5L1.5 150.5L4 132L1 113L0.5 94L3 75.5L2 56.5L3 37.5L2.5 19Z'/%3E%3C/svg%3E");
+  mask-size: 100% 100%;
 }
 
 .card__sheet {
   display: block;
-  height: calc(100cqh - 20px);
+  height: min(100cqh - 2 * var(--board-pad) - var(--slip-height), (100cqw - 2 * var(--board-pad)) * 4 / 3);
   aspect-ratio: 3 / 4;
-  max-width: calc(100cqw - 20px);
-  box-shadow: var(--sheet-shadow);
   border-radius: 2px;
+  /* Tipped in: glued flat to the leaf, so only a contact shadow. */
+  box-shadow: 0 0 1px rgb(0 0 0 / 0.35);
 }
 
-/* A quiet label on the sheet itself: the sheet is the way in, not only the button. */
-.card__hero-hint {
+/* One wet glint, clipped to the sheet; mounted only while it plays. */
+.card__glint {
   position: absolute;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  padding: 4px 12px;
-  border-radius: var(--radius-pill);
-  background: rgb(20 17 13 / 0.62);
-  color: #f3ead8;
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 2px;
   pointer-events: none;
-  transition: background var(--duration-quick);
 }
 
-.card__tray:hover .card__hero-hint,
-.card__tray:focus-visible .card__hero-hint {
-  background: rgb(20 17 13 / 0.82);
+.card__glint::before {
+  content: '';
+  position: absolute;
+  inset: -20% -60%;
+  background: linear-gradient(105deg, transparent 42%, var(--glint) 50%, transparent 58%);
+  mix-blend-mode: soft-light;
+  animation: card-glint var(--duration-glint) var(--ease-settle) both;
+}
+
+@keyframes card-glint {
+  from {
+    transform: translateX(-70%);
+    opacity: 0;
+  }
+  25%,
+  75% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(70%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card__glint {
+    display: none;
+  }
+}
+
+.card__slip {
+  display: block;
+  line-height: var(--slip-height);
+  color: var(--gilt-ink);
+  letter-spacing: 0.18em;
+  font-variant-caps: all-small-caps;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .card__side {
@@ -90,22 +156,6 @@ body {
 
 .card__side .plaque__title {
   font-size: var(--text-lg);
-}
-
-.card__play {
-  min-height: var(--touch-target);
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--ink);
-  color: var(--room);
-  font-size: var(--text-md);
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: background var(--duration-quick);
-}
-
-.card__play:hover {
-  background: color-mix(in oklab, var(--ink) 88%, var(--gilt));
 }
 
 .card__meta {
@@ -123,8 +173,15 @@ body {
   gap: var(--space-3);
 }
 
-.sample__sheet {
+/* Held by four gilt photo corners: triangles, never round, clear of both drops. */
+.sample__mount {
+  --photo-corner: 8px;
+  position: relative;
   flex: none;
+}
+
+.sample__sheet {
+  display: block;
   width: 96px;
   aspect-ratio: 3 / 4;
   border-radius: 2px;
@@ -133,7 +190,42 @@ body {
   touch-action: pan-y;
 }
 
-.sample[data-answer='wrong'] .sample__sheet {
+.sample__mount::before,
+.sample__mount::after,
+.sample__corner {
+  content: '';
+  position: absolute;
+  width: var(--photo-corner);
+  height: var(--photo-corner);
+  background: linear-gradient(135deg, var(--gilt-bright), var(--gilt));
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  pointer-events: none;
+}
+
+.sample__mount::before {
+  top: 0;
+  left: 0;
+}
+
+.sample__mount::after {
+  top: 0;
+  right: 0;
+  rotate: 90deg;
+}
+
+.sample__corner:nth-of-type(1) {
+  right: 0;
+  bottom: 0;
+  rotate: 180deg;
+}
+
+.sample__corner:nth-of-type(2) {
+  bottom: 0;
+  left: 0;
+  rotate: 270deg;
+}
+
+.sample[data-answer='wrong'] .sample__mount {
   animation: sample-nudge 380ms var(--ease-settle);
 }
 
@@ -176,6 +268,7 @@ body {
 /* Wide feeds: sheet on the left, everything else on the right. */
 @container (min-width: 560px) {
   .card {
+    --board-pad: 16px;
     grid-template-rows: minmax(0, 1fr);
     grid-template-columns: minmax(0, 1fr) minmax(240px, 0.9fr);
     gap: var(--space-5);

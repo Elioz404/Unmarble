@@ -41,8 +41,11 @@ export const Plaque = ({
   </div>
 );
 
-/** The sheet's plaque: a daily sheet by number and day, a trap by its maker. */
-export const SheetPlaque = ({ sheet }: { readonly sheet: SheetDescriptor }) =>
+/**
+ * The sheet's plaque: a daily sheet by number and day, a trap by its maker.
+ * `eyebrow` replaces the wordmark over a daily sheet that nobody set.
+ */
+export const SheetPlaque = ({ sheet, eyebrow }: { readonly sheet: SheetDescriptor; readonly eyebrow?: string }) =>
   sheet.kind === 'trap' ? (
     <Plaque
       number={null}
@@ -57,7 +60,7 @@ export const SheetPlaque = ({ sheet }: { readonly sheet: SheetDescriptor }) =>
       weekday={sheet.weekday}
       stars={sheet.spec.stars}
       paletteName={sheet.name ? COPY.communityName(sheet.name) : sheet.paletteName}
-      {...(sheet.author ? { eyebrow: COPY.trap.sheetOfWeek(sheet.author) } : {})}
+      {...(sheet.author ? { eyebrow: COPY.trap.sheetOfWeek(sheet.author) } : eyebrow ? { eyebrow } : {})}
     />
   );
 

@@ -93,6 +93,26 @@
   --meniscus: rgb(255 255 255 / 0.6);
   --capillary: rgb(31 46 40 / 0.14);
   --meniscus-glow: rgb(255 255 255 / 0.2);
+
+  /* board and spine */
+  /* The leather stays dark in both themes, like a real binding, so the gilt tooled on it does too. */
+  --board-top: #2a2119;
+  --board-bottom: #18130e;
+  --board-gilt: #c9a45c;
+  /* Spine-label letters: 7:1 or better on --spine. */
+  --board-gilt-bright: #e2c078;
+  --fillet: color-mix(in srgb, var(--board-gilt) 55%, transparent);
+  --fillet-soft: color-mix(in srgb, var(--board-gilt) 22%, transparent);
+  --spine: #2a1d16;
+  /* Boards and spines are cut square, eased only enough not to look sharp. */
+  --radius-binding: 4px;
+  /* The one action on a screen: a touch taller than the 44 px target. */
+  --spine-height: 48px;
+  --board-lamp: rgb(255 250 235 / 0.5);
+  --board-shadow: 0 18px 40px -16px rgb(31 26 20 / 0.6);
+  /* One soft wet glint, soft-light over the sheet: brightens, never adds an edge. */
+  --glint: rgb(255 250 235 / 0.16);
+  --duration-glint: 1100ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -136,5 +156,9 @@
     --meniscus: rgb(220 240 245 / 0.1);
     --capillary: rgb(0 0 0 / 0.22);
     --meniscus-glow: rgb(150 200 210 / 0.06);
+
+    /* board and spine */
+    --board-lamp: rgb(255 214 150 / 0.07);
+    --board-shadow: 0 18px 40px -16px #000;
   }
 }

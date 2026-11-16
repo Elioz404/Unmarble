@@ -13,6 +13,6 @@ const binding = parsePostBinding(context.postData);
 
 createRoot(mountRoot()).render(
   <StrictMode>
-    <CardApp platform={createRedditPlatform()} initial={binding?.sheet ?? null} />
+    <CardApp platform={createRedditPlatform()} initial={binding?.sheet ?? null} atelier={binding?.kind === 'atelier'} />
   </StrictMode>,
 );
