@@ -44,8 +44,6 @@
   --lens-light: 240 248 255;
 
   /* Light: linen by day */
-  --room: #ede6d8;
-  --room-deep: #e1d8c6;
   --surface: #f6f1e7;
   --surface-raised: #fbf8f2;
   --ink: #1f1a14;
@@ -76,12 +74,29 @@
   --overlay-accent: #94732f;
   /* Tears: oxblood, the only alarm colour, deep enough to hold on pale paper. */
   --overlay-blot: #8e3328;
+
+  /* bath and room */
+  /* One warm lamp over linen; the vignette stays light enough for faint text to keep 4.5:1. */
+  --room: #ede6d8;
+  --room-deep: #e1d8c6;
+  --room-lamp: rgb(255 250 235 / 0.5);
+  --room-vignette: #ebe4d5;
+  /* Pale celadon size-water, lamp-lit at the top left, in a zinc trough. */
+  --bath-top: #d3ded8;
+  --bath-bottom: #bccbc4;
+  --bath-lamp: rgb(255 250 235 / 0.35);
+  --bath-lip: rgb(31 26 20 / 0.22);
+  --bath-lip-light: rgb(255 255 255 / 0.55);
+  /* Pale water hides pale light: a little more of it than at night. */
+  --caustics-opacity: 0.06;
+  /* Where paper meets water: a bright meniscus, a darker capillary band, a faint halo. */
+  --meniscus: rgb(255 255 255 / 0.6);
+  --capillary: rgb(31 46 40 / 0.14);
+  --meniscus-glow: rgb(255 255 255 / 0.2);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --room: #14110d;
-    --room-deep: #0d0b08;
     --surface: #1c1813;
     --surface-raised: #241f19;
     --ink: #eee5d3;
@@ -103,5 +118,23 @@
     /* overlay marks */
     /* Only the gilt warms with the room; every other mark is a paper colour and stays. */
     --overlay-accent: #b08a45;
+
+    /* bath and room */
+    /* A warm brown-black room (never oxblood) under one lamp. */
+    --room: #16110d;
+    --room-deep: #0d0b08;
+    --room-lamp: rgb(255 214 150 / 0.055);
+    --room-vignette: var(--room-deep);
+    /* Deep teal-black size-water, lamp-lit at the top left, in a zinc trough. */
+    --bath-top: #10201f;
+    --bath-bottom: #071012;
+    --bath-lamp: rgb(255 236 200 / 0.07);
+    --bath-lip: rgb(0 0 0 / 0.6);
+    --bath-lip-light: rgb(255 255 255 / 0.07);
+    /* Caustics are felt, not seen: at most a few percent of light on the water. */
+    --caustics-opacity: 0.04;
+    --meniscus: rgb(220 240 245 / 0.1);
+    --capillary: rgb(0 0 0 / 0.22);
+    --meniscus-glow: rgb(150 200 210 / 0.06);
   }
 }

@@ -160,7 +160,10 @@ export const TIMING = Object.freeze({
   tearPreviewMs: 1200,
   tearRevertMs: 520,
   magnifierMs: 1500,
+  /** A clean sheet is drawn up out of the bath and gilded, then held flat for the replay. */
   cleanWaveMs: 1400,
+  /** A torn sheet sinks, sodden, before its slow replay. */
+  tornSinkMs: 500,
   replayStepMs: 700,
   /** A clean sheet re-marbles faster than a torn one: a flourish, not a lesson. */
   cleanReplayStepMs: 300,

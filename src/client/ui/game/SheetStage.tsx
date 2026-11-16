@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect, useMemo, useRef } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { TIMING } from '../../../shared/config.ts';
 import type { StageController, StageMood } from '../../game/stage.ts';
 import { OverlayPainter } from '../../game/overlay.ts';
 import { createInteractiveSurface, type SheetSurface } from '../../render/create-renderer.ts';
@@ -17,10 +18,27 @@ const TEAR_JOLT: Keyframe[] = [
 /** Device-pixel ceiling: beyond this the shader costs battery for no visible gain. */
 const MAX_PIXEL_RATIO = 2.5;
 
+/** The endings' CSS runs on the controller's clock, so the sheet is flat again before the replay. */
+const ENDING_CLOCK = {
+  '--rise-ms': `${TIMING.cleanWaveMs}ms`,
+  '--sink-ms': `${TIMING.tornSinkMs}ms`,
+} as CSSProperties;
+
+/** Whether the page is out of sight, so the water can stop moving. */
+const useDocumentHidden = (): boolean => {
+  const [hidden, setHidden] = useState(() => document.hidden);
+  useEffect(() => {
+    const onChange = (): void => setHidden(document.hidden);
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
+  return hidden;
+};
+
 type Props = {
   readonly controller: StageController;
   readonly label: string;
-  /** How the paper sits: floating in the bath, lifted out clean, or torn. */
+  /** How the paper sits: floating in the bath, rising out of it clean, or sinking torn. */
   readonly mood: StageMood;
   /** Changes whenever the paper should jolt (a tear); null for none yet. */
   readonly jolt: number | null;
@@ -31,7 +49,7 @@ type Props = {
 };
 
 /**
- * The marbling tray: the sheet floating on water, with its drawing surfaces
+ * The marbling bath: the sheet floating on water, with its drawing surfaces
  * and gesture input. All game logic lives in the controller.
  */
 export const SheetStage = ({ controller, label, mood, jolt, cursor = 'crosshair', children }: Props) => {
@@ -91,6 +109,7 @@ export const SheetStage = ({ controller, label, mood, jolt, cursor = 'crosshair'
     [controller],
   );
   useSheetGestures(sheetRef, handlers);
+  const hidden = useDocumentHidden();
 
   useEffect(() => {
     if (jolt === null || prefersReducedMotion()) return;
@@ -99,10 +118,17 @@ export const SheetStage = ({ controller, label, mood, jolt, cursor = 'crosshair'
   }, [jolt]);
 
   return (
-    <div className="stage">
+    <div className="stage" data-mood={mood} data-hidden={hidden ? '' : undefined} style={ENDING_CLOCK}>
+      <div className="stage__water" aria-hidden="true" />
       <div className="tray">
-        <div ref={sheetRef} className="tray__sheet" data-state={mood} data-cursor={cursor} role="img" aria-label={label}>
-          <canvas ref={overlayRef} className="tray__overlay" />
+        <div className="tray__specimen">
+          <div ref={sheetRef} className="tray__sheet" data-cursor={cursor} role="img" aria-label={label}>
+            <canvas ref={overlayRef} className="tray__overlay" />
+            <span className="tray__glint" aria-hidden="true" />
+          </div>
+          <svg className="tray__gild" aria-hidden="true">
+            <rect width="100%" height="100%" pathLength={100} />
+          </svg>
         </div>
       </div>
       {children}

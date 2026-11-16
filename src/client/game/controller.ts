@@ -62,6 +62,8 @@ export type GameView = {
   readonly feedback: Feedback | null;
   /** Step being shown by the end-of-sheet replay, if any. */
   readonly replayStep: number | null;
+  /** The finished sheet's ceremony: drawn up clean, or sinking torn, then held for the replay. */
+  readonly ending: 'rising' | 'sinking' | 'held' | null;
   /** True once the closing animation has played. */
   readonly settled: boolean;
   readonly standing: Standing | null;
@@ -150,6 +152,7 @@ export class GameController implements StageController {
       busy: false,
       feedback: null,
       replayStep: null,
+      ending: null,
       settled: state.status !== 'playing',
       standing: state.status === 'playing' ? null : options.standing,
       hint: null,
@@ -458,11 +461,16 @@ export class GameController implements StageController {
   async #playEnding(): Promise<void> {
     this.#publish({ busy: true });
     if (this.#state.status === 'clean') {
-      // The bare stripes hold for a breath, then the sheet marbles itself again, quickly: what you undid.
+      // The bare stripes rise from the bath and are gilded, then the sheet marbles itself again, quickly: what you undid.
       this.#sound.play('clean');
+      this.#publish({ ending: 'rising' });
       await this.#animator.wait(TIMING.cleanWaveMs);
+      this.#publish({ ending: 'held' });
       await this.#playReplay(TIMING.cleanReplayStepMs);
     } else {
+      this.#publish({ ending: 'sinking' });
+      await this.#animator.wait(TIMING.tornSinkMs);
+      this.#publish({ ending: 'held' });
       await this.#playReplay(TIMING.replayStepMs);
     }
     this.#publish({ busy: false });

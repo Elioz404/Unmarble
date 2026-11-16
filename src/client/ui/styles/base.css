@@ -16,8 +16,17 @@ body,
   margin: 0;
 }
 
+/*
+ * The room: one warm lamp pool and a vignette over the first screen. Below
+ * it the room stays at the vignette's own tone, so a long page never shows
+ * a seam (and no fixed attachment, which repaints on every scroll).
+ */
 body {
-  background: var(--room);
+  background:
+    radial-gradient(90% 55% at 50% 38%, var(--room-lamp), transparent 70%) no-repeat,
+    radial-gradient(140% 100% at 50% 50%, transparent 55%, var(--room-vignette)) no-repeat,
+    linear-gradient(var(--room), var(--room)) no-repeat,
+    var(--room-vignette);
   color: var(--ink);
   font-family: var(--font-book);
   font-size: var(--text-md);

@@ -16,5 +16,8 @@ export type StageController = {
   trace(points: readonly SheetPoint[]): void;
 };
 
-/** How the paper sits in the tray. */
-export type StageMood = 'floating' | 'lifted' | 'torn';
+/**
+ * How the paper sits in the bath: floating while played; rising out of it
+ * clean, then lifted; sinking torn, then resting torn.
+ */
+export type StageMood = 'floating' | 'rising' | 'lifted' | 'sinking' | 'torn';

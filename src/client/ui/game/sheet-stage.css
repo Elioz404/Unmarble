@@ -1,11 +1,36 @@
 /*
- * The marbling tray. The stage takes every pixel the column leaves; inside
- * it, the tray hugs the largest 3:4 sheet that fits, so the water is a frame
- * around the paper rather than an empty box.
+ * The bath. The stage takes every pixel the column leaves and fills it with
+ * size-water under the room's lamp; inside it, the tray hugs the largest 3:4
+ * sheet that fits, and the paper floats on the water rather than in a frame.
+ *
+ * The sheet's endings (data-mood on the stage) all play while input is
+ * blocked, and only outside the canvas or as a passing light over it:
+ *   rising   a clean sheet is drawn up out of the bath and gilded;
+ *   lifted   it is held, flat, for the replay and the result;
+ *   sinking  a torn sheet goes sodden and drops a little;
+ *   torn     it rests there, its oxblood fillet stopped short.
+ * --rise-ms and --sink-ms come from TIMING, so CSS and controller agree.
  */
 .stage {
   position: relative;
+  isolation: isolate;
   --tray-pad: var(--space-3);
+  /* How far the caustics wander; the layer overhangs the water by this much. */
+  --caustics-drift: 40px;
+  /* One wander, end to end: slow enough that the water reads as still at a glance. */
+  --caustics-period: 60s;
+  /* Tile size on screen: a few filaments per sheet width, never a pattern. */
+  --caustics-tile: 240px;
+  /* The gilt fillet sits this far outside the paper, inside the tray pad. */
+  --gild-offset: 6px;
+  /* Share of the fillet a torn sheet gets before it stops. */
+  --gild-torn-reach: 62;
+  /* Afloat: meniscus, capillary band and halo hug the paper's edge, all spread outward. */
+  --shadow-afloat:
+    0 0 0 1px var(--meniscus), 0 0 0 3px var(--capillary), 0 0 10px 2px var(--meniscus-glow), var(--sheet-shadow);
+  /* Out of the water: a close contact shadow and a wide, soft one. */
+  --shadow-raised: 0 3px 3px rgb(0 0 0 / 0.2), 0 34px 48px -16px rgb(0 0 0 / 0.6);
+  --shadow-held: 0 2px 2px rgb(0 0 0 / 0.18), 0 26px 40px -14px rgb(0 0 0 / 0.55);
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
@@ -13,50 +38,85 @@
   container-type: size;
 }
 
-.tray {
-  padding: var(--tray-pad);
+/* The water, clipped to the trough, under everything else on the stage. */
+.stage__water {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
   border-radius: var(--radius-md);
   background:
-    radial-gradient(130% 80% at 25% 0%, rgb(255 255 255 / 0.08), transparent 55%),
-    radial-gradient(90% 60% at 80% 110%, rgb(120 170 180 / 0.08), transparent 60%),
-    linear-gradient(180deg, var(--tray-top), var(--tray-bottom));
+    radial-gradient(120% 90% at 30% 0%, var(--bath-lamp), transparent 60%),
+    linear-gradient(var(--bath-top), var(--bath-bottom));
+  /* A zinc lip: a dark rim with the lamp catching its top edge. */
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    inset 0 0 0 var(--hairline) var(--tray-edge),
-    inset 0 12px 28px -14px rgb(0 0 0 / 0.5),
-    0 1px 0 rgb(255 255 255 / 0.04);
+    inset 0 0 0 var(--hairline) var(--bath-lip),
+    inset 0 1px 0 var(--bath-lip-light);
+}
+
+/* One layer of caustic filaments, drifting slowly: the stage's only moving layer during play. */
+.stage__water::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--caustics-drift));
+  background: url('./bath-caustics.png') 0 0 / var(--caustics-tile) repeat;
+  opacity: var(--caustics-opacity);
+  will-change: transform;
+  animation: caustics-drift var(--caustics-period) linear infinite alternate;
+}
+
+/* The caustics stop for a beat as a torn sheet sinks, and whenever nobody can see them. */
+.stage[data-hidden] .stage__water::before,
+.stage[data-mood='sinking'] .stage__water::before {
+  animation-play-state: paused;
+}
+
+@keyframes caustics-drift {
+  0% {
+    transform: translate3d(calc(-1 * var(--caustics-drift)), calc(-0.6 * var(--caustics-drift)), 0);
+  }
+  35% {
+    transform: translate3d(calc(0.3 * var(--caustics-drift)), calc(-0.9 * var(--caustics-drift)), 0);
+  }
+  70% {
+    transform: translate3d(calc(0.9 * var(--caustics-drift)), calc(0.4 * var(--caustics-drift)), 0);
+  }
+  100% {
+    transform: translate3d(calc(-0.2 * var(--caustics-drift)), calc(var(--caustics-drift)), 0);
+  }
+}
+
+.tray {
+  padding: var(--tray-pad);
+  perspective: 900px;
+}
+
+/* What lifts and sinks: the paper and its fillet together. */
+.tray__specimen {
+  position: relative;
+  transition: transform var(--duration-calm) var(--ease-lift);
 }
 
 .tray__sheet {
   position: relative;
   width: min(calc(100cqw - 2 * var(--tray-pad)), calc((100cqh - 2 * var(--tray-pad)) * 0.75));
   aspect-ratio: 3 / 4;
-  box-shadow: var(--sheet-shadow);
+  box-shadow: var(--shadow-afloat);
   border-radius: 2px;
   overflow: hidden;
   touch-action: none;
   cursor: crosshair;
   transition:
-    transform var(--duration-calm) var(--ease-lift),
-    box-shadow var(--duration-calm) var(--ease-lift);
+    box-shadow var(--duration-calm) var(--ease-lift),
+    filter var(--duration-calm) var(--ease-lift);
 }
 
 .tray__sheet[data-cursor='cell'] {
   cursor: cell;
 }
 
-/* A clean sheet is lifted from the bath. */
-.tray__sheet[data-state='lifted'] {
-  transform: translateY(-6px) scale(1.01);
-  box-shadow:
-    0 2px 2px rgb(0 0 0 / 0.18),
-    0 26px 40px -14px rgb(0 0 0 / 0.55);
+.stage:not([data-mood='floating']) .tray__sheet {
   cursor: default;
-}
-
-.tray__sheet[data-state='torn'] {
-  cursor: default;
-  filter: saturate(0.85);
 }
 
 .tray__canvas,
@@ -70,4 +130,182 @@
 
 .tray__overlay {
   pointer-events: none;
+}
+
+/*
+ * A clean sheet rises: up out of the water and tilted toward the lamp, held,
+ * then settled flat (the lifted state) before the replay, so drops read round.
+ * The base values are the lifted ones, so ending the animation changes nothing.
+ */
+.stage[data-mood='rising'] .tray__specimen,
+.stage[data-mood='lifted'] .tray__specimen {
+  transform: translateY(-6px);
+}
+
+.stage[data-mood='rising'] .tray__sheet,
+.stage[data-mood='lifted'] .tray__sheet {
+  box-shadow: var(--shadow-held);
+}
+
+.stage[data-mood='rising'] .tray__specimen {
+  animation: rise var(--rise-ms) both;
+}
+
+.stage[data-mood='rising'] .tray__sheet {
+  animation: rise-shadow var(--rise-ms) both;
+}
+
+@keyframes rise {
+  0% {
+    transform: translateY(0) rotateX(0deg) scale(1);
+    animation-timing-function: var(--ease-lift);
+  }
+  45%,
+  80% {
+    transform: translateY(-10px) rotateX(3deg) scale(1.012);
+    animation-timing-function: var(--ease-settle);
+  }
+  100% {
+    transform: translateY(-6px) rotateX(0deg) scale(1);
+  }
+}
+
+@keyframes rise-shadow {
+  0% {
+    box-shadow: var(--shadow-afloat);
+    animation-timing-function: var(--ease-lift);
+  }
+  45%,
+  80% {
+    box-shadow: var(--shadow-raised);
+    animation-timing-function: var(--ease-settle);
+  }
+  100% {
+    box-shadow: var(--shadow-held);
+  }
+}
+
+/* A torn sheet sinks a little, goes sodden at its border, and rests just below the surface. */
+.stage[data-mood='sinking'] .tray__specimen {
+  transform: translateY(2px) scale(0.996);
+}
+
+.stage[data-mood='torn'] .tray__specimen {
+  transform: translateY(2px);
+}
+
+.stage[data-mood='sinking'] .tray__sheet,
+.stage[data-mood='torn'] .tray__sheet {
+  filter: saturate(0.85);
+}
+
+/* Sodden margin: soaks in, then fades before the replay begins. */
+.tray__sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 14px rgb(50 25 15 / 0.14);
+  opacity: 0;
+}
+
+.stage[data-mood='sinking'] .tray__sheet::after {
+  animation: sodden var(--sink-ms) ease-out;
+}
+
+@keyframes sodden {
+  35% {
+    opacity: 1;
+  }
+}
+
+/* One soft wet glint across the risen sheet: the same light as the feed card's. */
+.tray__glint {
+  position: absolute;
+  inset: -20% -60%;
+  display: none;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 42%, rgb(255 250 235 / 0.16) 50%, transparent 58%);
+  mix-blend-mode: soft-light;
+}
+
+.stage[data-mood='rising'] .tray__glint {
+  display: block;
+  animation: glint 900ms var(--ease-settle) 200ms both;
+}
+
+@keyframes glint {
+  from {
+    transform: translateX(-70%);
+    opacity: 0;
+  }
+  20%,
+  80% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(70%);
+    opacity: 0;
+  }
+}
+
+/*
+ * The fillet, run around the paper from its top-left corner like a
+ * finisher's wheel: gilt for a clean sheet, oxblood stopping short for a torn one.
+ */
+.tray__gild {
+  position: absolute;
+  inset: calc(-1 * var(--gild-offset));
+  width: calc(100% + 2 * var(--gild-offset));
+  height: calc(100% + 2 * var(--gild-offset));
+  overflow: visible;
+  pointer-events: none;
+  display: none;
+  filter: drop-shadow(0 0 3px color-mix(in oklab, var(--gilt) 60%, transparent));
+}
+
+.tray__gild rect {
+  fill: none;
+  stroke: var(--gilt-bright);
+  stroke-width: 1.25;
+  /* In pathLength units (the rect's whole run is 100); the long gap never repeats the dash. */
+  stroke-dasharray: 100 200;
+}
+
+.stage:not([data-mood='floating']) .tray__gild {
+  display: block;
+}
+
+.stage:is([data-mood='sinking'], [data-mood='torn']) .tray__gild {
+  filter: none;
+}
+
+.stage:is([data-mood='sinking'], [data-mood='torn']) .tray__gild rect {
+  stroke: var(--blot);
+  stroke-dasharray: var(--gild-torn-reach) 200;
+}
+
+.stage:is([data-mood='rising'], [data-mood='sinking']) .tray__gild rect {
+  animation: gild 900ms var(--ease-settle) 150ms both;
+}
+
+@keyframes gild {
+  from {
+    stroke-dasharray: 0 200;
+  }
+}
+
+/* Reduced motion: the still photograph of the same water, and every ending's final state at once. */
+@media (prefers-reduced-motion: reduce) {
+  .stage__water::before,
+  .stage[data-mood] .tray__specimen,
+  .stage[data-mood] .tray__sheet,
+  .stage[data-mood] .tray__sheet::after,
+  .stage[data-mood] .tray__gild rect {
+    animation: none;
+  }
+
+  .stage[data-mood] .tray__glint {
+    display: none;
+  }
 }

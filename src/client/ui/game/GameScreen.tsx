@@ -76,8 +76,12 @@ const messageFor = (view: GameView, fallback: string): Message => {
   return { text: fallback, tone: 'quiet' };
 };
 
-const moodOf = (view: GameView): StageMood =>
-  !view.settled ? 'floating' : view.status === 'clean' ? 'lifted' : view.status === 'torn' ? 'torn' : 'floating';
+/** Floating while played; the ending's motion while it plays; then held out clean, or resting torn. */
+const moodOf = ({ ending, settled, status }: GameView): StageMood => {
+  if (ending === 'rising' || ending === 'sinking') return ending;
+  if (ending === null && !settled) return 'floating';
+  return status === 'clean' ? 'lifted' : status === 'torn' ? 'torn' : 'floating';
+};
 
 /** The full game: a lesson for each form the player has not met yet, then the sheet. */
 export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onReload, navigation }: Props) => {
