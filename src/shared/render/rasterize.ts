@@ -2,7 +2,7 @@ import { SHEET } from '../config.ts';
 import { fieldScratchJ, sampleFieldJ } from '../marbling/field.ts';
 import type { FieldOp } from '../marbling/field-ops.ts';
 import type { Ground } from '../sheet/ground.ts';
-import { paperFinish, shadeSample, toSrgbByte, type GroundPlace, type ShadingPalette } from './shading.ts';
+import { paperFinish, paperFinishTerms, shadeSample, toSrgbByte, type FinishTerms, type GroundPlace, type ShadingPalette } from './shading.ts';
 
 export type RasterOptions = {
   readonly width: number;
@@ -84,7 +84,7 @@ export const rasterizeSheet = (
  * Samples per axis where an edge-adaptive raster resamples an edge, by
  * surface. Stills get 3 × 3 (more than the old 2 × 2 everywhere, for fewer
  * samples in all); the animating no-WebGL fallback gets the GPU's own 2 × 2
- * pattern, so it matches the GPU and stays cheap per frame.
+ * pattern once it comes to rest (its moving frames are centres only).
  */
 export const EDGE_SAMPLES = Object.freeze({ still: 3, fallback: 2 });
 
@@ -120,12 +120,27 @@ export type AdaptiveRaster = {
   readonly phase: Float32Array;
   readonly cross: Float32Array;
   readonly flagged: Uint8Array;
+  /** The paper finish per pixel as `base + slope · coverage`, fixed for the raster's size. */
+  readonly finishBase: Float32Array;
+  readonly finishSlope: Float32Array;
   /** Field samples taken since the raster was last shaded from scratch. */
   samples: number;
 };
 
 export const createAdaptiveRaster = (width: number, height: number): AdaptiveRaster => {
   const pixels = width * height;
+  const finishBase = new Float32Array(pixels);
+  const finishSlope = new Float32Array(pixels);
+  const sx = SHEET.cols / width;
+  const sy = SHEET.rows / height;
+  const terms: FinishTerms = [0, 0];
+  for (let j = 0; j < height; j++) {
+    for (let i = 0; i < width; i++) {
+      paperFinishTerms((i + 0.5) * sx, (j + 0.5) * sy, sx, terms);
+      finishBase[j * width + i] = terms[0];
+      finishSlope[j * width + i] = terms[1];
+    }
+  }
   return {
     width,
     height,
@@ -135,6 +150,8 @@ export const createAdaptiveRaster = (width: number, height: number): AdaptiveRas
     phase: new Float32Array(pixels),
     cross: new Float32Array(pixels),
     flagged: new Uint8Array(pixels),
+    finishBase,
+    finishSlope,
     samples: 0,
   };
 };
@@ -229,18 +246,13 @@ export const refineEdges = (
 
 /** Last pass: the paper finish, once per pixel, into RGBA bytes. */
 export const finishRaster = (raster: AdaptiveRaster, target: Uint8ClampedArray): void => {
-  const { width, height, rgb, coverage } = raster;
-  const sx = SHEET.cols / width;
-  const sy = SHEET.rows / height;
-  for (let j = 0; j < height; j++) {
-    for (let i = 0; i < width; i++) {
-      const p = j * width + i;
-      const finish = paperFinish((i + 0.5) * sx, (j + 0.5) * sy, coverage[p] as number, sx);
-      target[p * 4] = toSrgbByte((rgb[p * 3] as number) * finish);
-      target[p * 4 + 1] = toSrgbByte((rgb[p * 3 + 1] as number) * finish);
-      target[p * 4 + 2] = toSrgbByte((rgb[p * 3 + 2] as number) * finish);
-      target[p * 4 + 3] = 255;
-    }
+  const { width, height, rgb, coverage, finishBase, finishSlope } = raster;
+  for (let p = 0; p < width * height; p++) {
+    const finish = (finishBase[p] as number) + (finishSlope[p] as number) * (coverage[p] as number);
+    target[p * 4] = toSrgbByte((rgb[p * 3] as number) * finish);
+    target[p * 4 + 1] = toSrgbByte((rgb[p * 3 + 1] as number) * finish);
+    target[p * 4 + 2] = toSrgbByte((rgb[p * 3 + 2] as number) * finish);
+    target[p * 4 + 3] = 255;
   }
 };
 

@@ -4,7 +4,7 @@ import { opsForPrefix } from '../puzzle/moves.ts';
 import type { SheetSpec } from '../puzzle/sheet.ts';
 import { LESSONS } from '../puzzle/tutorial.ts';
 import { getPalette } from '../sheet/palettes.ts';
-import { createAdaptiveRaster, EDGE_SAMPLES, rasterizeAdaptive, rasterizeSheet } from './rasterize.ts';
+import { createAdaptiveRaster, EDGE_SAMPLES, finishRaster, rasterizeAdaptive, rasterizeSheet, shadeCentres } from './rasterize.ts';
 import { shadingPaletteOf } from './shading.ts';
 
 /** A phone-sized sheet. */
@@ -48,6 +48,9 @@ const SHEETS: readonly { name: string; spec: SheetSpec }[] = [
 /** What the feed used to spend per pixel: a quick centre pass, then a full 2 × 2 pass. */
 const OLD_FEED_SAMPLES = 1 + 4;
 
+/** The raster keeps the paper finish in float32, so a channel may round one step the other way. */
+const FINISH_ROUNDING = 1;
+
 /** Share of pixels whose channels all lie within `TOLERANCE` of the reference. */
 const shareClose = (image: Uint8ClampedArray, reference: Uint8ClampedArray): number => {
   let close = 0;
@@ -77,6 +80,18 @@ for (const { name, spec } of SHEETS) {
       assert.ok(share >= SHARE, `only ${(share * 100).toFixed(2)}% of pixels within ${TOLERANCE}/255`);
     });
   }
+
+  // What the no-WebGL fallback shows while the sheet moves: the plain one-sample render, finish included.
+  test(`a centres-only raster matches a one-sample render on ${name}`, () => {
+    const raster = createAdaptiveRaster(WIDTH, HEIGHT);
+    const image = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
+    shadeCentres(raster, ops, spec.ground, palette);
+    finishRaster(raster, image);
+    const reference = uniform(1);
+    for (let k = 0; k < image.length; k++) {
+      assert.ok(Math.abs((image[k] as number) - (reference[k] as number)) <= FINISH_ROUNDING, `byte ${k}: ${image[k]} vs ${reference[k]}`);
+    }
+  });
 
   test(`edge-adaptive sampling of stills costs less than the old feed passes on ${name}`, () => {
     const { samples } = adaptive(EDGE_SAMPLES.still);

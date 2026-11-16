@@ -278,13 +278,18 @@ export const shadeSample = (
   return 0;
 };
 
+/** The paper finish at one pixel as `base + slope · coverage`: it is affine in ink coverage. */
+export type FinishTerms = [base: number, slope: number];
+
 /**
- * Brightness factor of the paper finish at a pixel centre `x, y` (paper
- * space), given the pixel's ink coverage and its size `px` in cells. Tooth
- * shows faintly through ink; laid and chain lines only on bare paper. Every
- * term is prefiltered by the pixel size, so small sheets never moiré.
+ * The paper finish at a pixel centre `x, y` (paper space) for a pixel of
+ * size `px` cells, split into the brightness factor on bare paper and its
+ * change per unit of ink coverage. Neither depends on the sheet, so a raster
+ * keeps them between frames. Tooth shows faintly through ink; laid and chain
+ * lines only on bare paper. Every term is prefiltered by the pixel size, so
+ * small sheets never moiré.
  */
-export const paperFinish = (x: number, y: number, coverage: number, px: number): number => {
+export const paperFinishTerms = (x: number, y: number, px: number, out: FinishTerms): FinishTerms => {
   // A pattern aliases once a pixel spans half its period (Nyquist); each fades out on the way there.
   const fine = 1 - smoothstep(0.5 / LOOK.toothFineX, 1 / LOOK.toothFineX, px);
   const tooth =
@@ -294,11 +299,19 @@ export const paperFinish = (x: number, y: number, coverage: number, px: number):
   const sigma = Math.hypot(LOOK.chainWidth, LOOK.pixelFootprint * px);
   const offset = (fract(x / LOOK.chainSpacing) - 0.5) * LOOK.chainSpacing;
   const chain = (LOOK.chainWidth / sigma) * Math.exp(-(offset * offset) / (2 * sigma * sigma));
-  return (
-    1 +
-    2 * LOOK.toothStrength * tooth * mix(1, LOOK.toothThroughInk, coverage) +
-    (1 - coverage) * (laid * LOOK.laidStrength - chain * LOOK.chainStrength)
-  );
+  const grain = 2 * LOOK.toothStrength * tooth;
+  const lines = laid * LOOK.laidStrength - chain * LOOK.chainStrength;
+  out[0] = 1 + grain + lines;
+  out[1] = grain * (LOOK.toothThroughInk - 1) - lines;
+  return out;
+};
+
+const finishScratch: FinishTerms = [0, 0];
+
+/** Brightness factor of the paper finish at a pixel centre, given the pixel's ink coverage (see `paperFinishTerms`). */
+export const paperFinish = (x: number, y: number, coverage: number, px: number): number => {
+  const [base, slope] = paperFinishTerms(x, y, px, finishScratch);
+  return base + slope * coverage;
 };
 
 /** Linear → sRGB byte. */

@@ -30,5 +30,5 @@ export const createInteractiveSurface = (className: string, preferCpu = false): 
     }
   }
   const canvas = freshCanvas(className);
-  return { canvas, renderer: new CpuSheetRenderer(canvas, { edgeSamples: EDGE_SAMPLES.fallback }) };
+  return { canvas, renderer: new CpuSheetRenderer(canvas, { edgeSamples: EDGE_SAMPLES.fallback, refine: 'rest' }) };
 };
