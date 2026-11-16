@@ -16,7 +16,7 @@ import { CALENDAR_VERSIONS } from '../src/shared/puzzle/calendar-recipes.ts';
 import { addDays, dateKeyOf } from '../src/shared/time/calendar.ts';
 
 /** How many of `CALENDAR_VERSIONS`, from the first, are already on the server. */
-const LIVE_VERSIONS = 0;
+const LIVE_VERSIONS = 1;
 
 const today = dateKeyOf(Date.now());
 const earliest = addDays(today, ROTATION.versionLeadDays);
