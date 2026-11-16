@@ -311,32 +311,56 @@ export class OverlayPainter {
     const path = trail.map((p) => [p.x * s, p.y * s] as const);
     const width = Math.max(2, MARK.trailWidth * s);
     ctx.save();
-    ctx.strokeStyle = colors.shade;
+    ctx.fillStyle = colors.shade;
     ctx.globalAlpha = MARK.trailShadeAlpha;
-    this.#strokeTapered(path, width);
-    ctx.strokeStyle = colors.water;
+    this.#fillTapered(path, width);
+    ctx.fillStyle = colors.water;
     ctx.globalAlpha = MARK.trailLightAlpha;
-    this.#strokeTapered(path, Math.max(1, MARK.trailLight * width));
+    this.#fillTapered(path, Math.max(1, MARK.trailLight * width));
     ctx.restore();
   }
 
-  /** Strokes a polyline, stepping the width down segment by segment over its last part. */
-  #strokeTapered(path: CanvasPath, width: number): void {
+  /**
+   * Fills a polyline `width` wide as one ribbon that narrows to a point over
+   * the last `trailTaper` of its length. One fill covers each pixel once, so
+   * joints never darken under a translucent alpha. Every piece winds the same
+   * way (quads A-D-C-B, arcs with rising angle) so the nonzero rule never
+   * cancels an overlap into a hole, even where the path crosses itself.
+   */
+  #fillTapered(path: CanvasPath, width: number): void {
     const ctx = this.#context;
-    const segments = path.length - 1;
-    const taper = Math.round(MARK.trailTaper * segments);
-    const body = segments - taper;
-    if (body > 0) {
-      ctx.lineWidth = width;
-      this.#strokePolyline(path.slice(0, body + 1));
+    const run = [0];
+    for (let i = 1; i < path.length; i++) {
+      const [ax, ay] = path[i - 1] ?? [0, 0];
+      const [bx, by] = path[i] ?? [0, 0];
+      run.push((run[i - 1] ?? 0) + Math.hypot(bx - ax, by - ay));
     }
-    for (let j = 1; j <= taper; j++) {
-      const from = path[body + j - 1];
-      const to = path[body + j];
-      if (!from || !to) break;
-      ctx.lineWidth = width * (1 - j / (taper + 1));
-      this.#strokePolyline([from, to]);
+    const total = run[run.length - 1] ?? 0;
+    if (total <= 0) return;
+    const taper = MARK.trailTaper * total;
+    const radius = (i: number): number => (width / 2) * Math.min(1, (total - (run[i] ?? total)) / taper);
+    ctx.beginPath();
+    path.forEach(([x, y], i) => {
+      const r = radius(i);
+      if (r <= 0) return;
+      ctx.moveTo(x + r, y);
+      ctx.arc(x, y, r, 0, 2 * Math.PI);
+    });
+    for (let i = 1; i < path.length; i++) {
+      const [ax, ay] = path[i - 1] ?? [0, 0];
+      const [bx, by] = path[i] ?? [0, 0];
+      const length = Math.hypot(bx - ax, by - ay);
+      if (length === 0) continue;
+      const nx = -(by - ay) / length;
+      const ny = (bx - ax) / length;
+      const [ra, rb] = [radius(i - 1), radius(i)];
+      ctx.moveTo(ax + nx * ra, ay + ny * ra);
+      ctx.lineTo(ax - nx * ra, ay - ny * ra);
+      ctx.lineTo(bx - nx * rb, by - ny * rb);
+      ctx.lineTo(bx + nx * rb, by + ny * rb);
+      ctx.closePath();
     }
+    ctx.fill();
   }
 
   /** Adds open arcs of one circle to the current path; `turn` in [−0.5, 0.5) rotates them. */
