@@ -120,6 +120,8 @@
   --foil-deep: color-mix(in oklab, var(--gilt) 65%, black);
   /* Gold leaf under one lamp; the SVG #um-foil gradient uses the same stops. */
   --gilt-foil: linear-gradient(160deg, var(--gilt-bright), var(--gilt) 38%, var(--foil-deep) 62%, var(--gilt-bright));
+  /* The same leaf without the deep band, for foil a dark mark must read on (3:1 at its darkest). */
+  --gilt-foil-flat: linear-gradient(160deg, var(--gilt-bright), var(--gilt));
   /* Dark tooled leather: marks set on foil, in both themes, like a real binding. */
   --foil-ink: #2a1d16;
   /* A blind (unfoiled) impression: a faint shade inside, a lit lower lip. */

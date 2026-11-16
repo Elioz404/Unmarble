@@ -62,8 +62,11 @@
 }
 
 .seal--split .seal__dot {
-  fill: var(--blot);
-  stroke: none;
+  /* Hollow where the gilt dot is solid; drawn heavier than a blind dot so the outline holds at 14 px. */
+  fill: none;
+  stroke: var(--blot);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
 }
 
 .tear-strip path {

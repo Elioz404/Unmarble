@@ -54,7 +54,7 @@
 }
 
 .compose__tool[aria-checked='true'] .compose__roundel {
-  background: var(--gilt-foil);
+  background: var(--gilt-foil-flat);
   color: var(--foil-ink);
 }
 

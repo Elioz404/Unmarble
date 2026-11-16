@@ -91,8 +91,12 @@ export const ToolStars = ({
 
 export type SealState = 'empty' | 'gilt' | 'split' | 'lens';
 
-/** The circle-and-dot tool: a ring of radius 5.2 round a dot of 2.2, on a 12-unit face. */
-const SEAL = Object.freeze({ centre: 6, ring: 5.2, dot: 2.2, stroke: 1.3, splitShift: 0.35 });
+/**
+ * The circle-and-dot tool: a ring of radius 5.2 round a dot of 2.2, on a 12-unit face.
+ * A split seal's halves part by 2 × splitShift (2.4 px at 16 px), a break that survives
+ * a compressed screenshot; its dot is outlined, not filled, so it never reads as gilt.
+ */
+const SEAL = Object.freeze({ centre: 6, ring: 5.2, dot: 2.2, stroke: 1.3, splitShift: 0.9 });
 const { centre: C, ring: R, dot: D } = SEAL;
 
 /** Half a ring (and half its dot), on the left (sweep 0) or the right (sweep 1). */
@@ -121,7 +125,7 @@ const SEAL_BODY: Record<SealState, ReactNode> = {
       <circle cx={C} cy={C} r={D} fill={FOIL} />
     </>
   ),
-  // Oxblood, broken in two along a crack: the sheet tore here.
+  // Oxblood, broken in two along a crack, its dot hollow: the sheet tore here.
   split: (
     <>
       <g transform={`translate(${-SEAL.splitShift} ${SEAL.splitShift})`}>
