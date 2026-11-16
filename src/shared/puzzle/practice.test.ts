@@ -7,7 +7,10 @@ import { buildPracticeSheet, practiceRecipe, searchPractice, type PracticeReques
 import { recipeById, recipesForStars } from './recipes.ts';
 import { STARS, type Stars } from './sheet.ts';
 
-const SHEETS_PER_LEVEL = 20;
+/** Random sheets checked per difficulty: enough to meet the rare slow or unlucky seed (about 20 s in all). */
+const SHEETS_PER_LEVEL = 200;
+/** Recipes each difficulty draws on: its weekdays' own, then the specials shown with its stars. */
+const POOL_SIZES: Readonly<Record<Stars, number>> = { 1: 5, 2: 8, 3: 10, 4: 5, 5: 5 };
 const TODAY = '2026-12-03';
 const roundTrip = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 
@@ -33,9 +36,19 @@ for (const stars of STARS) {
       assert.ok(reading, `${sheet.id} passes the full contract`);
       assert.ok(matchesSignature(recipe, sheet.spec.moves, reading), `${sheet.id} honours its signature`);
     }
-    assert.ok(used.size > 1, 'any recipe draws more than one');
+    assert.equal(used.size, recipesForStars(stars).length, 'any recipe draws every recipe of the level');
   });
 }
+
+test('each difficulty draws on its weekdays and its specials', () => {
+  for (const stars of STARS) {
+    const pool = recipesForStars(stars);
+    assert.equal(pool.length, POOL_SIZES[stars]);
+    assert.ok(pool.every((r) => r.stars === stars));
+    const specials = pool.findIndex((r) => r.special !== null);
+    assert.ok(specials === -1 || pool.slice(specials).every((r) => r.special !== null), 'specials come last');
+  }
+});
 
 test('a practice request is deterministic in its seed, however the search is sliced', () => {
   const asked = request(4, 7);

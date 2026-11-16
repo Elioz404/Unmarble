@@ -59,6 +59,10 @@ export class PracticeJob {
   #cancelled = false;
   #done = false;
   #failed = false;
+  /** The next slice of the search, set once the search has begun. */
+  #slice: Task = () => undefined;
+  /** Bumped on every scheduling: only the latest scheduled slice runs, so a job hurried out of idle time runs once. */
+  #ticket = 0;
 
   constructor(choice: PracticeChoice, avoid: string | null, seed: string | null) {
     this.choice = choice;
@@ -92,11 +96,12 @@ export class PracticeJob {
           this.#done = true;
           resolve({ sheet: found, request });
         } else {
-          this.#schedule(slice);
+          this.#schedule();
         }
       };
       begin(seed ?? newPracticeSeed());
-      this.#schedule(slice);
+      this.#slice = slice;
+      this.#schedule();
     });
     // A sheet marbled ahead may never be asked for; its failure is reported only to whoever waits for it.
     this.sheet.catch(() => undefined);
@@ -107,9 +112,14 @@ export class PracticeJob {
     return this.#done;
   }
 
-  /** From idle time to the next macrotask: the player is waiting for this one. */
+  /**
+   * From idle time to the next macrotask: the player is waiting for this one.
+   * The slice waiting for idle time moves at once, since idle time may be long in coming.
+   */
   hurry(): void {
+    if (this.#urgent) return;
     this.#urgent = true;
+    if (!this.#done) this.#schedule();
   }
 
   /** Back to idle time: nobody is waiting for it any more. */
@@ -128,9 +138,13 @@ export class PracticeJob {
     return sameChoice && this.avoid === avoid && (seed === null || this.seed === seed);
   }
 
-  #schedule(task: Task): void {
-    if (this.#urgent) nextTask(task);
-    else whenIdle(task);
+  #schedule(): void {
+    const ticket = ++this.#ticket;
+    const run = (): void => {
+      if (ticket === this.#ticket) this.#slice();
+    };
+    if (this.#urgent) nextTask(run);
+    else whenIdle(run);
   }
 }
 
