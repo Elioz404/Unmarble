@@ -1,0 +1,37 @@
+import type { SheetDescriptor } from '../protocol/api.ts';
+import { getPalette } from '../sheet/palettes.ts';
+import { isDateKey, paletteIdFor, sheetNumberOf, weekdayOf, type DateKey } from '../time/calendar.ts';
+import { generateSheet } from './generator.ts';
+import { templateForWeekday } from './templates.ts';
+
+/**
+ * The daily sheet: one per UTC day, identical for every player, generated
+ * deterministically from the date and a secret seed (so it cannot be
+ * predicted ahead of time from the public code).
+ */
+
+const ID_PREFIX = 'd-';
+
+export const dailySheetId = (dateKey: DateKey): string => `${ID_PREFIX}${dateKey}`;
+
+export const dateKeyOfSheetId = (id: string): DateKey | null => {
+  if (!id.startsWith(ID_PREFIX)) return null;
+  const key = id.slice(ID_PREFIX.length);
+  return isDateKey(key) ? key : null;
+};
+
+export const buildDailySheet = (dateKey: DateKey, seed: string, name: string | null = null): SheetDescriptor => {
+  const number = sheetNumberOf(dateKey);
+  const template = templateForWeekday(weekdayOf(dateKey));
+  const palette = getPalette(paletteIdFor(number));
+  const { spec } = generateSheet(`${seed}:${dateKey}`, template, palette.id);
+  return {
+    id: dailySheetId(dateKey),
+    number,
+    dateKey,
+    weekday: template.title,
+    paletteName: palette.name,
+    spec,
+    name,
+  };
+};

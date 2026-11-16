@@ -174,24 +174,31 @@ const strokesReadable = (moves: readonly Move[], ground: Ground): boolean =>
       move.kind !== 'stroke' || steepCrossingShare(moves, ground, index) >= EVIDENCE.minSteepCrossingShare,
   );
 
-const inkReadable = (moves: readonly Move[]): boolean => {
+/**
+ * Readability, the non-negotiable part of the contract: every seam cuts the
+ * stripes steeply enough to kink them, and at every step every drop keeps
+ * enough visible ink and a tappable core. Applies to every sheet, hand-made
+ * ones included.
+ */
+export const isReadable = (moves: readonly Move[], ground: Ground): boolean => {
+  if (!strokesReadable(moves, ground)) return false;
   for (let prefix = moves.length; prefix >= 1; prefix--) {
     const step = measureVisibility(moves, prefix);
-    if (prefix === moves.length) {
-      const { min, max } = VISIBILITY.coverage;
-      if (step.coverage < min || step.coverage > max) return false;
-      const offCentre = Math.hypot(step.inkCentroid.x - SHEET.cols / 2, step.inkCentroid.y - SHEET.rows / 2);
-      if (offCentre > VISIBILITY.compositionTolerance) return false;
-    }
     if (step.inks.some((ink) => ink.visibleShare < VISIBILITY.minVisibleInk || !ink.tappable)) return false;
   }
   return true;
 };
 
-/**
- * Checks a candidate against the full contract. Cheap checks run first.
- * Exported so hand-made sheets (tutorials, player traps) meet the same bar.
- */
+/** Composition of a daily sheet: balanced ink coverage, centred on the paper. */
+export const isWellComposed = (moves: readonly Move[]): boolean => {
+  const step = measureVisibility(moves, moves.length);
+  const { min, max } = VISIBILITY.coverage;
+  if (step.coverage < min || step.coverage > max) return false;
+  const offCentre = Math.hypot(step.inkCentroid.x - SHEET.cols / 2, step.inkCentroid.y - SHEET.rows / 2);
+  return offCentre <= VISIBILITY.compositionTolerance;
+};
+
+/** Checks a generated candidate against the full contract; cheap checks run first. */
 export const validateSheet = (
   moves: readonly Move[],
   ground: Ground,
@@ -201,7 +208,7 @@ export const validateSheet = (
   const reading = readSheet(moves);
   if (reading.margin < Math.max(template.minMargin, EVIDENCE.safetyMargin)) return null;
   if (!template.features.every((f) => hasFeature(f, moves, reading, template.minMargin))) return null;
-  if (!inkReadable(moves)) return null;
+  if (!isWellComposed(moves) || !isReadable(moves, ground)) return null;
   return reading;
 };
 

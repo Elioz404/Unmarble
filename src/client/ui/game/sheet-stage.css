@@ -1,0 +1,68 @@
+/*
+ * The marbling tray. The stage takes every pixel the column leaves; inside
+ * it, the tray hugs the largest 3:4 sheet that fits, so the water is a frame
+ * around the paper rather than an empty box.
+ */
+.stage {
+  --tray-pad: var(--space-3);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+
+.tray {
+  padding: var(--tray-pad);
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(130% 80% at 25% 0%, rgb(255 255 255 / 0.08), transparent 55%),
+    radial-gradient(90% 60% at 80% 110%, rgb(120 170 180 / 0.08), transparent 60%),
+    linear-gradient(180deg, var(--tray-top), var(--tray-bottom));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 0 0 var(--hairline) var(--tray-edge),
+    inset 0 12px 28px -14px rgb(0 0 0 / 0.5),
+    0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.tray__sheet {
+  position: relative;
+  width: min(calc(100cqw - 2 * var(--tray-pad)), calc((100cqh - 2 * var(--tray-pad)) * 0.75));
+  aspect-ratio: 3 / 4;
+  box-shadow: var(--sheet-shadow);
+  border-radius: 2px;
+  overflow: hidden;
+  touch-action: none;
+  cursor: crosshair;
+  transition:
+    transform var(--duration-calm) var(--ease-lift),
+    box-shadow var(--duration-calm) var(--ease-lift);
+}
+
+/* A clean sheet is lifted from the bath. */
+.tray__sheet[data-state='lifted'] {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow:
+    0 2px 2px rgb(0 0 0 / 0.18),
+    0 26px 40px -14px rgb(0 0 0 / 0.55);
+  cursor: default;
+}
+
+.tray__sheet[data-state='torn'] {
+  cursor: default;
+  filter: saturate(0.85);
+}
+
+.tray__canvas,
+.tray__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.tray__overlay {
+  pointer-events: none;
+}

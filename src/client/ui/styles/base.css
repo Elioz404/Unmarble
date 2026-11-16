@@ -1,0 +1,70 @@
+@import '@fontsource-variable/eb-garamond/wght.css';
+@import '@fontsource-variable/eb-garamond/wght-italic.css';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--room);
+  color: var(--ink);
+  font-family: var(--font-book);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Small-caps style label, built from uppercase + tracking for full control. */
+.label {
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink-faint);
+}
+
+.figures {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

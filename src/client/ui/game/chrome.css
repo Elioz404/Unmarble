@@ -1,0 +1,188 @@
+/* Plaque — like a museum label set in a book face. */
+.plaque {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.plaque__wordmark {
+  margin: 0;
+  color: var(--gilt);
+  letter-spacing: 0.32em;
+}
+
+.plaque__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 450;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.plaque__no {
+  font-size: 0.62em;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+.plaque__number {
+  font-variant-numeric: oldstyle-nums;
+}
+
+.plaque__day {
+  font-style: italic;
+  font-weight: 400;
+}
+
+.plaque__meta {
+  margin: 0;
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+.plaque__stars {
+  color: var(--gilt);
+  letter-spacing: 0.1em;
+  font-size: 0.8em;
+}
+
+.plaque__stars-off {
+  color: var(--rule-strong);
+}
+
+.plaque__dot {
+  color: var(--ink-faint);
+}
+
+.plaque__palette {
+  font-style: italic;
+}
+
+/* Buttons */
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background var(--duration-quick), color var(--duration-quick);
+}
+
+.icon-button:hover {
+  background: var(--rule);
+  color: var(--ink);
+}
+
+.lens-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: var(--hairline) solid var(--rule-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color var(--duration-quick), background var(--duration-quick);
+}
+
+.lens-button:hover:not(:disabled) {
+  border-color: var(--gilt);
+  background: color-mix(in oklab, var(--gilt) 10%, transparent);
+}
+
+.lens-button:disabled {
+  color: var(--ink-faint);
+  border-style: dashed;
+  cursor: default;
+}
+
+/* Seals: tooled gilt circles, one per move. */
+.seals {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.seals__seal {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule-strong);
+  transition:
+    background var(--duration-calm) var(--ease-settle),
+    border-color var(--duration-calm) var(--ease-settle),
+    transform var(--duration-calm) var(--ease-settle);
+}
+
+.seals__seal[data-done='true'] {
+  border-color: var(--gilt);
+  background:
+    radial-gradient(circle at 35% 30%, var(--gilt-bright), var(--gilt) 60%, color-mix(in oklab, var(--gilt) 70%, black));
+  box-shadow: 0 1px 2px var(--gilt-shadow);
+  transform: scale(1.08);
+}
+
+/* Tears: three notches of paper; each blot tears one. */
+.tears {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tears__mark {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--rule-strong);
+  transition: background var(--duration-calm);
+}
+
+.tears__mark[data-torn='true'] {
+  background: var(--blot);
+  clip-path: polygon(0 0, 40% 0, 50% 100%, 60% 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/* The message line keeps its height so the sheet never jumps. */
+.message {
+  margin: 0;
+  min-height: calc(var(--text-md) * var(--leading) * 2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: var(--text-md);
+  font-style: italic;
+  color: var(--ink-soft);
+  text-wrap: balance;
+  animation: message-in var(--duration-calm) var(--ease-settle);
+}
+
+.message[data-tone='alert'] {
+  color: var(--blot);
+}
+
+.message[data-tone='gilt'] {
+  color: var(--gilt);
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}

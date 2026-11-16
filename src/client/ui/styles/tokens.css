@@ -1,0 +1,84 @@
+/*
+ * Design tokens — "the bindery at night".
+ *
+ * A marbler's workshop: linen and lamplight by day, warm dark by night. The
+ * only accent is gilt, as tooled on a book spine; the only alarm colour is
+ * oxblood. The sheet itself is never themed: paper stays paper.
+ */
+:root {
+  color-scheme: light dark;
+
+  /* Type */
+  --font-book: 'EB Garamond Variable', 'EB Garamond', Garamond, 'Times New Roman', serif;
+  --text-xs: 0.72rem;
+  --text-sm: 0.86rem;
+  --text-md: 1.02rem;
+  --text-lg: 1.32rem;
+  --text-xl: 1.9rem;
+  --text-xxl: 2.7rem;
+  --tracking-caps: 0.16em;
+  --leading: 1.35;
+
+  /* Space (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Shape & motion */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-pill: 999px;
+  --hairline: 1px;
+  --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-lift: cubic-bezier(0.3, 0.6, 0.1, 1);
+  --duration-quick: 160ms;
+  --duration-calm: 420ms;
+  --touch-target: 44px;
+
+  /* Light: linen by day */
+  --room: #ede6d8;
+  --room-deep: #e1d8c6;
+  --surface: #f6f1e7;
+  --surface-raised: #fbf8f2;
+  --ink: #1f1a14;
+  --ink-soft: #5c5144;
+  --ink-faint: #8a7e6c;
+  --rule: rgb(31 26 20 / 0.14);
+  --rule-strong: rgb(31 26 20 / 0.28);
+  --gilt: #94732f;
+  --gilt-bright: #b58f3e;
+  --gilt-shadow: rgb(94 70 20 / 0.35);
+  --blot: #8e3328;
+  --tray-top: #cfd6d3;
+  --tray-bottom: #bcc6c3;
+  --tray-edge: rgb(31 26 20 / 0.18);
+  --sheet-shadow: 0 1px 1px rgb(31 26 20 / 0.12), 0 8px 24px -6px rgb(31 26 20 / 0.28);
+  --focus: #2f5aa8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --room: #14110d;
+    --room-deep: #0d0b08;
+    --surface: #1c1813;
+    --surface-raised: #241f19;
+    --ink: #eee5d3;
+    --ink-soft: #b9ac96;
+    --ink-faint: #857a6a;
+    --rule: rgb(238 229 211 / 0.13);
+    --rule-strong: rgb(238 229 211 / 0.26);
+    --gilt: #c9a45c;
+    --gilt-bright: #e2c078;
+    --gilt-shadow: rgb(0 0 0 / 0.55);
+    --blot: #d4695c;
+    --tray-top: #142024;
+    --tray-bottom: #0a1215;
+    --tray-edge: rgb(0 0 0 / 0.6);
+    --sheet-shadow: 0 1px 1px rgb(0 0 0 / 0.5), 0 14px 32px -8px rgb(0 0 0 / 0.75);
+    --focus: #8fb3ff;
+  }
+}

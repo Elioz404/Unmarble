@@ -1,0 +1,30 @@
+.status {
+  height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
+  padding: var(--space-5);
+}
+
+.status__mark {
+  color: var(--gilt);
+}
+
+.status__mark[data-kind='loading'] {
+  animation: status-breathe 1.6s var(--ease-settle) infinite alternate;
+}
+
+.status__text {
+  margin: 0;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+@keyframes status-breathe {
+  from {
+    opacity: 0.45;
+    transform: translateY(2px);
+  }
+}
