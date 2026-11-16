@@ -26,6 +26,6 @@ export const localPrefs = {
   setMuted: (muted: boolean): void => write('muted', muted ? '1' : '0'),
   hasSeen: (hint: string): boolean => read(`hint:${hint}`) === '1',
   markSeen: (hint: string): void => write(`hint:${hint}`, '1'),
-  tutorialDone: (): boolean => read('tutorial') === '1',
-  setTutorialDone: (): void => write('tutorial', '1'),
+  lessonSeen: (lessonId: string): boolean => read(`lesson:${lessonId}`) === '1',
+  markLessonSeen: (lessonId: string): void => write(`lesson:${lessonId}`, '1'),
 };

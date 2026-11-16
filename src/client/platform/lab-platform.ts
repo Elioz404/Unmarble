@@ -1,10 +1,21 @@
 import { replaySession } from '../../shared/game/session.ts';
 import { resultOf, type Result } from '../../shared/game/scoring.ts';
-import { buildDailySheet } from '../../shared/puzzle/daily.ts';
-import type { LoggedAction, ScarMap, SheetResponse, Standing } from '../../shared/protocol/api.ts';
+import { buildDailySheet, dateKeyOfSheetId } from '../../shared/puzzle/daily.ts';
+import { checkTrap } from '../../shared/puzzle/trap.ts';
+import { parseSheetDescriptor } from '../../shared/protocol/post-data.ts';
+import type {
+  BookResponse,
+  BookStatus,
+  LoggedAction,
+  ScarMap,
+  SheetDescriptor,
+  SheetResponse,
+  SheetStats,
+  Standing,
+  TrapResponse,
+} from '../../shared/protocol/api.ts';
 import { parseActionLog } from '../../shared/protocol/parse.ts';
-import { addDays, dateKeyOf, isDateKey } from '../../shared/time/calendar.ts';
-import { localPrefs } from '../lib/local-prefs.ts';
+import { addDays, dateKeyOf, isDateKey, type DateKey } from '../../shared/time/calendar.ts';
 import type { Platform } from './platform.ts';
 
 /**
@@ -61,60 +72,128 @@ export type LabHooks = {
   readonly now?: () => number;
 };
 
+/** The lab's single local player: always "signed in" as this name, so traps can be set. */
+const LAB_PLAYER = 'lab-player';
+/** How far back the lab's Book reaches. */
+const LAB_BOOK_DAYS = 14;
+
 /** In the lab every player is alone: first of one. */
-const localStanding = (result: Result): Standing => ({
+const localStanding = (result: Result, streak: number): Standing => ({
   result,
   rank: 1,
-  stats: { hands: 1, cleans: result.clean ? 1 : 0 },
-  streak: result.clean ? 1 : 0,
+  stats: { hands: 1, cleans: result.clean ? 1 : 0, caught: result.blots > 0 ? 1 : 0 },
+  streak,
 });
 
 export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Platform => {
   const now = hooks.now ?? Date.now;
   if (search.has('fresh')) clearAll();
   const requested = search.get('date');
-  const dateKey = isDateKey(requested) ? requested : dateKeyOf(now());
-  const sheet = buildDailySheet(dateKey, LAB_SEED);
+  const today = isDateKey(requested) ? requested : dateKeyOf(now());
+  const dailies = new Map<string, SheetDescriptor>();
 
+  const daily = (dateKey: DateKey): SheetDescriptor => {
+    const cached = dailies.get(dateKey);
+    if (cached) return cached;
+    const sheet = buildDailySheet(dateKey, LAB_SEED);
+    dailies.set(dateKey, sheet);
+    return sheet;
+  };
+  const traps = (): SheetDescriptor[] => {
+    const stored = read('traps');
+    return Array.isArray(stored) ? stored.map(parseSheetDescriptor).filter((s) => s !== null) : [];
+  };
+  const sheetById = (id: string): SheetDescriptor | null => {
+    const dateKey = dateKeyOfSheetId(id);
+    if (dateKey) return dateKey <= today ? daily(dateKey) : null;
+    return traps().find((trap) => trap.id === id) ?? null;
+  };
   const logOf = (sheetId: string): LoggedAction[] => parseActionLog(read(`log:${sheetId}`)) ?? [];
+  const stateOf = (sheet: SheetDescriptor) => replaySession(sheet.spec, logOf(sheet.id));
+  const statusOf = (sheet: SheetDescriptor): BookStatus => {
+    const state = stateOf(sheet);
+    if (state.status !== 'playing') return state.status;
+    return state.history.length > 0 ? 'playing' : 'unplayed';
+  };
+  const statsOf = (sheet: SheetDescriptor): SheetStats => {
+    const state = stateOf(sheet);
+    const finished = state.status !== 'playing';
+    return { hands: finished ? 1 : 0, cleans: state.status === 'clean' ? 1 : 0, caught: state.blots > 0 ? 1 : 0 };
+  };
+  /** Consecutive days, ending today, whose daily sheet is finished. */
+  const streak = (): number => {
+    let days = 0;
+    while (statusOf(daily(addDays(today, -days))) === 'clean' || statusOf(daily(addDays(today, -days))) === 'torn') days++;
+    return days;
+  };
 
   return {
     kind: 'lab',
-    loadSheet: async (): Promise<SheetResponse> => {
-      const log = logOf(sheet.id);
-      const state = replaySession(sheet.spec, log);
-      const finished = state.status !== 'playing';
+    loadSheet: async (sheetId?: string): Promise<SheetResponse> => {
+      const sheet = (sheetId ? sheetById(sheetId) : null) ?? daily(today);
+      const state = stateOf(sheet);
       return {
         sheet,
-        player: { signedIn: false, log, streak: 0 },
-        standing: finished ? localStanding(resultOf(state)) : null,
-        stats: { hands: finished ? 1 : 0, cleans: finished && state.status === 'clean' ? 1 : 0 },
-        nextSheetAt: Date.parse(`${addDays(dateKey, 1)}T00:00:00Z`),
-        todayId: sheet.id,
+        player: { signedIn: true, log: logOf(sheet.id), streak: streak(), flair: read('flair') === true },
+        standing: state.status === 'playing' ? null : localStanding(resultOf(state), streak()),
+        stats: statsOf(sheet),
+        nextSheetAt: Date.parse(`${addDays(today, 1)}T00:00:00Z`),
+        todayId: daily(today).id,
       };
     },
     sinkFor: (sheetId) => ({
       record: async (entry): Promise<Standing | null> => {
+        const sheet = sheetById(sheetId);
+        if (!sheet) return null;
         const log = [...logOf(sheetId), entry];
         write(`log:${sheetId}`, log);
         const event: LabEvent = { sheetId, entry, wallClock: new Date(now()).toISOString() };
         write('events', [...readLabEvents(), event]);
         const state = replaySession(sheet.spec, log);
-        return state.status === 'playing' ? null : localStanding(resultOf(state));
+        return state.status === 'playing' ? null : localStanding(resultOf(state), streak());
       },
     }),
     fetchScars: async (sheetId): Promise<ScarMap | null> => {
-      const state = replaySession(sheet.spec, logOf(sheetId));
-      const points = state.history
-        .filter((record) => record.verdict === 'blot' && record.point)
+      const sheet = sheetById(sheetId);
+      if (!sheet) return null;
+      const points = stateOf(sheet)
+        .history.filter((record) => record.verdict === 'blot' && record.point)
         .map((record) => ({ x: record.point?.x ?? 0, y: record.point?.y ?? 0, weight: 1 }));
       return { points, trap: null, hands: 1 };
     },
+    loadBook: async (): Promise<BookResponse> => {
+      const entry = (sheet: SheetDescriptor) => ({ sheet, status: statusOf(sheet), stats: statsOf(sheet) });
+      return {
+        dailies: Array.from({ length: LAB_BOOK_DAYS }, (_, back) => entry(daily(addDays(today, -back)))),
+        traps: [...traps()].reverse().map(entry),
+      };
+    },
+    publishTrap: async (moves): Promise<TrapResponse> => {
+      const paper = daily(today);
+      const check = checkTrap(moves, paper.spec.ground);
+      if (check.problem) return { kind: 'rejected', reason: 'unfair' };
+      const sheet: SheetDescriptor = {
+        id: `t-${today}-${traps().length + 1}`,
+        kind: 'trap',
+        author: LAB_PLAYER,
+        number: paper.number,
+        dateKey: today,
+        weekday: paper.weekday,
+        paletteName: paper.paletteName,
+        spec: { paletteId: paper.spec.paletteId, ground: paper.spec.ground, moves, stars: check.stars },
+        name: null,
+      };
+      write('traps', [...traps(), sheet]);
+      return { kind: 'published', sheet, postUrl: null };
+    },
+    setFlair: async (enabled) => {
+      write('flair', enabled);
+      return enabled;
+    },
+    openPost: () => undefined,
     openGame: () => hooks.onOpenGame(),
     closeGame: () => hooks.onCloseGame(),
     promptLogin: () => undefined,
     subscribe: async () => false,
-    needsLessons: () => !localPrefs.tutorialDone(),
-    markLessonsDone: () => localPrefs.setTutorialDone(),
   };
 };

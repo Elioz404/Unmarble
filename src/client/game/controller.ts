@@ -19,6 +19,7 @@ import type { SheetRenderer } from '../render/renderer.ts';
 import { emptyOverlay, type OverlayColors, type OverlayModel, type OverlayPainter } from './overlay.ts';
 import { AttemptConflictError, type AttemptSink } from './attempt-sink.ts';
 import { SheetScene } from './scene.ts';
+import type { StageController } from './stage.ts';
 
 export type { AttemptSink } from './attempt-sink.ts';
 
@@ -81,7 +82,7 @@ export type ControllerOptions = {
  * overlay, animations) and persistence (sink). React components only read
  * `view` and call the intent methods.
  */
-export class GameController {
+export class GameController implements StageController {
   readonly view: Store<GameView>;
   readonly #spec: SheetSpec;
   readonly #sink: AttemptSink;

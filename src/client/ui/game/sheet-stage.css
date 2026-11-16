@@ -40,6 +40,10 @@
     box-shadow var(--duration-calm) var(--ease-lift);
 }
 
+.tray__sheet[data-cursor='cell'] {
+  cursor: cell;
+}
+
 /* A clean sheet is lifted from the bath. */
 .tray__sheet[data-state='lifted'] {
   transform: translateY(-6px) scale(1.01);

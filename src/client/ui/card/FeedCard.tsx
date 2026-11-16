@@ -4,7 +4,7 @@ import type { SheetDescriptor } from '../../../shared/protocol/api.ts';
 import { shadingPaletteOf } from '../../../shared/render/shading.ts';
 import { getPalette } from '../../../shared/sheet/palettes.ts';
 import { COPY } from '../copy.ts';
-import { Plaque } from '../game/Chrome.tsx';
+import { SheetPlaque } from '../game/Chrome.tsx';
 import { SampleQuestion } from './SampleQuestion.tsx';
 import { useCpuSheet } from './use-cpu-sheet.ts';
 import './feed-card.css';
@@ -49,15 +49,10 @@ export const FeedCard = ({ sheet, progress, hands, onPlay }: Props) => {
         </div>
       </div>
       <div className="card__side">
-        <Plaque
-          number={sheet.number}
-          weekday={sheet.weekday}
-          stars={sheet.spec.stars}
-          paletteName={sheet.name ?? sheet.paletteName}
-        />
+        <SheetPlaque sheet={sheet} />
         <SampleQuestion paletteId={sheet.spec.paletteId} />
         <button type="button" className="card__play" onClick={onPlay}>
-          {CTA[progress]}
+          {sheet.kind === 'trap' && progress === 'fresh' ? COPY.trap.cardPlay : CTA[progress]}
         </button>
         <p className="card__meta">
           {hands !== null && hands > 0 ? `${hands} ${hands === 1 ? 'hand has' : 'hands have'} worked this sheet` : COPY.tagline}

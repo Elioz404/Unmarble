@@ -1,7 +1,13 @@
-import { exitExpandedMode, requestExpandedMode, showLoginPrompt } from '@devvit/web/client';
-import { API, type ActionRequest, type SheetResponse } from '../../shared/protocol/api.ts';
-import { parseActionResponse, parseScarMap, parseSheetResponse } from '../../shared/protocol/parse.ts';
-import { localPrefs } from '../lib/local-prefs.ts';
+import { exitExpandedMode, navigateTo, requestExpandedMode, showLoginPrompt } from '@devvit/web/client';
+import { API, type ActionRequest, type FlairRequest, type SheetResponse, type TrapRequest } from '../../shared/protocol/api.ts';
+import {
+  parseActionResponse,
+  parseBookResponse,
+  parseFlair,
+  parseScarMap,
+  parseSheetResponse,
+  parseTrapResponse,
+} from '../../shared/protocol/parse.ts';
 import { createAttemptQueue, TransientError } from './attempt-queue.ts';
 import type { Platform } from './platform.ts';
 
@@ -49,6 +55,10 @@ const call = async <T>(
   return parsed;
 };
 
+/** HTTP status the server uses for a trap it refuses (the body says why). */
+const UNPROCESSABLE = 422;
+const UNAUTHORIZED = 401;
+
 const parseOk = (value: unknown): boolean | null =>
   typeof value === 'object' && value !== null && 'ok' in value && typeof value.ok === 'boolean' ? value.ok : null;
 
@@ -57,7 +67,8 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => window.set
 /** The Platform backed by the Devvit server and Reddit's client effects. */
 export const createRedditPlatform = (): Platform => ({
   kind: 'reddit',
-  loadSheet: (): Promise<SheetResponse> => call(API.sheet, parseSheetResponse),
+  loadSheet: (sheetId): Promise<SheetResponse> =>
+    call(sheetId ? `${API.sheet}?id=${encodeURIComponent(sheetId)}` : API.sheet, parseSheetResponse),
   sinkFor: (sheetId, startSeq) =>
     createAttemptQueue({
       sheetId,
@@ -69,10 +80,19 @@ export const createRedditPlatform = (): Platform => ({
         call(API.action, parseActionResponse, { method: 'POST', body: JSON.stringify(request) }, [CONFLICT]),
     }),
   fetchScars: (sheetId) => call(`${API.scars}?id=${encodeURIComponent(sheetId)}`, parseScarMap).catch(() => null),
+  loadBook: () => call(API.book, parseBookResponse),
+  publishTrap: (moves) => {
+    const body: TrapRequest = { moves };
+    return call(API.traps, parseTrapResponse, { method: 'POST', body: JSON.stringify(body) }, [UNPROCESSABLE, UNAUTHORIZED]);
+  },
+  setFlair: async (enabled) => {
+    const body: FlairRequest = { enabled };
+    const response = await call(API.flair, parseFlair, { method: 'POST', body: JSON.stringify(body) });
+    return response.enabled;
+  },
+  openPost: (url) => navigateTo(url),
   openGame: (event) => requestExpandedMode(event, GAME_ENTRY),
   closeGame: (event) => exitExpandedMode(event),
   promptLogin: () => showLoginPrompt(),
   subscribe: () => call(API.subscribe, parseOk, { method: 'POST' }).catch(() => false),
-  needsLessons: () => !localPrefs.tutorialDone(),
-  markLessonsDone: () => localPrefs.setTutorialDone(),
 });

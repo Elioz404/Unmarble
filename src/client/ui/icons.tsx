@@ -74,3 +74,56 @@ export const DropMark = (props: IconProps) => (
     <path d="M4 20c2.2-1.2 4.4-1.2 6.6 0s4.4 1.2 6.6 0 2.4-.8 2.8-.6" />
   </Svg>
 );
+
+/** A bound book with a ribbon marker. */
+export const BookIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M5 4.5h11.5A2.5 2.5 0 0 1 19 7v12.5H7.5A2.5 2.5 0 0 1 5 17z" />
+    <path d="M5 17a2.5 2.5 0 0 1 2.5-2.5H19" />
+    <path d="M10 4.5v6l1.75-1.25L13.5 10.5v-6" />
+  </Svg>
+);
+
+/** A quill: making a sheet for someone else. */
+export const QuillIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M19.5 4.5c-6 1-10 5-11.5 11.5" />
+    <path d="M19.5 4.5c-.5 5-3.5 9-9 10.5" />
+    <path d="M8 16l-3 3.5" />
+  </Svg>
+);
+
+export const BackIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M14.5 6l-6 6 6 6" />
+  </Svg>
+);
+
+export const UndoIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M9 7.5L5 11.5l4 4" />
+    <path d="M5 11.5h9a5 5 0 0 1 0 10h-2" />
+  </Svg>
+);
+
+/** A drop of ink, for the composer's drop tool. */
+export const DropToolIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <circle cx="12" cy="13" r="6" />
+  </Svg>
+);
+
+/** A fold: stripes kinked by a stroke. */
+export const FoldToolIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M4 8h5l3 3 3-3h5" />
+    <path d="M4 14h5l3 3 3-3h5" />
+  </Svg>
+);
+
+/** A swirl around an eye. */
+export const SwirlToolIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <path d="M12 12.5a1.5 1.5 0 1 1 1.5-1.5 4 4 0 0 1-4 4A5.5 5.5 0 0 1 4 9.5 7.5 7.5 0 0 1 11.5 2" />
+  </Svg>
+);

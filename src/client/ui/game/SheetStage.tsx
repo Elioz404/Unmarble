@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
-import type { GameController } from '../../game/controller.ts';
+import type { StageController, StageMood } from '../../game/stage.ts';
 import { OverlayPainter } from '../../game/overlay.ts';
 import { createInteractiveSurface, type SheetSurface } from '../../render/create-renderer.ts';
 import { useSheetGestures } from '../hooks/use-sheet-gestures.ts';
-import { prefersReducedMotion, useStore } from '../hooks/use-store.ts';
+import { prefersReducedMotion } from '../hooks/use-store.ts';
 import './sheet-stage.css';
 
 const TEAR_JOLT: Keyframe[] = [
@@ -18,18 +18,23 @@ const TEAR_JOLT: Keyframe[] = [
 const MAX_PIXEL_RATIO = 2.5;
 
 type Props = {
-  readonly controller: GameController;
+  readonly controller: StageController;
   readonly label: string;
+  /** How the paper sits: floating in the bath, lifted out clean, or torn. */
+  readonly mood: StageMood;
+  /** Changes whenever the paper should jolt (a tear); null for none yet. */
+  readonly jolt: number | null;
+  /** Fold-drawing cursor for the composer; crosshair otherwise. */
+  readonly cursor?: 'crosshair' | 'cell';
 };
 
 /**
  * The marbling tray: the sheet floating on water, with its drawing surfaces
  * and gesture input. All game logic lives in the controller.
  */
-export const SheetStage = ({ controller, label }: Props) => {
+export const SheetStage = ({ controller, label, mood, jolt, cursor = 'crosshair' }: Props) => {
   const sheetRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
-  const view = useStore(controller.view);
 
   useEffect(() => {
     const overlay = overlayRef.current;
@@ -85,19 +90,16 @@ export const SheetStage = ({ controller, label }: Props) => {
   );
   useSheetGestures(sheetRef, handlers);
 
-  const lastBlot = view.feedback?.kind === 'blot' ? view.feedback.id : null;
   useEffect(() => {
-    if (lastBlot === null || prefersReducedMotion()) return;
+    if (jolt === null || prefersReducedMotion()) return;
     // A tear jolts the paper on the water; Web Animations restart cleanly per blot.
     sheetRef.current?.animate(TEAR_JOLT, { duration: 420, easing: 'cubic-bezier(0.3, 0.7, 0.2, 1)' });
-  }, [lastBlot]);
-  const state =
-    view.settled && view.status === 'clean' ? 'lifted' : view.status === 'torn' && view.settled ? 'torn' : 'floating';
+  }, [jolt]);
 
   return (
     <div className="stage">
       <div className="tray">
-        <div ref={sheetRef} className="tray__sheet" data-state={state} role="img" aria-label={label}>
+        <div ref={sheetRef} className="tray__sheet" data-state={mood} data-cursor={cursor} role="img" aria-label={label}>
           <canvas ref={overlayRef} className="tray__overlay" />
         </div>
       </div>

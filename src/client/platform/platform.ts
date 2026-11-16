@@ -1,4 +1,5 @@
-import type { ScarMap, SheetResponse } from '../../shared/protocol/api.ts';
+import type { BookResponse, ScarMap, SheetResponse, TrapResponse } from '../../shared/protocol/api.ts';
+import type { Move } from '../../shared/puzzle/moves.ts';
 import type { AttemptSink } from '../game/attempt-sink.ts';
 
 /**
@@ -10,11 +11,19 @@ import type { AttemptSink } from '../game/attempt-sink.ts';
  */
 export type Platform = {
   readonly kind: 'reddit' | 'lab';
-  /** The sheet this post shows, with the player's progress on it. */
-  loadSheet(): Promise<SheetResponse>;
+  /** A sheet with the player's progress on it: the post's own sheet, or `sheetId` from the Book. */
+  loadSheet(sheetId?: string): Promise<SheetResponse>;
   /** Where this player's actions on a sheet are recorded; `startSeq` is the log length already stored. */
   sinkFor(sheetId: string, startSeq: number): AttemptSink;
   fetchScars(sheetId: string): Promise<ScarMap | null>;
+  /** Past daily sheets and recent traps, with this player's standing on each. */
+  loadBook(): Promise<BookResponse>;
+  /** Sets a trap on today's paper. */
+  publishTrap(moves: readonly Move[]): Promise<TrapResponse>;
+  /** Shows or hides the player's streak as subreddit flair; resolves to the new setting. */
+  setFlair(enabled: boolean): Promise<boolean>;
+  /** Opens a post (e.g. a freshly set trap) in Reddit. Must run inside a click handler. */
+  openPost(url: string): void;
   /** From the in-feed card: open the full game. Must run inside a click handler. */
   openGame(event: MouseEvent): void;
   /** Leaves the full game. Must run inside a click handler. */
@@ -23,7 +32,4 @@ export type Platform = {
   promptLogin(): void;
   /** Subscribes the player to the subreddit; resolves false if unavailable. */
   subscribe(): Promise<boolean>;
-  /** Whether this player still needs the three-sheet introduction. */
-  needsLessons(): boolean;
-  markLessonsDone(): void;
 };

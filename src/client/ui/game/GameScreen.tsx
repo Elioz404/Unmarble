@@ -1,18 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { SheetResponse } from '../../../shared/protocol/api.ts';
-import { LESSONS } from '../../../shared/puzzle/tutorial.ts';
+import type { BookEntry, SheetResponse } from '../../../shared/protocol/api.ts';
+import { lessonsFor } from '../../../shared/puzzle/tutorial.ts';
 import type { SoundBank } from '../../audio/sound.ts';
+import { NOWHERE } from '../../game/attempt-sink.ts';
 import type { Feedback, GameView, HintKind } from '../../game/controller.ts';
+import type { StageMood } from '../../game/stage.ts';
+import { localPrefs } from '../../lib/local-prefs.ts';
 import type { Platform } from '../../platform/platform.ts';
 import { blotLine, COPY } from '../copy.ts';
-import { CloseIcon } from '../icons.tsx';
+import { BookIcon, CloseIcon } from '../icons.tsx';
 import { useStore } from '../hooks/use-store.ts';
-import { LensButton, MessageLine, Plaque, SealRow, SoundToggle, TearMeter } from './Chrome.tsx';
+import { LensButton, MessageLine, Plaque, SealRow, SheetPlaque, SoundToggle, TearMeter } from './Chrome.tsx';
 import { ResultCard } from './ResultCard.tsx';
 import { SheetStage } from './SheetStage.tsx';
-import { NOWHERE } from '../../game/attempt-sink.ts';
 import { useGame } from './use-game.ts';
 import './game-screen.css';
+
+export type GameNavigation = {
+  readonly openBook: () => void;
+  readonly compose: () => void;
+  readonly play: (sheetId: string) => void;
+};
 
 type Props = {
   readonly platform: Platform;
@@ -22,6 +30,7 @@ type Props = {
   readonly onToggleMute: () => void;
   /** Reloads the sheet from the platform (after the attempt diverged). */
   readonly onReload: () => void;
+  readonly navigation: GameNavigation;
 };
 
 type Message = { text: string; tone: 'quiet' | 'alert' | 'gilt' };
@@ -55,14 +64,19 @@ const messageFor = (view: GameView, fallback: string): Message => {
   return { text: fallback, tone: 'quiet' };
 };
 
-/** The full game: three short lessons for newcomers, then the sheet. */
-export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onReload }: Props) => {
-  const [lesson, setLesson] = useState<number | null>(() =>
-    platform.needsLessons() && response.player.log.length === 0 ? 0 : null,
-  );
-  const [lessonAttempt, setLessonAttempt] = useState(0);
+const moodOf = (view: GameView): StageMood =>
+  !view.settled ? 'floating' : view.status === 'clean' ? 'lifted' : view.status === 'torn' ? 'torn' : 'floating';
+
+/** The full game: a lesson for each form the player has not met yet, then the sheet. */
+export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onReload, navigation }: Props) => {
   const { sheet } = response;
-  const currentLesson = lesson === null ? null : LESSONS[lesson];
+  // Lessons are decided once, when the sheet opens; a resumed attempt skips them.
+  const [lessons] = useState(() =>
+    response.player.log.length === 0 ? lessonsFor(sheet.spec, localPrefs.lessonSeen) : [],
+  );
+  const [lessonIndex, setLessonIndex] = useState(0);
+  const [lessonAttempt, setLessonAttempt] = useState(0);
+  const currentLesson = lessons[lessonIndex] ?? null;
 
   const setup = useMemo(
     () =>
@@ -90,23 +104,21 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
 
   // Lessons advance on a clean sheet and retry on a torn one.
   useEffect(() => {
-    if (lesson === null || !view.settled) return;
+    if (!currentLesson || !view.settled) return;
     const timer = window.setTimeout(() => {
       if (view.status === 'torn') {
         setLessonAttempt((n) => n + 1);
-      } else if (lesson + 1 < LESSONS.length) {
-        setLesson(lesson + 1);
-      } else {
-        platform.markLessonsDone();
-        setLesson(null);
+        return;
       }
+      localPrefs.markLessonSeen(currentLesson.id);
+      setLessonIndex((i) => i + 1);
     }, LESSON_PAUSE_MS);
     return () => window.clearTimeout(timer);
-  }, [lesson, view.settled, view.status, platform]);
+  }, [currentLesson, view.settled, view.status]);
 
   const skipLessons = (): void => {
-    platform.markLessonsDone();
-    setLesson(null);
+    lessons.forEach((lesson) => localPrefs.markLessonSeen(lesson.id));
+    setLessonIndex(lessons.length);
   };
 
   // The attempt changed elsewhere (another device or tab): show the truth.
@@ -114,63 +126,91 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
     if (view.desynced) onReload();
   }, [view.desynced, onReload]);
 
-  // Once finished, show where everyone else tore today's sheet.
-  const finishedDaily = lesson === null && view.settled;
+  // Once finished: where everyone tore it, and a trap to try next.
+  const finished = currentLesson === null && view.settled;
+  const [nextTrap, setNextTrap] = useState<BookEntry | null>(null);
   useEffect(() => {
-    if (!finishedDaily) return;
+    if (!finished) return;
     let cancelled = false;
     void platform.fetchScars(sheet.id).then((map) => {
       if (!cancelled && map) controller.showCommunityScars(map.points);
     });
+    platform
+      .loadBook()
+      .then((book) => {
+        if (cancelled) return;
+        setNextTrap(book.traps.find((entry) => entry.status === 'unplayed' && entry.sheet.id !== sheet.id) ?? null);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [finishedDaily, platform, sheet.id, controller]);
+  }, [finished, platform, sheet.id, controller]);
 
   const fallback = currentLesson?.prompt ?? (view.remaining === view.total ? COPY.dailyPrompt : '');
   const message = messageFor(view, fallback);
-  const showResult = lesson === null && view.settled;
 
   return (
-    <main className="game" data-phase={showResult ? 'result' : 'play'}>
+    <main className="game" data-phase={finished ? 'result' : 'play'}>
       <header className="game__header">
         {currentLesson ? (
           <Plaque
             number={null}
             weekday="First sheets"
             stars={1}
-            paletteName={COPY.lessonOf((lesson ?? 0) + 1, LESSONS.length)}
+            paletteName={COPY.lessonOf(lessonIndex + 1, lessons.length)}
             eyebrow={COPY.wordmark}
           />
         ) : (
-          <Plaque number={sheet.number} weekday={sheet.weekday} stars={sheet.spec.stars} paletteName={sheet.name ?? sheet.paletteName} />
+          <SheetPlaque sheet={sheet} />
         )}
         <div className="game__tools">
+          <button type="button" className="icon-button" onClick={navigation.openBook} aria-label={COPY.book.open}>
+            <BookIcon />
+          </button>
           <SoundToggle muted={muted} onToggle={onToggleMute} />
           {platform.kind === 'reddit' ? (
-            <button type="button" className="icon-button" onClick={(event) => platform.closeGame(event.nativeEvent)} aria-label={COPY.close}>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={(event) => platform.closeGame(event.nativeEvent)}
+              aria-label={COPY.close}
+            >
               <CloseIcon />
             </button>
           ) : null}
         </div>
       </header>
 
-      {showResult ? null : <MessageLine text={message.text} tone={message.tone} />}
+      {finished ? null : <MessageLine text={message.text} tone={message.tone} />}
 
-      <SheetStage controller={controller} label={`Marbled sheet, ${view.remaining} moves left`} />
+      <SheetStage
+        controller={controller}
+        label={`Marbled sheet, ${view.remaining} moves left`}
+        mood={moodOf(view)}
+        jolt={view.feedback?.kind === 'blot' ? view.feedback.id : null}
+      />
 
-      {showResult ? (
+      {finished ? (
         <ResultCard
           sheet={sheet}
           state={controller.state}
           standing={view.standing}
-          signedIn={response.player.signedIn}
+          player={response.player}
+          nextTrap={nextTrap?.sheet ?? null}
+          onPlay={navigation.play}
+          onCompose={navigation.compose}
           onSubscribe={() => platform.subscribe()}
           onLogin={() => platform.promptLogin()}
+          onFlair={(enabled) => platform.setFlair(enabled)}
         />
       ) : (
         <footer className="game__footer">
-          <LensButton left={view.lensLeft} disabled={view.busy || view.status !== 'playing'} onUse={() => controller.magnify()} />
+          <LensButton
+            left={view.lensLeft}
+            disabled={view.busy || view.status !== 'playing'}
+            onUse={() => controller.magnify()}
+          />
           <SealRow total={view.total} remaining={view.remaining} />
           {currentLesson ? (
             <button type="button" className="game__skip" onClick={skipLessons}>

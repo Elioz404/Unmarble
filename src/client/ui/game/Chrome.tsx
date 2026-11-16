@@ -1,4 +1,5 @@
 import { RULES } from '../../../shared/config.ts';
+import type { SheetDescriptor } from '../../../shared/protocol/api.ts';
 import { COPY } from '../copy.ts';
 import { LensIcon, SoundOffIcon, SoundOnIcon } from '../icons.tsx';
 import './chrome.css';
@@ -39,6 +40,26 @@ export const Plaque = ({
     </p>
   </div>
 );
+
+/** The sheet's plaque: a daily sheet by number and day, a trap by its maker. */
+export const SheetPlaque = ({ sheet }: { readonly sheet: SheetDescriptor }) =>
+  sheet.kind === 'trap' ? (
+    <Plaque
+      number={null}
+      weekday={sheet.name ?? COPY.trap.title}
+      stars={sheet.spec.stars}
+      paletteName={sheet.paletteName}
+      eyebrow={COPY.trap.by(sheet.author ?? 'someone')}
+    />
+  ) : (
+    <Plaque
+      number={sheet.number}
+      weekday={sheet.weekday}
+      stars={sheet.spec.stars}
+      paletteName={sheet.name ?? sheet.paletteName}
+      {...(sheet.author ? { eyebrow: COPY.trap.sheetOfWeek(sheet.author) } : {})}
+    />
+  );
 
 export const SoundToggle = ({ muted, onToggle }: { readonly muted: boolean; readonly onToggle: () => void }) => (
   <button

@@ -75,50 +75,50 @@
   text-wrap: balance;
 }
 
-.result__actions {
+.result__trap {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+.result__next-trap {
   display: flex;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.button {
-  flex: 1 1 140px;
-  display: inline-flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   min-height: var(--touch-target);
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-pill);
-  border: var(--hairline) solid var(--rule-strong);
-  background: transparent;
+  padding: var(--space-2) var(--space-4);
+  border: var(--hairline) solid color-mix(in oklab, var(--gilt) 55%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--gilt) 8%, transparent);
+  color: var(--ink);
   font-size: var(--text-md);
-  letter-spacing: 0.02em;
+  font-style: italic;
+  text-align: left;
   cursor: pointer;
-  transition: background var(--duration-quick), border-color var(--duration-quick);
+  transition: background var(--duration-quick);
 }
 
-.button:hover:not(:disabled) {
-  border-color: var(--gilt);
+.result__next-trap:hover {
+  background: color-mix(in oklab, var(--gilt) 16%, transparent);
 }
 
-.button:disabled {
-  color: var(--ink-faint);
-  cursor: default;
+.result__stars {
+  color: var(--gilt);
+  font-style: normal;
+  letter-spacing: 0.1em;
+  font-size: var(--text-sm);
 }
 
-.button--primary {
-  border-color: transparent;
-  background: var(--ink);
-  color: var(--room);
+.result__secondary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
 }
 
-.button--primary:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--ink) 88%, var(--gilt));
-}
-
-.result__login {
-  justify-self: center;
+.result__link {
   border: 0;
   background: none;
   color: var(--gilt);
@@ -128,6 +128,34 @@
   text-decoration-thickness: 1px;
   cursor: pointer;
   min-height: var(--touch-target);
+}
+
+.result__link:disabled {
+  color: var(--ink-faint);
+  text-decoration: none;
+  cursor: default;
+}
+
+.result__flair {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.result__flair input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--gilt);
+}
+
+.result__flair small {
+  display: block;
+  color: var(--ink-faint);
+  font-style: italic;
 }
 
 .result__next {
