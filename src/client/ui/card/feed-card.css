@@ -59,6 +59,8 @@ body {
 .card__tray {
   display: block;
   padding: var(--board-pad);
+  /* The leaf's shadow falls on the board only, never on the room under the slip. */
+  overflow: hidden;
   border-radius: var(--radius-binding);
   background: linear-gradient(160deg, var(--board-top), var(--board-bottom));
   box-shadow:
@@ -134,6 +136,17 @@ body {
   }
 }
 
+/*
+ * A phone feed's board is cramped (about 200 px tall; the wide layout's is
+ * over 400), so the margins give their pixels to the evidence.
+ */
+@container (max-height: 300px) {
+  .card__open {
+    --board-pad: 10px;
+    --leaf-peek: 4px;
+  }
+}
+
 .card__slip {
   display: block;
   line-height: var(--slip-height);
@@ -148,6 +161,11 @@ body {
   display: grid;
   gap: var(--space-2);
   align-content: end;
+}
+
+/* On a narrow feed every pixel the plain touch target spares goes to the sheet. */
+.card__side .spine {
+  min-height: var(--touch-target);
 }
 
 .card__side .plaque {
@@ -182,7 +200,8 @@ body {
 
 .sample__sheet {
   display: block;
-  width: 96px;
+  /* Clearly smaller than the hero on a narrow feed, still two easy taps. */
+  width: 88px;
   aspect-ratio: 3 / 4;
   border-radius: 2px;
   box-shadow: var(--sheet-shadow);
@@ -282,6 +301,10 @@ body {
 
   .card__side .plaque__title {
     font-size: var(--text-xl);
+  }
+
+  .card__side .spine {
+    min-height: var(--spine-height);
   }
 
   .sample__sheet {

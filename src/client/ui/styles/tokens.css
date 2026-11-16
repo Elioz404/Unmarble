@@ -109,7 +109,8 @@
   /* The one action on a screen: a touch taller than the 44 px target. */
   --spine-height: 48px;
   --board-lamp: rgb(255 250 235 / 0.5);
-  --board-shadow: 0 18px 40px -16px rgb(31 26 20 / 0.6);
+  /* Ends inside the board's bottom edge, so it never greys the room under the slip's letters. */
+  --board-shadow: 0 10px 24px -12px rgb(31 26 20 / 0.45);
   /* One soft wet glint, soft-light over the sheet: brightens, never adds an edge. */
   --glint: rgb(255 250 235 / 0.16);
   --duration-glint: 1100ms;
