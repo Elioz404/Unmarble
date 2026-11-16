@@ -82,14 +82,14 @@ const SPECS: readonly PaletteSpec[] = [
   { id: 'slate-orchard', name: 'Slate Orchard', ground: SLATE, inks: [[0.05, 245], [0.12, 40], [0.1, 135], [0.12, 90]] },
   { id: 'gold-and-ink', name: 'Gold & Ink', ground: SAGE, inks: [[0.03, 265], [0.11, 20], [0.08, 185], [0.13, 82]] },
   { id: 'teal-fathom', name: 'Teal Fathom', ground: MADDER, inks: [[0.09, 305], [0.09, 200], [0.14, 50], [0.11, 115]] },
-  { id: 'brick-and-sage', name: 'Brick & Sage', ground: IVORY, inks: [[0.08, 255], [0.13, 35], [0.07, 145], [0.1, 92]] },
+  { id: 'brick-and-sage', name: 'Brick & Sage', ground: IVORY, inks: [[0.08, 255], [0.13, 35], [0.07, 145], [0.11, 92]] },
   { id: 'ember-blue', name: 'Ember Blue', ground: DUTCH, inks: [[0.13, 262], [0.1, 10], [0.09, 140], [0.15, 60]] },
   { id: 'fig-season', name: 'Fig Season', ground: SLATE, inks: [[0.09, 340], [0.07, 175], [0.13, 45], [0.11, 85]] },
   { id: 'lichen', name: 'Lichen', ground: SLATE, inks: [[0.08, 260], [0.13, 30], [0.1, 120], [0.12, 98]] },
   { id: 'storm-ochre', name: 'Storm Ochre', ground: DUTCH, inks: [[0.04, 250], [0.12, 35], [0.06, 190], [0.13, 80]] },
   { id: 'carmine-map', name: 'Carmine Map', ground: BUFF, inks: [[0.09, 255], [0.16, 10], [0.08, 150], [0.11, 82]] },
   { id: 'juniper', name: 'Juniper', ground: SLATE, inks: [[0.07, 165], [0.09, 275], [0.13, 40], [0.12, 92]] },
-  { id: 'tobacco-lane', name: 'Tobacco Lane', ground: BUFF, inks: [[0.06, 55], [0.07, 225], [0.13, 25], [0.1, 110]] },
+  { id: 'tobacco-lane', name: 'Tobacco Lane', ground: BUFF, inks: [[0.06, 55], [0.07, 225], [0.13, 25], [0.11, 110]] },
   { id: 'winter-cobalt', name: 'Winter Cobalt', ground: DUTCH, inks: [[0.13, 263], [0.13, 30], [0.07, 175], [0.12, 85]] },
 ];
 

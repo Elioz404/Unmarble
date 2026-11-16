@@ -28,13 +28,13 @@ const pixel = (ops: readonly FieldOp[], x: number, y: number): [number, number, 
 
 test('shading matches its golden values (a change here is a change of the look: update the shader too)', () => {
   const golden: readonly { at: readonly [number, number]; rgb: readonly [number, number, number] }[] = [
-    { at: [8, 7], rgb: [0.707153, 0.384756, 0.081368] }, // the round drop's centre wash, granulated
-    { at: [9.746, 7], rgb: [0.695203, 0.362602, 0.068645] }, // its tide line
-    { at: [5.6, 9.9], rgb: [0.007849, 0.039751, 0.1943] }, // inside the crescent, compressed and granulated
-    { at: [1.5, 2.5], rgb: [0.893235, 0.844006, 0.75795] }, // bare paper
-    { at: [1, 13.2], rgb: [0.75128, 0.678338, 0.564182] }, // band
-    { at: [1, 14.98], rgb: [0.363699, 0.307311, 0.214355] }, // rule
-    { at: [1, 14.95], rgb: [0.557645, 0.504121, 0.414076] }, // the rule's analytic pen edge
+    { at: [8, 7], rgb: [0.707184, 0.384739, 0.081372] }, // the round drop's centre wash, granulated
+    { at: [9.746, 7], rgb: [0.695734, 0.362319, 0.068701] }, // its tide line
+    { at: [5.6, 9.9], rgb: [0.007847, 0.03976, 0.194254] }, // inside the crescent, compressed and granulated
+    { at: [1.5, 2.5], rgb: [0.884917, 0.852098, 0.750393] }, // bare paper
+    { at: [1, 13.2], rgb: [0.766391, 0.671282, 0.539091] }, // band
+    { at: [1, 14.98], rgb: [0.436592, 0.281174, 0.193261] }, // rule
+    { at: [1, 14.95], rgb: [0.600288, 0.490716, 0.39806] }, // the rule's analytic pen edge
   ];
   for (const { at, rgb } of golden) {
     const got = pixel(OPS, at[0], at[1]);
