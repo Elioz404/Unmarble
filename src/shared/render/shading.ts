@@ -1,5 +1,5 @@
 import { parseHex, srgbToLinear, type Rgb } from '../sheet/color.ts';
-import { groundPhase, type Ground } from '../sheet/ground.ts';
+import { groundCrossPhase, groundPhase, type Ground } from '../sheet/ground.ts';
 import type { Palette } from '../sheet/palettes.ts';
 import type { FieldSample } from '../marbling/field.ts';
 
@@ -124,7 +124,8 @@ export const shadePoint = (
   } else {
     const phase = groundPhase(ground, sample.x, sample.y);
     const band = Math.floor(phase) % 2 === 0 ? palette.paper : palette.band;
-    const line = hairline(phase, LOOK.ruleWidth);
+    const cross = groundCrossPhase(ground, sample.x, sample.y);
+    const line = Math.max(hairline(phase, LOOK.ruleWidth), cross === null ? 0 : hairline(cross, LOOK.ruleWidth));
     r = mix(band[0], palette.rule[0], line);
     g = mix(band[1], palette.rule[1], line);
     b = mix(band[2], palette.rule[2], line);

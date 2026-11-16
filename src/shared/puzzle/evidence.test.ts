@@ -53,3 +53,15 @@ test('a same-ink drop inside another is not an unmistakable ring', () => {
   assert.notEqual(first?.mark, 'ring');
   assert.ok((first?.strength ?? UNMISTAKABLE) < UNMISTAKABLE);
 });
+
+test('a swirl on top is pristine; a swirl with a drop beside its eye reads as disturbed', () => {
+  const moves: Move[] = [
+    { kind: 'drop', x: 4, y: 8, size: 'M', ink: 0 },
+    { kind: 'swirl', x: 6, y: 8, turn: -1 },
+    { kind: 'drop', x: 7.5, y: 8, size: 'L', ink: 1 },
+  ];
+  assert.equal(measureEvidence(moves, 2)[1]?.strength, 0);
+  const covered = measureEvidence(moves, 3)[1];
+  assert.equal(covered?.mark, 'bent-eye');
+  assert.ok((covered?.strength ?? 0) > 1, `strength ${covered?.strength}`);
+});

@@ -31,9 +31,12 @@ export const COPY = Object.freeze({
     ring: 'Torn. Later ink fell inside that drop.',
     'seam-bent': 'Torn. That fold is bent — something crossed it later.',
     'with-the-grain': 'Torn. Right fold, wrong way: drag against its point.',
+    'eye-bent': 'Torn. That swirl’s eye is pushed out of round — something came after it.',
+    'with-the-turn': 'Torn. Right swirl, wrong way: circle against its turn.',
   } satisfies Record<BlotReason, string>,
   hintRound: 'Look for the one drop that is perfectly round.',
   hintSeam: 'Nothing perfectly round? Something stroked the water. Find the fold.',
+  hintSwirl: 'Nothing round, no straight fold? Look for the eye of a swirl and circle it back.',
   hintLens: 'Stuck? The lens shows where the water moved.',
   replayStep: (step: number, total: number) => `How it was made · ${step} of ${total}`,
   result: {

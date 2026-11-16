@@ -63,3 +63,14 @@ test('pushThrough and pullThrough are inverses across a mixed stack', () => {
   close(q.x, p.x, 1e-8);
   close(q.y, p.y, 1e-8);
 });
+
+test('a swirl is undone exactly by the same swirl turning the other way', () => {
+  const swirl = moveToOp({ kind: 'swirl', x: 6, y: 8, turn: 1 }, 0);
+  const back = moveToOp({ kind: 'swirl', x: 6, y: 8, turn: -1 }, 1);
+  for (let i = 0; i < 200; i++) {
+    const p = { x: (i % 13) - 0.5, y: (i % 17) - 0.5 };
+    const q = pushThrough([swirl, back], 0, 2, { ...p });
+    close(q.x, p.x, 1e-9);
+    close(q.y, p.y, 1e-9);
+  }
+});

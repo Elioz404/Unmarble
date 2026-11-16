@@ -4,7 +4,8 @@ import type { SheetPoint } from '../../../shared/game/session.ts';
 
 export type SheetGestureHandlers = {
   readonly onTap: (point: SheetPoint) => void;
-  readonly onSwipe: (from: SheetPoint, to: SheetPoint) => void;
+  /** A finished drag, as every point the finger passed through. */
+  readonly onDrag: (path: readonly SheetPoint[]) => void;
   readonly onTrace: (points: readonly SheetPoint[]) => void;
 };
 
@@ -21,7 +22,15 @@ export const useSheetGestures = (target: RefObject<HTMLElement | null>, handlers
   useEffect(() => {
     const element = target.current;
     if (!element) return;
-    let active: { id: number; startedAt: number; points: SheetPoint[]; startX: number; startY: number } | null = null;
+    let active: {
+      id: number;
+      startedAt: number;
+      points: SheetPoint[];
+      startX: number;
+      startY: number;
+      /** Farthest the finger has been from where it started (CSS px). */
+      excursion: number;
+    } | null = null;
 
     const toSheet = (event: PointerEvent): SheetPoint => {
       const rect = element.getBoundingClientRect();
@@ -40,15 +49,15 @@ export const useSheetGestures = (target: RefObject<HTMLElement | null>, handlers
         points: [toSheet(event)],
         startX: event.clientX,
         startY: event.clientY,
+        excursion: 0,
       };
     };
 
     const move = (event: PointerEvent): void => {
       if (!active || event.pointerId !== active.id) return;
       active.points.push(toSheet(event));
-      if (Math.hypot(event.clientX - active.startX, event.clientY - active.startY) > TAP_SLOP_PX) {
-        handlers.onTrace(active.points);
-      }
+      active.excursion = Math.max(active.excursion, Math.hypot(event.clientX - active.startX, event.clientY - active.startY));
+      if (active.excursion > TAP_SLOP_PX) handlers.onTrace(active.points);
     };
 
     const up = (event: PointerEvent): void => {
@@ -56,13 +65,14 @@ export const useSheetGestures = (target: RefObject<HTMLElement | null>, handlers
       const gesture = active;
       active = null;
       const end = toSheet(event);
-      const moved = Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY);
+      // A circle ends where it began: judge a tap by the farthest excursion, not the end point.
+      const moved = Math.max(gesture.excursion, Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY));
       const start = gesture.points[0] ?? end;
       if (moved <= TAP_SLOP_PX && performance.now() - gesture.startedAt <= TAP_MAX_MS) {
         handlers.onTrace([]);
         handlers.onTap(start);
       } else {
-        handlers.onSwipe(start, end);
+        handlers.onDrag([...gesture.points, end]);
       }
     };
 

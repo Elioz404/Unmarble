@@ -7,8 +7,10 @@
  *   drop at c, radius r:   p ↦ c + (p − c)·√(1 + r²/|p − c|²)
  *   stroke through b, direction u, normal n, shift α, fall-off λ:
  *                           p ↦ p + u·αλ / (|(p − b)·n| + λ)
+ *   swirl at c, turn τ, fall-off λ (a vortex):
+ *                           p ↦ c + R(τλ / (|p − c| + λ))·(p − c)
  *
- * Both maps are bijections of the bath (outside the new ink), so every state
+ * All three maps are bijections of the bath (outside the new ink), so every state
  * can be rendered exactly by pulling a screen point back through the ops, and
  * undoing the top op restores the previous state exactly.
  *
@@ -57,7 +59,21 @@ export type SuctionOp = {
   readonly source: number;
 };
 
-export type FieldOp = DropOp | StrokeOp | SuctionOp;
+/**
+ * A swirl: the water turns around an eye, fastest at the centre. `turn` is
+ * the signed rotation (radians) at the eye; distance to the eye is invariant,
+ * so the same swirl with negative turn is its exact inverse.
+ */
+export type SwirlOp = {
+  readonly type: 'swirl';
+  readonly cx: number;
+  readonly cy: number;
+  readonly turn: number;
+  readonly falloff: number;
+  readonly source: number;
+};
+
+export type FieldOp = DropOp | StrokeOp | SuctionOp | SwirlOp;
 
 const EPSILON = 1e-9;
 
@@ -111,3 +127,17 @@ export const pullStroke = (op: StrokeOp, p: Point): void => {
   p.y -= op.uy * s;
 };
 
+
+const rotateAround = (op: SwirlOp, p: Point, direction: 1 | -1): void => {
+  const dx = p.x - op.cx;
+  const dy = p.y - op.cy;
+  const angle = (direction * op.turn * op.falloff) / (Math.hypot(dx, dy) + op.falloff);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  p.x = op.cx + dx * cos - dy * sin;
+  p.y = op.cy + dx * sin + dy * cos;
+};
+
+export const pushSwirl = (op: SwirlOp, p: Point): void => rotateAround(op, p, 1);
+
+export const pullSwirl = (op: SwirlOp, p: Point): void => rotateAround(op, p, -1);

@@ -29,7 +29,12 @@ type Message = { text: string; tone: 'quiet' | 'alert' | 'gilt' };
 /** Pause on a finished lesson before the next one appears. */
 const LESSON_PAUSE_MS = 900;
 
-const HINT_COPY: Record<HintKind, string> = { round: COPY.hintRound, seam: COPY.hintSeam, lens: COPY.hintLens };
+const HINT_COPY: Record<HintKind, string> = {
+  round: COPY.hintRound,
+  seam: COPY.hintSeam,
+  swirl: COPY.hintSwirl,
+  lens: COPY.hintLens,
+};
 
 const feedbackMessage = (feedback: Feedback): Message => {
   switch (feedback.kind) {

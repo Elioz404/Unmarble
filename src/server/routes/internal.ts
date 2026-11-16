@@ -3,10 +3,12 @@ import { context } from '@devvit/web/server';
 import type {
   OnCommentCreateRequest,
   OnCommentDeleteRequest,
+  OnPostDeleteRequest,
   TriggerResponse,
   UiResponse,
 } from '@devvit/web/shared';
 import { services } from '../app.ts';
+import { isTrapId } from '../core/traps.ts';
 
 /**
  * Endpoints Reddit calls on our behalf: triggers, scheduled tasks and
@@ -48,6 +50,13 @@ internal.post('/triggers/comment-create', async (c) => {
 internal.post('/triggers/comment-delete', async (c) => {
   const event = await c.req.json<OnCommentDeleteRequest>();
   await services.naming.onCommentDeleted({ id: event.commentId, parentId: event.parentId });
+  return c.json<TriggerResponse>({});
+});
+
+internal.post('/triggers/post-delete', async (c) => {
+  const event = await c.req.json<OnPostDeleteRequest>();
+  const sheetId = await services.posts.sheetIdOfPost(event.postId);
+  if (sheetId && isTrapId(sheetId)) await services.traps.withdraw(sheetId);
   return c.json<TriggerResponse>({});
 });
 

@@ -1,4 +1,5 @@
 import { measureEvidence, type MarkKind } from '../puzzle/evidence.ts';
+import type { MoveKind } from '../puzzle/moves.ts';
 import type { SheetSpec } from '../puzzle/sheet.ts';
 import type { PlayerAction } from './session.ts';
 
@@ -15,7 +16,11 @@ export type BlotReason =
   /** The chosen seam was bent by a later move. */
   | 'seam-bent'
   /** Right seam, wrong way: strokes are undone against their direction. */
-  | 'with-the-grain';
+  | 'with-the-grain'
+  /** The chosen swirl's eye was disturbed by a later move. */
+  | 'eye-bent'
+  /** Right swirl, wrong way: swirls are undone against their turn. */
+  | 'with-the-turn';
 
 export type BlotExplanation = {
   readonly reason: BlotReason;
@@ -23,8 +28,9 @@ export type BlotExplanation = {
   readonly culprit: number | null;
 };
 
-const reasonOf = (mark: MarkKind, kind: 'drop' | 'stroke'): BlotReason => {
+const reasonOf = (mark: MarkKind, kind: MoveKind): BlotReason => {
   if (kind === 'stroke') return 'seam-bent';
+  if (kind === 'swirl') return 'eye-bent';
   return mark === 'ring' ? 'ring' : 'bent';
 };
 
@@ -32,6 +38,7 @@ export const explainBlot = (spec: SheetSpec, remaining: number, action: PlayerAc
   if (action.type === 'magnify') return null;
   const top = remaining - 1;
   if (action.type === 'unstroke' && action.move === top) return { reason: 'with-the-grain', culprit: null };
+  if (action.type === 'unswirl' && action.move === top) return { reason: 'with-the-turn', culprit: null };
   const chosen = action.move;
   const chosenMove = spec.moves[chosen];
   if (!chosenMove || chosen >= top) return null;

@@ -27,6 +27,8 @@ export const buildDailySheet = (dateKey: DateKey, seed: string, name: string | n
   const { spec } = generateSheet(`${seed}:${dateKey}`, template, palette.id);
   return {
     id: dailySheetId(dateKey),
+    kind: 'daily',
+    author: null,
     number,
     dateKey,
     weekday: template.title,
@@ -35,3 +37,19 @@ export const buildDailySheet = (dateKey: DateKey, seed: string, name: string | n
     name,
   };
 };
+
+/**
+ * A Sunday sheet chosen from the community: the week's best trap, republished
+ * as the daily sheet with its maker credited.
+ */
+export const featuredDailySheet = (dateKey: DateKey, trap: SheetDescriptor): SheetDescriptor => ({
+  id: dailySheetId(dateKey),
+  kind: 'daily',
+  author: trap.author,
+  number: sheetNumberOf(dateKey),
+  dateKey,
+  weekday: templateForWeekday(weekdayOf(dateKey)).title,
+  paletteName: getPalette(trap.spec.paletteId).name,
+  spec: trap.spec,
+  name: null,
+});

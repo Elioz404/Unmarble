@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyAction, replaySession, startSession, type PlayerAction } from './session.ts';
-import { resolveSwipe, resolveTap } from './gestures.ts';
+import { resolveDrag, resolveSwipe, resolveTap } from './gestures.ts';
 import { rankScore, resultOf } from './scoring.ts';
 import { headingVector, type Move } from '../puzzle/moves.ts';
 import type { SheetSpec } from '../puzzle/sheet.ts';
@@ -100,4 +100,23 @@ test('regression: a swipe beside the top seam never resolves to a nearby buried 
   };
   const action = resolveSwipe(tight, 3, { x: 7, y: 7.5 }, { x: 10, y: 7.5 });
   assert.deepEqual(action, { type: 'unstroke', move: 2, against: true });
+});
+
+test('circling a swirl’s eye against its turn undoes it; a straight swipe never does', () => {
+  const swirled: SheetSpec = {
+    ...spec,
+    moves: [
+      { kind: 'drop', x: 6, y: 9, size: 'L', ink: 0 },
+      { kind: 'swirl', x: 6.5, y: 7, turn: 1 },
+    ],
+  };
+  const arc = (direction: 1 | -1) =>
+    Array.from({ length: 24 }, (_, i) => {
+      const a = (direction * i * Math.PI * 1.2) / 23;
+      return { x: 6.5 + 1.5 * Math.cos(a), y: 7 + 1.5 * Math.sin(a) };
+    });
+  assert.deepEqual(resolveDrag(swirled, 2, arc(-1)), { type: 'unswirl', move: 1, against: true });
+  assert.deepEqual(resolveDrag(swirled, 2, arc(1)), { type: 'unswirl', move: 1, against: false });
+  const straight = Array.from({ length: 12 }, (_, i) => ({ x: 4 + i * 0.4, y: 7.4 }));
+  assert.notEqual(resolveDrag(swirled, 2, straight)?.type, 'unswirl');
 });

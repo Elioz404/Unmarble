@@ -1,8 +1,10 @@
 import {
   pullDrop,
   pullStroke,
+  pullSwirl,
   pushDrop,
   pushStroke,
+  pushSwirl,
   type FieldOp,
   type Point,
 } from './field-ops.ts';
@@ -45,6 +47,9 @@ export const sampleField = (ops: readonly FieldOp[], x: number, y: number): Fiel
       case 'stroke':
         pullStroke(op, p);
         break;
+      case 'swirl':
+        pullSwirl(op, p);
+        break;
       case 'suction':
         pushDrop(op.cx, op.cy, op.r, p);
         break;
@@ -59,6 +64,7 @@ export const pushThrough = (ops: readonly FieldOp[], from: number, to: number, p
     const op = ops[i] as FieldOp;
     if (op.type === 'drop') pushDrop(op.cx, op.cy, op.r, p);
     else if (op.type === 'stroke') pushStroke(op, p);
+    else if (op.type === 'swirl') pushSwirl(op, p);
     else pullDrop(op.cx, op.cy, op.r, p);
   }
   return p;
@@ -75,6 +81,8 @@ export const pullThrough = (ops: readonly FieldOp[], from: number, to: number, p
       if (!pullDrop(op.cx, op.cy, op.r, p)) return false;
     } else if (op.type === 'stroke') {
       pullStroke(op, p);
+    } else if (op.type === 'swirl') {
+      pullSwirl(op, p);
     } else {
       pushDrop(op.cx, op.cy, op.r, p);
     }

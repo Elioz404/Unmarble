@@ -6,6 +6,7 @@ import {
   OP_DROP,
   OP_STROKE,
   OP_SUCTION,
+  OP_SWIRL,
   VERTEX_SHADER,
 } from './sheet-shader.ts';
 
@@ -108,6 +109,9 @@ export class WebGlSheetRenderer implements SheetRenderer {
       } else if (op.type === 'stroke') {
         this.#opA.set([OP_STROKE, op.bx, op.by, op.shift], o);
         this.#opB.set([op.ux, op.uy, op.falloff, op.source], o);
+      } else if (op.type === 'swirl') {
+        this.#opA.set([OP_SWIRL, op.cx, op.cy, op.turn], o);
+        this.#opB.set([op.falloff, op.source, 0, 0], o);
       } else {
         this.#opA.set([OP_SUCTION, op.cx, op.cy, op.r], o);
       }

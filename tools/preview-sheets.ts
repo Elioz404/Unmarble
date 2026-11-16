@@ -56,7 +56,9 @@ for (let d = 0; d < days; d++) {
   try {
     const { spec, reading, attempts } = generateSheet(`preview:${key}`, template, paletteIdFor(number));
     const ms = Math.round(performance.now() - began);
-    const kinds = spec.moves.map((m) => (m.kind === 'drop' ? `${m.size}${m.ink}` : `~${m.heading}`)).join(' ');
+    const kinds = spec.moves
+      .map((m) => (m.kind === 'drop' ? `${m.size}${m.ink}` : m.kind === 'stroke' ? `~${m.heading}` : m.turn > 0 ? '@+' : '@-'))
+      .join(' ');
     console.log(
       `${key} No.${String(number).padStart(3)} ${template.title.padEnd(9)} ${'★'.repeat(spec.stars).padEnd(5)} ` +
         `${spec.ground.family.padEnd(7)} ${spec.paletteId.padEnd(14)} margin ${reading.margin.toFixed(2).padStart(5)} ` +

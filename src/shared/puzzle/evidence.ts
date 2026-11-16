@@ -14,7 +14,7 @@ import { opsForPrefix, type Move } from './moves.ts';
  * published sheet: at each step, the top move has strength 0 and every other
  * move has strength ≥ EVIDENCE.safetyMargin.
  */
-export type MarkKind = 'none' | 'oval' | 'ring' | 'bent-seam';
+export type MarkKind = 'none' | 'oval' | 'ring' | 'bent-seam' | 'bent-eye';
 
 export type MoveEvidence = {
   readonly move: number;
@@ -167,6 +167,30 @@ export const seamPath = (ops: readonly FieldOp[], index: number, prefix: number)
   return points;
 };
 
+/**
+ * The circle around a swirl's eye as it appears after the ops up to `prefix`.
+ * A swirl maps circles around its eye onto themselves, so this circle stays
+ * perfectly round until something later disturbs the water near the eye.
+ */
+export const swirlEye = (ops: readonly FieldOp[], index: number, prefix: number): Point[] => {
+  const op = ops[index];
+  if (op?.type !== 'swirl') throw new TypeError(`Op ${index} is not a swirl`);
+  const outline: Point[] = [];
+  const r = EVIDENCE.swirlProbeRadius;
+  for (let i = 0; i < EVIDENCE.outlineSamples; i++) {
+    const a = (i / EVIDENCE.outlineSamples) * TAU;
+    outline.push(pushThrough(ops, index + 1, prefix, { x: op.cx + r * Math.cos(a), y: op.cy + r * Math.sin(a) }));
+  }
+  return outline;
+};
+
+/** Where a swirl's eye appears after the ops up to `prefix`. */
+export const swirlEyeCentre = (ops: readonly FieldOp[], index: number, prefix: number): Point => {
+  const op = ops[index];
+  if (op?.type !== 'swirl') throw new TypeError(`Op ${index} is not a swirl`);
+  return pushThrough(ops, index + 1, prefix, { x: op.cx, y: op.cy });
+};
+
 /** Evidence for every move in the first `prefix` moves of a sheet. */
 export const measureEvidence = (moves: readonly Move[], prefix: number): MoveEvidence[] => {
   const ops = opsForPrefix(moves, prefix);
@@ -179,6 +203,11 @@ export const measureEvidence = (moves: readonly Move[], prefix: number): MoveEvi
       const raw = isTop ? 0 : ovality(dropOutline(ops, index, prefix));
       const strength = raw / EVIDENCE.dropOvality;
       return { move: index, kind: 'drop', mark: strength > 0 ? 'oval' : 'none', raw, strength };
+    }
+    if (op.type === 'swirl') {
+      const raw = isTop ? 0 : ovality(swirlEye(ops, index, prefix));
+      const strength = raw / EVIDENCE.swirlOvality;
+      return { move: index, kind: 'swirl', mark: strength > 0 ? 'bent-eye' : 'none', raw, strength };
     }
     const raw = isTop ? 0 : straightnessDeviation(seamPath(ops, index, prefix));
     const strength = raw / EVIDENCE.seamBend;

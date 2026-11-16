@@ -20,7 +20,8 @@
     "onAppInstall": "/internal/triggers/app-install",
     "onAppUpgrade": "/internal/triggers/app-upgrade",
     "onCommentCreate": "/internal/triggers/comment-create",
-    "onCommentDelete": "/internal/triggers/comment-delete"
+    "onCommentDelete": "/internal/triggers/comment-delete",
+    "onPostDelete": "/internal/triggers/post-delete"
   },
   "scheduler": {
     "tasks": {

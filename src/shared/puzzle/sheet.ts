@@ -50,6 +50,11 @@ const parseMove = (value: unknown): Move | null => {
     if (!inRange(heading, 0, 360)) return null;
     return { kind, x, y, heading };
   }
+  if (kind === 'swirl') {
+    const { turn } = value;
+    if (turn !== 1 && turn !== -1) return null;
+    return { kind, x, y, turn };
+  }
   return null;
 };
 

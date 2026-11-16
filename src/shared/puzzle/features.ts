@@ -1,7 +1,7 @@
 import { EVIDENCE, GENERATION, SHEET } from '../config.ts';
 import { pullThrough } from '../marbling/field.ts';
 import type { FieldOp, Point, StrokeOp } from '../marbling/field-ops.ts';
-import { groundPhase, type Ground } from '../sheet/ground.ts';
+import { groundCrossPhase, groundPhase, type Ground } from '../sheet/ground.ts';
 import type { SheetReading } from './analysis.ts';
 import { seamSegment } from './evidence.ts';
 import { dropRadius, opsForPrefix, strokeOp, type Move, type StrokeMove } from './moves.ts';
@@ -15,15 +15,42 @@ import type { Feature } from './templates.ts';
 
 const isStroke = (move: Move): move is StrokeMove => move.kind === 'stroke';
 
-/** Stripe phase of the bath under `ops`, or null where the point shows ink. */
-const phaseUnder = (ops: readonly FieldOp[], ground: Ground, p: Point): number | null => {
+type PhaseField = (ground: Ground, x: number, y: number) => number | null;
+
+/** Every ruling a ground carries: its stripes, plus a grid's crossing lines. */
+const PHASE_FIELDS: readonly PhaseField[] = [groundPhase, groundCrossPhase];
+
+/** A ruling's phase under `ops`, or null where the point shows ink or the ruling is absent. */
+const phaseUnder = (ops: readonly FieldOp[], ground: Ground, field: PhaseField, p: Point): number | null => {
   const q = { ...p };
-  return pullThrough(ops, 0, ops.length, q) ? groundPhase(ground, q.x, q.y) : null;
+  return pullThrough(ops, 0, ops.length, q) ? field(ground, q.x, q.y) : null;
+};
+
+/** Sine of the angle at which a direction cuts a ruling at `p`, or null if unmeasurable there. */
+const crossingSine = (
+  ops: readonly FieldOp[],
+  ground: Ground,
+  field: PhaseField,
+  p: Point,
+  ux: number,
+  uy: number,
+): number | null => {
+  const h = 1e-3;
+  const c = phaseUnder(ops, ground, field, p);
+  const px = phaseUnder(ops, ground, field, { x: p.x + h, y: p.y });
+  const py = phaseUnder(ops, ground, field, { x: p.x, y: p.y + h });
+  if (c === null || px === null || py === null) return null;
+  const gx = (px - c) / h;
+  const gy = (py - c) / h;
+  const g = Math.hypot(gx, gy);
+  // A direction crosses a ruling steeply when it runs along the phase gradient.
+  return g < 1e-9 ? null : Math.abs(ux * gx + uy * gy) / g;
 };
 
 /**
- * Share of a stroke's seam where it cuts the (already deformed) stripes at a
- * steep angle. Shallow cuts leave no readable kink.
+ * Share of a stroke's seam where it cuts the (already deformed) ruling at a
+ * steep angle. Shallow cuts leave no readable kink. On a grid, steep against
+ * either set of lines is enough.
  */
 export const steepCrossingShare = (moves: readonly Move[], ground: Ground, index: number): number => {
   const move = moves[index];
@@ -33,25 +60,18 @@ export const steepCrossingShare = (moves: readonly Move[], ground: Ground, index
   if (!segment) return 0;
   const before = opsForPrefix(moves, index);
   const minSin = Math.sin((EVIDENCE.minCrossingAngle * Math.PI) / 180);
-  const h = 1e-3;
   let steep = 0;
   let measured = 0;
   const samples = 24;
   for (let i = 0; i < samples; i++) {
     const t = (i + 0.5) / samples;
     const p = { x: segment.from.x + (segment.to.x - segment.from.x) * t, y: segment.from.y + (segment.to.y - segment.from.y) * t };
-    const c = phaseUnder(before, ground, p);
-    const px = phaseUnder(before, ground, { x: p.x + h, y: p.y });
-    const py = phaseUnder(before, ground, { x: p.x, y: p.y + h });
-    if (c === null || px === null || py === null) continue;
-    const gx = (px - c) / h;
-    const gy = (py - c) / h;
-    const g = Math.hypot(gx, gy);
-    if (g < 1e-9) continue;
+    const sines = PHASE_FIELDS.map((field) => crossingSine(before, ground, field, p, op.ux, op.uy)).filter(
+      (v) => v !== null,
+    );
+    if (sines.length === 0) continue;
     measured++;
-    // The stroke crosses stripes steeply when it runs along the phase gradient.
-    const sinCross = Math.abs(op.ux * gx + op.uy * gy) / g;
-    if (sinCross >= minSin) steep++;
+    if (Math.max(...sines) >= minSin) steep++;
   }
   return measured === 0 ? 0 : steep / measured;
 };
@@ -134,5 +154,7 @@ export const hasFeature = (
       return hasDecoy(reading, minMargin);
     case 'twin-inks':
       return hasTwinInks(moves);
+    case 'top-swirl':
+      return moves[last]?.kind === 'swirl';
   }
 };

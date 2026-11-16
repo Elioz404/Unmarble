@@ -5,7 +5,7 @@
  * silence when the post leaves the screen. The context is created lazily on
  * the first user gesture and suspended on `visibilitychange`.
  */
-export type SoundCue = 'absorb' | 'unstroke' | 'tear' | 'miss' | 'clean' | 'lens';
+export type SoundCue = 'absorb' | 'unstroke' | 'unswirl' | 'tear' | 'miss' | 'clean' | 'lens';
 
 type Voice = (ctx: AudioContext, out: AudioNode, at: number) => void;
 
@@ -67,6 +67,9 @@ const VOICES: Record<SoundCue, Voice> = {
   // A stylus dragged back through the bath.
   unstroke: (ctx, out, at) =>
     noise(ctx, out, at, { filter: 'bandpass', from: 500, to: 1400, q: 2, peak: 0.07, attack: 0.08, release: 0.35 }),
+  // Water turned back around an eye: a slow rising whirl.
+  unswirl: (ctx, out, at) =>
+    noise(ctx, out, at, { filter: 'bandpass', from: 350, to: 1800, q: 4, peak: 0.07, attack: 0.15, release: 0.45 }),
   // Paper tearing: a short crackle of high noise.
   tear: (ctx, out, at) => {
     noise(ctx, out, at, { filter: 'highpass', from: 2500, to: 1200, q: 0.8, peak: 0.12, attack: 0.005, release: 0.18 });

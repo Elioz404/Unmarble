@@ -22,6 +22,10 @@ export const PHYSICS = Object.freeze({
   strokeFalloff: 1.8,
   /** Angular snapping for strokes, in degrees. */
   strokeAngleStep: 15,
+  /** Rotation of a swirl at its eye, in radians. */
+  swirlTurn: 2.4,
+  /** Fall-off length of a swirl, in cells. */
+  swirlFalloff: 1.8,
 });
 
 /**
@@ -45,6 +49,10 @@ export const EVIDENCE = Object.freeze({
   minCrossingAngle: 30,
   /** Minimum visible length of a seam inside the sheet, in cells. */
   minSeamLength: 7,
+  /** Radius (cells) of the circle around a swirl's eye whose shape is its evidence. */
+  swirlProbeRadius: 1.4,
+  /** Relative out-of-roundness of a swirl's eye circle that reads as disturbed. */
+  swirlOvality: 0.08,
 });
 
 export const GENERATION = Object.freeze({
@@ -66,6 +74,10 @@ export const GENERATION = Object.freeze({
   twinGap: 0.3,
   /** Crossed seams must intersect at least this far inside the sheet (cells). */
   crossingInset: 1.5,
+  /** A swirl's eye lands within this distance (cells) of the previous move. */
+  swirlReach: 1.6,
+  /** A swirl's eye keeps this distance (cells) from the sheet edge. */
+  swirlEdgeMargin: 2.5,
 });
 
 export const GROUND_STYLE = Object.freeze({
@@ -113,6 +125,12 @@ export const INPUT = Object.freeze({
   swipeSeamTolerance: 1,
   /** Max angle (degrees) between a swipe and a seam. */
   swipeAngleTolerance: 15,
+  /** A drag must turn at least this far (degrees) around an eye to undo a swirl. */
+  minSwirlSweep: 110,
+  /** Accepted distance (cells) of a circling drag from a swirl's eye. */
+  swirlRadius: Object.freeze({ min: 0.4, max: 4.5 }),
+  /** Max spread of a circling drag's distance to the eye, relative to its mean. */
+  swirlRoundness: 0.4,
 });
 
 export const RULES = Object.freeze({

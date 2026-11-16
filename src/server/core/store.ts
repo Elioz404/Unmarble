@@ -29,6 +29,13 @@ export type Store = {
   zAdd(key: string, ...members: { member: string; score: number }[]): Promise<number>;
   zRank(key: string, member: string): Promise<number | undefined>;
   zCard(key: string): Promise<number>;
+  zRange(
+    key: string,
+    start: number,
+    stop: number,
+    options: { by: 'rank' | 'score'; reverse?: boolean },
+  ): Promise<{ member: string; score: number }[]>;
+  zRem(key: string, members: string[]): Promise<number>;
   watch(...keys: string[]): Promise<Transaction>;
 };
 
@@ -142,6 +149,25 @@ export class MemoryStore implements Store {
 
   async zCard(key: string) {
     return this.#sorted.get(key)?.size ?? 0;
+  }
+
+  async zRange(key: string, start: number, stop: number, options: { by: 'rank' | 'score'; reverse?: boolean }) {
+    const entries = [...(this.#sorted.get(key) ?? [])]
+      .map(([member, score]) => ({ member, score }))
+      .sort((a, b) => a.score - b.score || a.member.localeCompare(b.member));
+    if (options.by === 'score') {
+      const inRange = entries.filter((e) => e.score >= start && e.score <= stop);
+      return options.reverse ? inRange.reverse() : inRange;
+    }
+    const ordered = options.reverse ? entries.reverse() : entries;
+    return ordered.slice(start, stop < 0 ? ordered.length + stop + 1 : stop + 1);
+  }
+
+  async zRem(key: string, members: string[]) {
+    const zset = this.#sorted.get(key);
+    const removed = members.filter((m) => zset?.delete(m)).length;
+    if (removed > 0) this.#touch(key);
+    return removed;
   }
 
   async watch(...keys: string[]): Promise<Transaction> {

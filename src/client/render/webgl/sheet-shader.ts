@@ -11,8 +11,9 @@ const f = (n: number): string => (Number.isInteger(n) ? `${n}.0` : `${n}`);
 export const OP_DROP = 0;
 export const OP_STROKE = 1;
 export const OP_SUCTION = 2;
+export const OP_SWIRL = 3;
 
-export const GROUND_FAMILY_CODES = Object.freeze({ bands: 0, combed: 0, chevron: 1, waves: 2 });
+export const GROUND_FAMILY_CODES = Object.freeze({ bands: 0, combed: 0, chevron: 1, waves: 2, grid: 3, rings: 4 });
 
 export const VERTEX_SHADER = /* glsl */ `#version 300 es
 in vec2 aPosition;
@@ -35,8 +36,8 @@ out vec4 outColor;
 uniform vec2 uSheet;          // sheet size in cells
 uniform vec2 uResolution;     // drawing buffer in pixels
 uniform int uOpCount;
-uniform vec4 uOpA[MAX_OPS];   // drop/suction: (type, cx, cy, r)        stroke: (type, bx, by, shift)
-uniform vec4 uOpB[MAX_OPS];   // drop: (ink, source, -, -)               stroke: (ux, uy, falloff, source)
+uniform vec4 uOpA[MAX_OPS];   // drop/suction: (type, cx, cy, r)   stroke: (type, bx, by, shift)   swirl: (type, cx, cy, turn)
+uniform vec4 uOpB[MAX_OPS];   // drop: (ink, source, -, -)          stroke: (ux, uy, falloff, source) swirl: (falloff, source, -, -)
 
 uniform vec3 uPaper;
 uniform vec3 uBand;
@@ -45,7 +46,7 @@ uniform vec3 uGhostColor;
 uniform vec3 uInks[4];
 uniform float uGhost;
 
-uniform int uGroundFamily;    // 0 bands/combed, 1 chevron, 2 waves
+uniform int uGroundFamily;    // 0 bands/combed, 1 chevron, 2 waves, 3 grid, 4 rings
 uniform float uGroundPeriod;
 uniform vec2 uGroundRot;      // (cos, sin) of the stripe angle
 uniform float uGroundAmplitude;
@@ -64,8 +65,14 @@ float valueNoise(vec2 p) {
   return a + (b - a) * u.x + (c - a) * u.y + (a - b - c + d) * u.x * u.y;
 }
 
+float hairline(float phase, float width) {
+  float d = abs(fract(phase + 0.5) - 0.5);
+  return 1.0 - smoothstep(width * 0.5, width, d);
+}
+
 float groundPhase(vec2 p) {
   vec2 d = p - uSheet * 0.5;
+  if (uGroundFamily == 4) return length(d) / uGroundPeriod;
   float s = d.x * uGroundRot.x + d.y * uGroundRot.y;
   float t = -d.x * uGroundRot.y + d.y * uGroundRot.x;
   if (uGroundFamily == 1) return (t + uGroundAmplitude * abs(s)) / uGroundPeriod;
@@ -73,9 +80,12 @@ float groundPhase(vec2 p) {
   return t / uGroundPeriod;
 }
 
-float hairline(float phase, float width) {
-  float d = abs(fract(phase + 0.5) - 0.5);
-  return 1.0 - smoothstep(width * 0.5, width, d);
+/** A grid's crossing lines; 0 everywhere else. */
+float crossLine(vec2 p) {
+  if (uGroundFamily != 3) return 0.0;
+  vec2 d = p - uSheet * 0.5;
+  float s = d.x * uGroundRot.x + d.y * uGroundRot.y;
+  return hairline(s / uGroundPeriod, ${f(LOOK.ruleWidth)});
 }
 
 float paperTexture(vec2 p) {
@@ -109,6 +119,12 @@ vec3 shade(vec2 q) {
       vec2 u = b.xy;
       float dist = abs(dot(p - a.yz, vec2(-u.y, u.x)));
       p -= u * (a.w * b.z / (dist + b.z));
+    } else if (type == ${OP_SWIRL}) {
+      vec2 d = p - a.yz;
+      float angle = -a.w * b.x / (length(d) + b.x);
+      float c = cos(angle);
+      float s = sin(angle);
+      p = a.yz + vec2(d.x * c - d.y * s, d.x * s + d.y * c);
     } else {
       vec2 d = p - a.yz;
       float l2 = max(dot(d, d), 1e-9);
@@ -117,7 +133,7 @@ vec3 shade(vec2 q) {
   }
   float phase = groundPhase(p);
   vec3 band = mod(floor(phase), 2.0) < 0.5 ? uPaper : uBand;
-  return mix(band, uRule, hairline(phase, ${f(LOOK.ruleWidth)}));
+  return mix(band, uRule, max(hairline(phase, ${f(LOOK.ruleWidth)}), crossLine(p)));
 }
 
 vec3 toSrgb(vec3 c) {

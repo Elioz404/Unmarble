@@ -1,5 +1,6 @@
 import type { PlayerAction, SheetPoint, Verdict } from '../game/session.ts';
 import type { Result } from '../game/scoring.ts';
+import type { Move } from '../puzzle/moves.ts';
 import type { SheetSpec } from '../puzzle/sheet.ts';
 import type { DateKey } from '../time/calendar.ts';
 
@@ -14,11 +15,21 @@ export const API = Object.freeze({
   action: '/api/attempt/action',
   scars: '/api/sheet/scars',
   subscribe: '/api/subscribe',
+  book: '/api/book',
+  traps: '/api/traps',
+  flair: '/api/flair',
 });
+
+/** A daily sheet (made by the bindery) or a trap (made by a player for others). */
+export type SheetKind = 'daily' | 'trap';
 
 /** One sheet as presented to players. */
 export type SheetDescriptor = {
   readonly id: string;
+  readonly kind: SheetKind;
+  /** Reddit username of the player who made it: a trap's maker, or the maker of a featured Sunday sheet. */
+  readonly author: string | null;
+  /** The daily sheet number of the day it belongs to (traps: the day they were set). */
   readonly number: number;
   readonly dateKey: DateKey;
   readonly weekday: string;
@@ -39,11 +50,15 @@ export type PlayerView = {
   /** The player's attempt on this sheet so far, to resume exactly where they left. */
   readonly log: readonly LoggedAction[];
   readonly streak: number;
+  /** Whether the player chose to show their streak as subreddit flair. */
+  readonly flair: boolean;
 };
 
 export type SheetStats = {
   readonly hands: number;
   readonly cleans: number;
+  /** Hands that tore the sheet at least once: how many a trap caught. */
+  readonly caught: number;
 };
 
 export type SheetResponse = {
@@ -90,5 +105,32 @@ export type ScarMap = {
   readonly trap: { readonly move: number; readonly share: number } | null;
   readonly hands: number;
 };
+
+/** How the player stands with a sheet, as listed in the Book. */
+export type BookStatus = 'unplayed' | 'playing' | 'clean' | 'torn';
+
+export type BookEntry = {
+  readonly sheet: SheetDescriptor;
+  readonly status: BookStatus;
+  readonly stats: SheetStats;
+};
+
+/** The Book: past daily sheets and recent traps, newest first. */
+export type BookResponse = {
+  readonly dailies: readonly BookEntry[];
+  readonly traps: readonly BookEntry[];
+};
+
+/** A trap as the editor submits it: only the moves; the paper is always today's. */
+export type TrapRequest = { readonly moves: readonly Move[] };
+
+export type TrapResponse =
+  | { readonly kind: 'published'; readonly sheet: SheetDescriptor; readonly postUrl: string | null }
+  | { readonly kind: 'rejected'; readonly reason: TrapRejection };
+
+export type TrapRejection = 'invalid' | 'unfair' | 'signed-out' | 'daily-limit';
+
+export type FlairRequest = { readonly enabled: boolean };
+export type FlairResponse = { readonly enabled: boolean };
 
 export type ErrorResponse = { readonly error: string };

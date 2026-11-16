@@ -35,6 +35,14 @@ export const keys = Object.freeze({
   player: (playerId: string) => `player:${playerId}`,
   /** The Atelier hub post id. */
   atelierPost: () => 'atelier:post',
+  /** A trap's descriptor (JSON). */
+  trap: (trapId: string) => `trap:${trapId}`,
+  /** Hash: trap id → post id. */
+  trapPosts: () => 'trap-posts',
+  /** Sorted set: trap id → creation time (ms); newest last. */
+  recentTraps: () => 'traps:recent',
+  /** Hash: player → trap id, for the one trap a player may set per day. */
+  trapsSetOn: (dateKey: string) => `traps:set-on:${dateKey}`,
 });
 
 /** Attempt data older than this is forgotten. */

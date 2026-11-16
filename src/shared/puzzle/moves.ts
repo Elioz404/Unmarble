@@ -1,5 +1,5 @@
 import { PHYSICS } from '../config.ts';
-import type { FieldOp, StrokeOp } from '../marbling/field-ops.ts';
+import type { FieldOp, StrokeOp, SwirlOp } from '../marbling/field-ops.ts';
 
 /**
  * Puzzle moves: the discrete, serialisable description of how a sheet was
@@ -39,7 +39,19 @@ export type StrokeMove = {
   readonly heading: number;
 };
 
-export type Move = DropMove | StrokeMove;
+/** A swirl turning the water around an eye; `turn` 1 is counter-clockwise on screen, −1 clockwise. */
+export type SwirlMove = {
+  readonly kind: 'swirl';
+  readonly x: number;
+  readonly y: number;
+  readonly turn: 1 | -1;
+};
+
+export type Move = DropMove | StrokeMove | SwirlMove;
+
+export type MoveKind = Move['kind'];
+
+export const MOVE_KINDS: readonly MoveKind[] = ['drop', 'stroke', 'swirl'];
 
 export const dropRadius = (size: DropSize): number => PHYSICS.dropRadius[size];
 
@@ -55,11 +67,24 @@ export const headingVector = (heading: number): { x: number; y: number } => {
  * shrinking back into the water is the same drop with a smaller radius.
  */
 export const moveToOp = (move: Move, source: number, amount = 1): FieldOp => {
-  if (move.kind === 'drop') {
-    return { type: 'drop', cx: move.x, cy: move.y, r: dropRadius(move.size) * amount, ink: move.ink, source };
+  switch (move.kind) {
+    case 'drop':
+      return { type: 'drop', cx: move.x, cy: move.y, r: dropRadius(move.size) * amount, ink: move.ink, source };
+    case 'stroke':
+      return strokeOp(move, source, amount);
+    case 'swirl':
+      return swirlOp(move, source, amount);
   }
-  return strokeOp(move, source, amount);
 };
+
+export const swirlOp = (move: SwirlMove, source: number, amount = 1): SwirlOp => ({
+  type: 'swirl',
+  cx: move.x,
+  cy: move.y,
+  turn: move.turn * PHYSICS.swirlTurn * amount,
+  falloff: PHYSICS.swirlFalloff,
+  source,
+});
 
 export const strokeOp = (move: StrokeMove, source: number, amount = 1): StrokeOp => {
   const u = headingVector(move.heading);

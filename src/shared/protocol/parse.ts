@@ -1,16 +1,24 @@
 import { RULES, SHEET } from '../config.ts';
 import type { PlayerAction, SheetPoint } from '../game/session.ts';
-import { MAX_MOVES } from '../puzzle/sheet.ts';
+import { MAX_MOVES, parseSheetSpec } from '../puzzle/sheet.ts';
 import type { Result } from '../game/scoring.ts';
 import type {
   ActionRequest,
   ActionResponse,
+  BookEntry,
+  BookResponse,
+  BookStatus,
+  FlairRequest,
   LoggedAction,
   ScarMap,
   SheetResponse,
   SheetStats,
   Standing,
+  TrapRejection,
+  TrapRequest,
+  TrapResponse,
 } from './api.ts';
+import { PALETTES } from '../sheet/palettes.ts';
 import { parseSheetDescriptor } from './post-data.ts';
 
 /** Validators for untrusted request bodies and stored records. */
@@ -29,8 +37,9 @@ export const parseAction = (value: unknown): PlayerAction | null => {
     case 'absorb':
       return isMoveIndex(value.move) ? { type: 'absorb', move: value.move } : null;
     case 'unstroke':
+    case 'unswirl':
       return isMoveIndex(value.move) && typeof value.against === 'boolean'
-        ? { type: 'unstroke', move: value.move, against: value.against }
+        ? { type: value.type, move: value.move, against: value.against }
         : null;
     default:
       return null;
@@ -86,8 +95,11 @@ export const parseResult = (value: unknown): Result | null => {
 };
 
 const parseStats = (value: unknown): SheetStats | null =>
-  isRecord(value) && typeof value.hands === 'number' && typeof value.cleans === 'number'
-    ? { hands: value.hands, cleans: value.cleans }
+  isRecord(value) &&
+  typeof value.hands === 'number' &&
+  typeof value.cleans === 'number' &&
+  typeof value.caught === 'number'
+    ? { hands: value.hands, cleans: value.cleans, caught: value.caught }
     : null;
 
 export const parseStanding = (value: unknown): Standing | null => {
@@ -119,12 +131,13 @@ export const parseSheetResponse = (value: unknown): SheetResponse | null => {
   const log = parseActionLog(player.log);
   const { nextSheetAt, todayId } = value;
   if (!log || typeof player.signedIn !== 'boolean' || typeof player.streak !== 'number') return null;
+  if (typeof player.flair !== 'boolean') return null;
   if (typeof nextSheetAt !== 'number' || typeof todayId !== 'string') return null;
   const standing = value.standing === null || value.standing === undefined ? null : parseStanding(value.standing);
   return {
     sheet,
     stats,
-    player: { signedIn: player.signedIn, log, streak: player.streak },
+    player: { signedIn: player.signedIn, log, streak: player.streak, flair: player.flair },
     standing,
     nextSheetAt,
     todayId,
@@ -144,3 +157,55 @@ export const parseScarMap = (value: unknown): ScarMap | null => {
       : null;
   return { points, trap, hands: value.hands };
 };
+
+const BOOK_STATUSES: readonly BookStatus[] = ['unplayed', 'playing', 'clean', 'torn'];
+
+const parseBookEntry = (value: unknown): BookEntry | null => {
+  if (!isRecord(value)) return null;
+  const sheet = parseSheetDescriptor(value.sheet);
+  const stats = parseStats(value.stats);
+  const status = BOOK_STATUSES.find((s) => s === value.status);
+  return sheet && stats && status ? { sheet, stats, status } : null;
+};
+
+const parseBookEntries = (value: unknown): BookEntry[] | null => {
+  if (!Array.isArray(value)) return null;
+  const entries = value.map(parseBookEntry);
+  return entries.every((e) => e !== null) ? entries.filter((e) => e !== null) : null;
+};
+
+export const parseBookResponse = (value: unknown): BookResponse | null => {
+  if (!isRecord(value)) return null;
+  const dailies = parseBookEntries(value.dailies);
+  const traps = parseBookEntries(value.traps);
+  return dailies && traps ? { dailies, traps } : null;
+};
+
+/** A trap submission: moves only; their validity as a sheet is checked separately. */
+export const parseTrapRequest = (value: unknown): TrapRequest | null => {
+  if (!isRecord(value) || !Array.isArray(value.moves)) return null;
+  const probe = parseSheetSpec({
+    paletteId: PALETTES[0]?.id,
+    ground: { family: 'bands', period: 1, angle: 0, amplitude: 0, wavelength: 1 },
+    moves: value.moves,
+    stars: 1,
+  });
+  return probe ? { moves: probe.moves } : null;
+};
+
+const TRAP_REJECTIONS: readonly TrapRejection[] = ['invalid', 'unfair', 'signed-out', 'daily-limit'];
+
+export const parseTrapResponse = (value: unknown): TrapResponse | null => {
+  if (!isRecord(value)) return null;
+  if (value.kind === 'rejected') {
+    const reason = TRAP_REJECTIONS.find((r) => r === value.reason);
+    return reason ? { kind: 'rejected', reason } : null;
+  }
+  const sheet = parseSheetDescriptor(value.sheet);
+  if (value.kind !== 'published' || !sheet) return null;
+  if (value.postUrl !== null && typeof value.postUrl !== 'string') return null;
+  return { kind: 'published', sheet, postUrl: value.postUrl };
+};
+
+export const parseFlair = (value: unknown): FlairRequest | null =>
+  isRecord(value) && typeof value.enabled === 'boolean' ? { enabled: value.enabled } : null;

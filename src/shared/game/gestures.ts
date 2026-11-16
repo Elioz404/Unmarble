@@ -1,7 +1,7 @@
 import { INPUT } from '../config.ts';
 import { pushThrough, sampleField } from '../marbling/field.ts';
 import type { FieldOp } from '../marbling/field-ops.ts';
-import { seamSegment } from '../puzzle/evidence.ts';
+import { seamSegment, swirlEyeCentre } from '../puzzle/evidence.ts';
 import { opsForPrefix } from '../puzzle/moves.ts';
 import type { SheetSpec } from '../puzzle/sheet.ts';
 import type { PlayerAction, SheetPoint } from './session.ts';
@@ -112,6 +112,58 @@ export const resolveSwipe = (
   }
 
   return best ? { type: 'unstroke', move: best.move, against: best.against } : null;
+};
+
+/** Signed angle (radians) a path turns around `centre`. */
+const sweepAround = (path: readonly SheetPoint[], centre: SheetPoint): number => {
+  let sweep = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1] as SheetPoint;
+    const b = path[i] as SheetPoint;
+    let delta = Math.atan2(b.y - centre.y, b.x - centre.x) - Math.atan2(a.y - centre.y, a.x - centre.x);
+    if (delta > Math.PI) delta -= 2 * Math.PI;
+    if (delta < -Math.PI) delta += 2 * Math.PI;
+    sweep += delta;
+  }
+  return sweep;
+};
+
+/**
+ * The swirl a circling drag addresses, and whether it turns against the
+ * swirl, or null when the drag does not circle any eye. A drag counts only if
+ * it really circles: it turns far enough around the eye at a nearly constant
+ * distance, so a straight swipe passing close to an eye never reads as one.
+ */
+export const resolveCircle = (spec: SheetSpec, remaining: number, path: readonly SheetPoint[]): PlayerAction | null => {
+  if (path.length < 4) return null;
+  const ops = opsForPrefix(spec.moves, remaining);
+  const minSweep = (INPUT.minSwirlSweep * Math.PI) / 180;
+  let best: { move: number; spread: number; against: boolean } | null = null;
+  for (let index = 0; index < remaining; index++) {
+    const op = ops[index];
+    if (op?.type !== 'swirl') continue;
+    const eye = swirlEyeCentre(ops, index, remaining);
+    const radii = path.map((p) => Math.hypot(p.x - eye.x, p.y - eye.y));
+    const mean = radii.reduce((sum, r) => sum + r, 0) / radii.length;
+    if (mean < INPUT.swirlRadius.min || mean > INPUT.swirlRadius.max) continue;
+    const spread = Math.sqrt(radii.reduce((sum, r) => sum + (r - mean) ** 2, 0) / radii.length) / mean;
+    if (spread > INPUT.swirlRoundness) continue;
+    const sweep = sweepAround(path, eye);
+    if (Math.abs(sweep) < minSweep) continue;
+    if (!best || spread < best.spread) best = { move: index, spread, against: Math.sign(sweep) !== Math.sign(op.turn) };
+  }
+  return best ? { type: 'unswirl', move: best.move, against: best.against } : null;
+};
+
+/**
+ * Any drag across the sheet: a circling drag addresses a swirl; otherwise its
+ * end points are read as a swipe along a seam.
+ */
+export const resolveDrag = (spec: SheetSpec, remaining: number, path: readonly SheetPoint[]): PlayerAction | null => {
+  const first = path[0];
+  const last = path[path.length - 1];
+  if (!first || !last) return null;
+  return resolveCircle(spec, remaining, path) ?? resolveSwipe(spec, remaining, first, last);
 };
 
 /** Sample spacing (cells) of visible seam paths used for gesture matching. */

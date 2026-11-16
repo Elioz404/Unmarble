@@ -1,6 +1,6 @@
 import { RULES, TIMING } from '../../shared/config.ts';
 import { explainBlot, type BlotExplanation } from '../../shared/game/explain.ts';
-import { resolveSwipe, resolveTap } from '../../shared/game/gestures.ts';
+import { resolveDrag, resolveTap } from '../../shared/game/gestures.ts';
 import {
   applyAction,
   startSession,
@@ -8,8 +8,8 @@ import {
   type SessionState,
   type SheetPoint,
 } from '../../shared/game/session.ts';
-import { dropOutline, seamPath } from '../../shared/puzzle/evidence.ts';
-import { opsForPrefix, strokeOp } from '../../shared/puzzle/moves.ts';
+import { dropOutline, seamPath, swirlEye } from '../../shared/puzzle/evidence.ts';
+import { opsForPrefix, strokeOp, swirlOp } from '../../shared/puzzle/moves.ts';
 import type { SheetSpec } from '../../shared/puzzle/sheet.ts';
 import type { LoggedAction, Standing } from '../../shared/protocol/api.ts';
 import type { SoundBank } from '../audio/sound.ts';
@@ -27,7 +27,10 @@ export type Feedback =
   | { readonly id: number; readonly kind: 'miss' }
   | { readonly id: number; readonly kind: 'blot'; readonly explanation: BlotExplanation | null };
 
-export type HintKind = 'round' | 'seam' | 'lens';
+export type HintKind = 'round' | 'seam' | 'swirl' | 'lens';
+
+/** How far (in move amounts) a wrong-way drag bends the water before it springs back. */
+const WRONG_WAY_OVERSHOOT = 0.6;
 
 /** Which contextual hints this player has already been shown. */
 export type HintPolicy = {
@@ -188,19 +191,21 @@ export class GameController {
     void this.#act(action, point);
   }
 
-  swipe(from: SheetPoint, to: SheetPoint): void {
+  /** A finished drag across the sheet: a swipe along a fold or a circle around an eye. */
+  drag(path: readonly SheetPoint[]): void {
     this.#overlay.trail = [];
-    if (!this.#accepting()) {
-      this.#draw();
+    if (!this.#accepting() || path.length < 2) {
+      this.#requestDraw();
       return;
     }
     this.#sound.unlock();
-    const action = resolveSwipe(this.#spec, this.#state.remaining, from, to);
+    const action = resolveDrag(this.#spec, this.#state.remaining, path);
+    const where = path[Math.floor(path.length / 2)] ?? null;
     if (!action) {
-      void this.#miss({ x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 });
+      if (where) void this.#miss(where);
       return;
     }
-    void this.#act(action, { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 });
+    void this.#act(action, where);
   }
 
   /** Live trail while a finger drags across the sheet. */
@@ -263,7 +268,7 @@ export class GameController {
   }
 
   async #playUnmarble(action: PlayerAction): Promise<void> {
-    this.#sound.play(action.type === 'absorb' ? 'absorb' : 'unstroke');
+    this.#sound.play(action.type === 'absorb' ? 'absorb' : action.type === 'unswirl' ? 'unswirl' : 'unstroke');
     await this.#animator.play({
       duration: TIMING.absorbMs,
       easing: ease.settle,
@@ -279,26 +284,30 @@ export class GameController {
   async #playBlot(action: PlayerAction, point: SheetPoint | null, explanation: BlotExplanation | null): Promise<void> {
     this.#sound.play('tear');
     if (point) this.#overlay.scars.push(point);
-    if (action.type === 'unstroke' && explanation?.reason === 'with-the-grain') {
-      // Dragging with the grain bends the seam further, then the paper springs back.
+    if (action.type !== 'magnify' && action.type !== 'absorb' && explanation?.culprit === null) {
+      // Right mark, wrong way: the water bends further, then the paper springs back.
       const move = this.#spec.moves[action.move];
-      if (move?.kind === 'stroke') {
-        await this.#animator.play({
-          duration: TIMING.tearPreviewMs / 2,
-          easing: ease.outCubic,
-          update: (t) => {
-            this.#scene.transient = strokeOp(move, action.move, 0.6 * t);
-          },
-        });
-        await this.#animator.play({
-          duration: TIMING.tearRevertMs,
-          easing: ease.inOutCubic,
-          update: (t) => {
-            this.#scene.transient = strokeOp(move, action.move, 0.6 * (1 - t));
-          },
-        });
-        this.#scene.transient = null;
-      }
+      const overshoot = (amount: number) =>
+        move?.kind === 'stroke'
+          ? strokeOp(move, action.move, amount)
+          : move?.kind === 'swirl'
+            ? swirlOp(move, action.move, amount)
+            : null;
+      await this.#animator.play({
+        duration: TIMING.tearPreviewMs / 2,
+        easing: ease.outCubic,
+        update: (t) => {
+          this.#scene.transient = overshoot(WRONG_WAY_OVERSHOOT * t);
+        },
+      });
+      await this.#animator.play({
+        duration: TIMING.tearRevertMs,
+        easing: ease.inOutCubic,
+        update: (t) => {
+          this.#scene.transient = overshoot(WRONG_WAY_OVERSHOOT * (1 - t));
+        },
+      });
+      this.#scene.transient = null;
       return;
     }
     const culprit = explanation?.culprit ?? null;
@@ -320,9 +329,14 @@ export class GameController {
     const ops = opsForPrefix(this.#spec.moves, this.#state.remaining);
     const target = this.#spec.moves[move];
     if (!target) return null;
-    return target.kind === 'drop'
-      ? { points: dropOutline(ops, move, ops.length), closed: true }
-      : { points: seamPath(ops, move, ops.length), closed: false };
+    switch (target.kind) {
+      case 'drop':
+        return { points: dropOutline(ops, move, ops.length), closed: true };
+      case 'stroke':
+        return { points: seamPath(ops, move, ops.length), closed: false };
+      case 'swirl':
+        return { points: swirlEye(ops, move, ops.length), closed: true };
+    }
   }
 
   async #playLens(): Promise<void> {
@@ -397,7 +411,14 @@ export class GameController {
     this.#hintTimer = window.setTimeout(() => {
       const top = this.#spec.moves[this.#state.remaining - 1];
       const lensLeft = this.view.get().lensLeft;
-      const kind: HintKind = this.#state.blots >= 2 && lensLeft > 0 ? 'lens' : top?.kind === 'stroke' ? 'seam' : 'round';
+      const kind: HintKind =
+        this.#state.blots >= 2 && lensLeft > 0
+          ? 'lens'
+          : top?.kind === 'stroke'
+            ? 'seam'
+            : top?.kind === 'swirl'
+              ? 'swirl'
+              : 'round';
       if (hints.hasSeen(kind)) return;
       hints.markSeen(kind);
       this.#publish({ hint: kind });

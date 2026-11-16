@@ -1,4 +1,4 @@
-import { reddit } from '@devvit/web/server';
+import { context, reddit } from '@devvit/web/server';
 import type { PostBinding } from '../../shared/protocol/post-data.ts';
 
 /** Post data as Reddit's API accepts it (JSON, at most 2 KB). */
@@ -23,6 +23,9 @@ export type RedditPort = {
   /** Current score of a comment, or null if it was removed or marked spam. Throws when the lookup fails. */
   liveCommentScore(commentId: string): Promise<number | null>;
   subscribeCurrentUser(): Promise<void>;
+  /** Sets a user's flair in the current subreddit (replacing what they had). */
+  setUserFlair(username: string, text: string): Promise<void>;
+  removeUserFlair(username: string): Promise<void>;
 };
 
 type T1 = `t1_${string}`;
@@ -81,5 +84,11 @@ export const devvitReddit: RedditPort = {
   },
   async subscribeCurrentUser() {
     await reddit.subscribeToCurrentSubreddit();
+  },
+  async setUserFlair(username, text) {
+    await reddit.setUserFlair({ subredditName: context.subredditName, username, text });
+  },
+  async removeUserFlair(username) {
+    await reddit.removeUserFlair(context.subredditName, username);
   },
 };

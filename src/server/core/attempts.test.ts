@@ -53,7 +53,7 @@ test('a clean solve ranks the player, counts the hand and starts a streak', asyn
   assert.ok(standing);
   assert.equal(standing.rank, 1);
   assert.equal(standing.result.clean, true);
-  assert.deepEqual(await attempts.stats(sheet.id), { hands: 1, cleans: 1 });
+  assert.deepEqual(await attempts.stats(sheet.id), { hands: 1, cleans: 1, caught: 0 });
   assert.equal(await attempts.streak('u1'), 1);
   assert.deepEqual(await attempts.standing(sheet, 'u1'), standing, 'standing survives a reload');
 });

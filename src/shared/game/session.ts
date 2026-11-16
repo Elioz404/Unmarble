@@ -8,6 +8,7 @@ import type { SheetSpec } from '../puzzle/sheet.ts';
  * The player unmarbles the sheet from the top down:
  *  - `absorb` draws a drop back into the water,
  *  - `unstroke` drags a seam back, against the direction it was made,
+ *  - `unswirl` circles a swirl's eye back, against its turn,
  *  - `magnify` shows the undisturbed ruling for a moment (once per sheet).
  * Acting on anything but the top move, or dragging a seam the wrong way,
  * tears the paper: a blot. Too many blots and the sheet is torn.
@@ -15,6 +16,7 @@ import type { SheetSpec } from '../puzzle/sheet.ts';
 export type PlayerAction =
   | { readonly type: 'absorb'; readonly move: number }
   | { readonly type: 'unstroke'; readonly move: number; readonly against: boolean }
+  | { readonly type: 'unswirl'; readonly move: number; readonly against: boolean }
   | { readonly type: 'magnify' };
 
 export type Verdict = 'correct' | 'blot' | 'ignored';
@@ -61,7 +63,8 @@ export const judgeAction = (spec: SheetSpec, state: SessionState, action: Player
     if (target.kind !== 'drop') return 'ignored';
     return action.move === top ? 'correct' : 'blot';
   }
-  if (target.kind !== 'stroke') return 'ignored';
+  const expected = action.type === 'unstroke' ? 'stroke' : 'swirl';
+  if (target.kind !== expected) return 'ignored';
   return action.move === top && action.against ? 'correct' : 'blot';
 };
 

@@ -78,7 +78,7 @@ export const SheetStage = ({ controller, label }: Props) => {
   const handlers = useMemo(
     () => ({
       onTap: controller.tap.bind(controller),
-      onSwipe: controller.swipe.bind(controller),
+      onDrag: controller.drag.bind(controller),
       onTrace: controller.trace.bind(controller),
     }),
     [controller],

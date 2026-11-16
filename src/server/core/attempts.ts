@@ -3,6 +3,7 @@ import { rankScore, resultOf, type Result } from '../../shared/game/scoring.ts';
 import { applyAction, replaySession, type SessionState } from '../../shared/game/session.ts';
 import type {
   ActionResponse,
+  BookStatus,
   LoggedAction,
   PlayerView,
   ScarMap,
@@ -20,6 +21,9 @@ import type { Store } from './store.ts';
 const SCAR_GRID = 0.5;
 /** Optimistic-transaction retries before giving up on a contended write. */
 const MAX_TX_ATTEMPTS = 4;
+
+/** Told whenever a player's daily streak grows (e.g. to update their flair). */
+export type StreakListener = (playerId: string, streak: number) => Promise<void>;
 
 type Progress = { readonly lastDay: string | null; readonly streak: number; readonly best: number };
 
@@ -47,10 +51,12 @@ export class ContentionError extends Error {
 export class AttemptService {
   readonly #store: Store;
   readonly #now: () => number;
+  readonly #onStreak: StreakListener;
 
-  constructor(store: Store, now: () => number = Date.now) {
+  constructor(store: Store, now: () => number = Date.now, onStreak: StreakListener = async () => undefined) {
     this.#store = store;
     this.#now = now;
+    this.#onStreak = onStreak;
   }
 
   #today(): DateKey {
@@ -63,7 +69,7 @@ export class AttemptService {
 
   async stats(sheetId: string): Promise<SheetStats> {
     const raw = await this.#store.hGetAll(keys.stats(sheetId));
-    return { hands: Number(raw.hands ?? 0), cleans: Number(raw.cleans ?? 0) };
+    return { hands: Number(raw.hands ?? 0), cleans: Number(raw.cleans ?? 0), caught: Number(raw.caught ?? 0) };
   }
 
   async progress(playerId: string): Promise<Progress> {
@@ -79,9 +85,21 @@ export class AttemptService {
   }
 
   async playerView(sheetId: string, playerId: string | null): Promise<PlayerView> {
-    if (!playerId) return { signedIn: false, log: [], streak: 0 };
-    const [log, streak] = await Promise.all([this.logOf(sheetId, playerId), this.streak(playerId)]);
-    return { signedIn: !playerId.startsWith('anon:'), log, streak };
+    if (!playerId) return { signedIn: false, log: [], streak: 0, flair: false };
+    const [log, streak, flair] = await Promise.all([
+      this.logOf(sheetId, playerId),
+      this.streak(playerId),
+      this.#store.hGet(keys.player(playerId), 'flair'),
+    ]);
+    return { signedIn: !playerId.startsWith('anon:'), log, streak, flair: flair === '1' };
+  }
+
+  /** How a player stands with a sheet, for the Book. */
+  async statusOf(sheetId: string, playerId: string | null): Promise<BookStatus> {
+    if (!playerId) return 'unplayed';
+    const result = parseResult(readJson(await this.#store.hGet(keys.results(sheetId), playerId)));
+    if (result) return result.clean ? 'clean' : 'torn';
+    return (await this.#store.hGet(keys.attempts(sheetId), playerId)) ? 'playing' : 'unplayed';
   }
 
   /** Validates and records the action at position `seq` of the player's log. */
@@ -167,6 +185,8 @@ export class AttemptService {
       const snap = (v: number) => Math.round(v / SCAR_GRID) * SCAR_GRID;
       await this.#store.hIncrBy(keys.scars(sheetId), `${snap(entry.point.x)},${snap(entry.point.y)}`, 1);
     }
+    // A hand is "caught" by the sheet the first time it tears it.
+    if (before.blots === 0) await this.#store.hIncrBy(keys.stats(sheetId), 'caught', 1);
     // Count each player once per trap: the move they misread.
     const action = entry.action;
     if (action.type === 'magnify') return;
@@ -197,21 +217,26 @@ export class AttemptService {
       await this.#store.zAdd(keys.board(sheet.id), { member: playerId, score: rankScore(result) });
       await this.#store.hIncrBy(keys.stats(sheet.id), 'hands', 1);
       if (result.clean) await this.#store.hIncrBy(keys.stats(sheet.id), 'cleans', 1);
-      // A sheet counts for the streak when it was begun on its own day.
-      if (sheet.dateKey === startDay) await this.#advanceStreak(playerId, sheet.dateKey);
+      // A daily sheet counts for the streak when it was begun on its own day.
+      if (sheet.kind === 'daily' && sheet.dateKey === startDay) {
+        const streak = await this.#advanceStreak(playerId, sheet.dateKey);
+        if (streak !== null) await this.#onStreak(playerId, streak);
+      }
     }
     return (await this.standing(sheet, playerId)) ?? this.#standingOf(sheet.id, playerId, result);
   }
 
-  async #advanceStreak(playerId: string, day: DateKey): Promise<void> {
+  /** Advances the streak for `day`; returns the new streak, or null if the day was already counted. */
+  async #advanceStreak(playerId: string, day: DateKey): Promise<number | null> {
     const { lastDay, streak, best } = await this.progress(playerId);
-    if (lastDay === day) return;
+    if (lastDay === day) return null;
     const next = lastDay === addDays(day, -1) ? streak + 1 : 1;
     await this.#store.hSet(keys.player(playerId), {
       lastDay: day,
       streak: String(next),
       best: String(Math.max(best, next)),
     });
+    return next;
   }
 
   async #standingOf(sheetId: string, playerId: string, result: Result): Promise<Standing> {
