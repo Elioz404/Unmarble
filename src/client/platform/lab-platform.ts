@@ -48,15 +48,27 @@ const write = (key: string, value: unknown): void => {
   }
 };
 
-const clearAll = (): void => {
+/** Removes every stored key that starts with `prefix`. */
+const clearKeys = (prefix: string): void => {
   try {
     for (const key of Object.keys(window.localStorage)) {
-      if (key.startsWith('unmarble:')) window.localStorage.removeItem(key);
+      if (key.startsWith(prefix)) window.localStorage.removeItem(key);
     }
   } catch {
     // Nothing to clear.
   }
 };
+
+const clearAll = (): void => clearKeys('unmarble:');
+
+/** Lab: forget every attempt on this device, keeping lessons, traps and preferences. */
+export const resetLabProgress = (): void => {
+  clearKeys(`${KEY}log:`);
+  clearKeys(`${KEY}events`);
+};
+
+/** Lab: forget everything, as if this device had never played (lessons included). */
+export const resetLab = (): void => clearAll();
 
 export type LabEvent = { readonly sheetId: string; readonly entry: LoggedAction; readonly wallClock: string };
 

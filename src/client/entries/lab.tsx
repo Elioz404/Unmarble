@@ -7,6 +7,7 @@ import { CardApp } from '../ui/card/CardApp.tsx';
 import { probeSmallCaps } from '../ui/fonts.ts';
 import { GameApp } from '../ui/GameApp.tsx';
 import { FeedBoard } from '../ui/lab/FeedBoard.tsx';
+import { LabControls } from '../ui/lab/LabControls.tsx';
 import { ParityBoard } from '../ui/lab/ParityBoard.tsx';
 import { FoilDefs } from '../ui/ornaments.tsx';
 import { mountRoot } from './mount.ts';
@@ -20,6 +21,8 @@ import { mountRoot } from './mount.ts';
  *   lab.html?view=card&post=atelier   the card as the pinned hub post
  *   lab.html?view=board      the card at several feed widths
  *   lab.html?view=parity     the WebGL and CPU renderers side by side, and how far apart they are
+ *
+ * The game and the card carry lab controls to restart or start over.
  */
 const search = new URLSearchParams(window.location.search);
 const view = search.get('view') ?? 'game';
@@ -51,5 +54,6 @@ createRoot(mountRoot()).render(
   <StrictMode>
     <FoilDefs />
     {app}
+    {view === 'game' || view === 'card' ? <LabControls /> : null}
   </StrictMode>,
 );
