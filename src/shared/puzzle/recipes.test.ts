@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EVIDENCE } from '../config.ts';
 import { PALETTES } from '../sheet/palettes.ts';
 import { readSheet } from './analysis.ts';
-import { FEATURES, matchesSignature } from './features.ts';
+import { FEATURES, hasTwinInks, matchesSignature } from './features.ts';
 import { generateSheet, validateSheet, type GeneratedSheet } from './generator.ts';
 import { gesturesAreSeparable } from './gesture-contract.ts';
 import {
@@ -99,6 +99,7 @@ for (const r of RECIPES) {
         assert.ok(step.weakestCover >= Math.max(r.minMargin, EVIDENCE.safetyMargin));
       }
       assert.ok(matchesSignature(r, spec.moves, reading), 'required features present, forbidden ones absent');
+      if (!r.features.includes('twin-inks')) assert.ok(!hasTwinInks(spec.moves), 'no twins that nobody announced');
       assert.ok(validateSheet(spec.moves, spec.ground, r), 'passes the full contract again');
       assert.ok(gesturesAreSeparable(spec.moves), 'every top move can be undone unambiguously');
       assert.deepEqual(parseSheetSpec(JSON.parse(JSON.stringify(spec))), spec, 'round-trips through JSON');

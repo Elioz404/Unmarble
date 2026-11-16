@@ -17,8 +17,10 @@ export type Feature =
   | 'buried-seam'
   /** A drop is squeezed into a crescent by a later neighbour. */
   | 'crescent'
-  /** Two seams cross inside the sheet. */
+  /** Two seams cross inside the sheet, clear of its edge. */
   | 'crossed-seams'
+  /** Two seams meet anywhere on the paper, its edge included: what "never cross" forbids. */
+  | 'seams-meet'
   /** The finished sheet has a stroke on top. */
   | 'top-seam'
   /** With a stroke on top, a covered drop still reads nearly round. */
@@ -57,6 +59,7 @@ export const FEATURES: readonly Feature[] = [
   'buried-seam',
   'crescent',
   'crossed-seams',
+  'seams-meet',
   'top-seam',
   'decoy',
   'twin-inks',
@@ -143,7 +146,8 @@ export const steepCrossingShare = (moves: readonly Move[], ground: Ground, index
   return measured === 0 ? 0 : steep / measured;
 };
 
-const segmentsCross = (a: StrokeOp, b: StrokeOp): boolean => {
+/** Whether two seams cross at least `inset` cells inside the sheet. */
+const segmentsCross = (a: StrokeOp, b: StrokeOp, inset: number): boolean => {
   const sa = seamSegment(a);
   const sb = seamSegment(b);
   if (!sa || !sb) return false;
@@ -158,8 +162,13 @@ const segmentsCross = (a: StrokeOp, b: StrokeOp): boolean => {
   if (t < 0 || t > 1 || u < 0 || u > 1) return false;
   const x = sa.from.x + d1x * t;
   const y = sa.from.y + d1y * t;
-  const inset = GENERATION.crossingInset;
   return x >= inset && x <= SHEET.cols - inset && y >= inset && y <= SHEET.rows - inset;
+};
+
+/** Whether some two seams cross at least `inset` cells inside the sheet. */
+const seamsCross = (moves: readonly Move[], inset: number): boolean => {
+  const strokes = moves.map((m, i) => (isStroke(m) ? strokeOp(m, i) : null)).filter((op) => op !== null);
+  return strokes.some((a, i) => strokes.slice(i + 1).some((b) => segmentsCross(a, b, inset)));
 };
 
 /** Whether two touching drops of one ink sit side by side (not one inside the other). */
@@ -215,10 +224,10 @@ export const hasFeature = (
       return strokesWithin(1, last - 1) > 0;
     case 'top-seam':
       return strokeAt(last);
-    case 'crossed-seams': {
-      const strokes = moves.map((m, i) => (isStroke(m) ? strokeOp(m, i) : null)).filter((op) => op !== null);
-      return strokes.some((a, i) => strokes.slice(i + 1).some((b) => segmentsCross(a, b)));
-    }
+    case 'crossed-seams':
+      return seamsCross(moves, GENERATION.crossingInset);
+    case 'seams-meet':
+      return seamsCross(moves, 0);
     case 'crescent':
       return hasCrescent(reading);
     case 'decoy':

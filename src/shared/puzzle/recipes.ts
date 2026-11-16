@@ -116,9 +116,9 @@ const recipe = (weekday: number, id: string, overrides: Overrides): Recipe => ({
   ...overrides,
 });
 
-/** A special's tier on one weekday: its own rule, from that weekday's band. */
+/** A special's tier on one weekday: its own rule, from that weekday's band (no unannounced twins either). */
 const special = (weekday: number, id: string, kind: SpecialId, overrides: Overrides): Recipe => ({
-  ...recipe(weekday, id, { forbid: [], ...overrides }),
+  ...recipe(weekday, id, overrides),
   special: kind,
 });
 
@@ -162,13 +162,14 @@ export const RECIPES: readonly Recipe[] = [
     promise: 'a round drop over two hidden folds',
     features: ['top-drop', 'two-buried-seams', 'crossed-seams'],
   }),
-  // Crossed seams occur in most two-fold sheets, so only their absence is a recipe.
+  // Crossed seams occur in most two-fold sheets, so only their absence is a recipe: the seams never
+  // meet anywhere on the paper (which also rules out every crossed sibling).
   recipe(3, 'parallel-folds', {
     title: 'Parallel Folds',
     promise: 'two folds that never cross',
     parallel: true,
     features: [],
-    forbid: ['twin-inks', 'crossed-seams'],
+    forbid: ['twin-inks', 'seams-meet'],
   }),
 
   recipe(4, 'false-round', { title: 'False Round', promise: 'a drop that looks round but isn’t', features: ['top-seam', 'decoy'] }),
@@ -239,6 +240,8 @@ export const RECIPES: readonly Recipe[] = [
     promise: 'a rest day: six drops, nothing else',
     moves: [6, 6],
     strokes: [0, 0],
+    // Four inks for six drops: fewer same-ink pairs to fall side by side as unannounced twins.
+    inks: 4,
     features: ['ink-only'],
   }),
   // Three folds lie outside every weekday band, so it never duplicates an ordinary recipe.
