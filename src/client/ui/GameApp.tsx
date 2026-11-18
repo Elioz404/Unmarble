@@ -131,6 +131,7 @@ const practiceResponse = (sheet: SheetDescriptor, meta: DailyMeta | null): Sheet
     todayId: meta?.todayId ?? '',
     thread: null,
     yourTrap: null,
+    trapSetToday: false,
     tomorrow: meta?.tomorrow ?? null,
   };
 };

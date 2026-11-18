@@ -211,16 +211,27 @@ test('the maker sees how their trap is doing, and the leader for Sunday is marke
   const published = await services.traps.publish({ playerId: 't2_m', username: 'mossmaker' }, FAIR_TRAP, today, 'unmarble');
   if (published.kind !== 'published') throw new Error('trap not published');
   for (const [i, clean] of [true, true, false].entries()) await solve(services, published.sheet, `t2_p${i}`, clean);
-  assert.deepEqual(await services.traps.catchOf('t2_m', today.dateKey), {
-    sheetId: published.sheet.id,
-    caught: 1,
-    hands: 3,
-    setToday: true,
-  });
-  assert.equal((await services.traps.catchOf('t2_m', addDays(today.dateKey, 1)))?.setToday, false);
+  assert.deepEqual(await services.traps.catchOf('t2_m', today.dateKey), { sheetId: published.sheet.id, caught: 1, hands: 3 });
   assert.equal(await services.traps.catchOf('t2_p0', today.dateKey), null);
   const book = await services.book.forPlayer('t2_reader');
   assert.equal(book.traps[0]?.inTheRunning, true);
+  assert.equal(book.traps[0]?.mine, false, 'someone else’s trap');
+  assert.equal((await services.book.forPlayer('t2_m')).traps[0]?.mine, true, 'the maker’s own, however old');
+  assert.ok((await services.book.forPlayer('t2_m')).dailies.every((entry) => !entry.mine));
+});
+
+test('today’s trap is spent by the claim, so one taken down since still counts', async () => {
+  const { services, today } = await setup('2026-12-03T15:00:00Z');
+  assert.equal(await services.traps.claimedOn('t2_m', today.dateKey), false);
+  const published = await services.traps.publish({ playerId: 't2_m', username: 'mossmaker' }, FAIR_TRAP, today, 'unmarble');
+  if (published.kind !== 'published') throw new Error('trap not published');
+  assert.equal(await services.traps.claimedOn('t2_m', today.dateKey), true);
+  assert.equal(await services.traps.claimedOn('t2_m', addDays(today.dateKey, 1)), false, 'a new day, a new trap');
+  await services.traps.erase(published.sheet.id);
+  assert.equal(await services.traps.catchOf('t2_m', today.dateKey), null);
+  assert.equal(await services.traps.claimedOn('t2_m', today.dateKey), true);
+  const again = await services.traps.publish({ playerId: 't2_m', username: 'mossmaker' }, FAIR_TRAP, today, 'unmarble');
+  assert.deepEqual(again, { kind: 'rejected', reason: 'daily-limit' });
 });
 
 test('a sheet’s thread is its post, and names are gathered only while naming is open', async () => {

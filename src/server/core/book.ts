@@ -33,13 +33,21 @@ export class BookService {
     const dailies = (await Promise.all(dailyIds.map((id) => this.#sheets.byId(id)))).filter((s) => s !== null);
     const [traps, leader] = await Promise.all([this.#traps.recent(BOOK.traps), this.#traps.leaderFor(today)]);
     return {
-      dailies: await Promise.all(dailies.map((sheet) => this.#entry(sheet, playerId, false))),
-      traps: await Promise.all(traps.map((sheet) => this.#entry(sheet, playerId, sheet.id === leader?.id))),
+      dailies: await Promise.all(dailies.map((sheet) => this.#entry(sheet, playerId, false, false))),
+      traps: await Promise.all(
+        traps.map(async (sheet) =>
+          this.#entry(sheet, playerId, sheet.id === leader?.id, await this.#isMaker(sheet.id, playerId)),
+        ),
+      ),
     };
   }
 
-  async #entry(sheet: SheetDescriptor, playerId: string | null, inTheRunning: boolean): Promise<BookEntry> {
+  async #isMaker(trapId: string, playerId: string | null): Promise<boolean> {
+    return playerId !== null && (await this.#traps.makerOf(trapId)) === playerId;
+  }
+
+  async #entry(sheet: SheetDescriptor, playerId: string | null, inTheRunning: boolean, mine: boolean): Promise<BookEntry> {
     const [status, stats] = await Promise.all([this.#attempts.statusOf(sheet.id, playerId), this.#attempts.stats(sheet.id)]);
-    return { sheet, status, stats, inTheRunning };
+    return { sheet, status, stats, inTheRunning, mine };
   }
 }

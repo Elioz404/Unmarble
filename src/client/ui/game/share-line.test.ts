@@ -1,9 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Move } from '../puzzle/moves.ts';
-import type { SheetSpec } from '../puzzle/sheet.ts';
-import { CLEAN_SEAL, shareLine, type ShareHeading } from './scoring.ts';
-import { applyAction, startSession, type PlayerAction } from './session.ts';
+import { applyAction, startSession, type PlayerAction } from '../../../shared/game/session.ts';
+import type { Move } from '../../../shared/puzzle/moves.ts';
+import type { SheetSpec } from '../../../shared/puzzle/sheet.ts';
+import { buildDailySheet } from '../../../shared/puzzle/daily.ts';
+import type { SheetDescriptor } from '../../../shared/protocol/api.ts';
+import { COPY } from '../copy.ts';
+import { shareHeadingOf, shareLine, type ShareHeading } from './share-line.ts';
+
+const SEAL = COPY.result.shareText.seal;
 
 const MOVES: Move[] = [
   { kind: 'drop', x: 5, y: 8, size: 'L', ink: 0 },
@@ -33,18 +38,32 @@ test('a share line names the sheet, its marks, and where it is played, in three 
 });
 
 test('a clean sheet with no tear and no Lens earns the seal; the Lens or a tear withholds it', () => {
-  assert.equal(shareLine(DAILY, play(CLEAN_READING)).split('\n')[2], `${CLEAN_SEAL} · 1:22 · r/UnmarbleGame`);
+  assert.equal(shareLine(DAILY, play(CLEAN_READING)).split('\n')[2], `${SEAL} · 1:22 · r/UnmarbleGame`);
   const magnified = shareLine(DAILY, play([{ type: 'magnify' }, ...CLEAN_READING])).split('\n');
   assert.deepEqual(magnified.slice(1), ['●●● ◐', 'clean · 1:23 · r/UnmarbleGame']);
-  assert.doesNotMatch(shareLine(DAILY, play([{ type: 'absorb', move: 0 }, ...CLEAN_READING])), new RegExp(CLEAN_SEAL));
+  assert.ok(!shareLine(DAILY, play([{ type: 'absorb', move: 0 }, ...CLEAN_READING])).includes(SEAL));
 });
 
 test('without a title or a community, the line leaves them out rather than leaving gaps', () => {
   const lines = shareLine({ heading: '· a trap by u/mossmaker', title: null, stars: 3, community: null }, play(CLEAN_READING));
-  assert.deepEqual(lines.split('\n'), ['UNMARBLE · a trap by u/mossmaker ★★★', '●●●', `${CLEAN_SEAL} · 1:22`]);
+  assert.deepEqual(lines.split('\n'), ['UNMARBLE · a trap by u/mossmaker ★★★', '●●●', `${SEAL} · 1:22`]);
 });
 
 test('a share line is spoiler-free: it never names a kind of move', () => {
   const line = shareLine({ ...DAILY, title: null }, play([{ type: 'absorb', move: 1 }, ...CLEAN_READING]));
   assert.doesNotMatch(line, /drop|fold|stroke|swirl/i);
+});
+
+test('a sheet heads its share line by number and day, a trap by its maker, and by its community name first', () => {
+  const daily = buildDailySheet('2026-12-03', 'seed', 'calendar', '2026-11-25');
+  assert.equal(shareHeadingOf(daily, 'unmarble').heading, `No.${daily.number} · ${daily.weekday}`);
+  assert.equal(shareHeadingOf(daily, null).title, daily.recipe?.title ?? null);
+  assert.equal(shareHeadingOf({ ...daily, name: 'Peacock Eye' }, null).title, '“Peacock Eye”');
+  const trap: SheetDescriptor = { ...daily, id: 'trap-1', kind: 'trap', author: 'mossmaker', recipe: null };
+  assert.deepEqual(shareHeadingOf(trap, 'unmarble'), {
+    heading: '· a trap by u/mossmaker',
+    title: null,
+    stars: trap.spec.stars,
+    community: 'unmarble',
+  });
 });

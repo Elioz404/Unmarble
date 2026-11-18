@@ -94,8 +94,6 @@ export type TrapCatch = {
   readonly sheetId: string;
   readonly caught: number;
   readonly hands: number;
-  /** Whether it was set on today's paper: a player sets one trap a day. */
-  readonly setToday: boolean;
 };
 
 export type SheetResponse = {
@@ -112,6 +110,8 @@ export type SheetResponse = {
   readonly thread: SheetThread | null;
   /** The trap this player set most recently (within a week), if any. */
   readonly yourTrap: TrapCatch | null;
+  /** Whether the player has claimed today's trap: one a day, even if that trap has since been taken down. */
+  readonly trapSetToday: boolean;
   /** What tomorrow's sheet will ask; null from a server that does not announce it. */
   readonly tomorrow: DayPreview | null;
 };
@@ -158,6 +158,8 @@ export type BookEntry = {
   readonly stats: SheetStats;
   /** A trap currently set to become next Sunday's sheet. */
   readonly inTheRunning: boolean;
+  /** Whether the player made this trap themselves (never true of a daily). */
+  readonly mine: boolean;
 };
 
 /** The Book: past daily sheets and recent traps, newest first. */

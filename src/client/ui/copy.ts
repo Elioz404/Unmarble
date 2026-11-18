@@ -91,9 +91,25 @@ export const COPY = Object.freeze({
     tomorrowPromise: (promise: string) => `: ${promise}.`,
     share: 'Share result',
     shared: 'Ready to share',
+    /** Copied, with a way to the thread shown beside it. */
     copied: 'Copied.',
+    /** Copied where no thread can be linked: where it goes is said instead. */
+    copiedNoThread: 'Copied — paste it in the comments',
     /** After copying: a way to the sheet's post. The app never posts for the player. */
     pasteInThread: 'Paste it in the thread',
+    /** The words of a shared result (see share-line.ts): spoiler-free, marks only, never the kinds of moves. */
+    shareText: {
+      brand: 'UNMARBLE',
+      daily: (number: number, weekday: string) => `No.${number} · ${weekday}`,
+      trap: (author: string) => `· a trap by u/${author}`,
+      practice: (label: string) => `· ${label}`,
+      torn: 'torn',
+      clean: 'clean',
+      tears: (tears: number) => `${tears} ${tears === 1 ? 'tear' : 'tears'}`,
+      /** Earned by a clean sheet with no tear and no Lens. */
+      seal: '⛨ clean, no Lens',
+      community: (community: string) => `r/${community}`,
+    },
     shareFailed: 'Could not share. Try again.',
     join: (community: string) => `Join r/${community}`,
     /** The one call to act, when someone else's trap is waiting. */

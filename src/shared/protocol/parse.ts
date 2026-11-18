@@ -135,10 +135,12 @@ const parseTrapCatch = (value: unknown): TrapCatch | null | undefined => {
   if (value === null) return null;
   if (!isRecord(value) || typeof value.sheetId !== 'string') return undefined;
   if (typeof value.caught !== 'number' || typeof value.hands !== 'number') return undefined;
-  // A server from before the field sends none: the trap is treated as an earlier day's.
-  if (value.setToday !== undefined && typeof value.setToday !== 'boolean') return undefined;
-  return { sheetId: value.sheetId, caught: value.caught, hands: value.hands, setToday: value.setToday === true };
+  return { sheetId: value.sheetId, caught: value.caught, hands: value.hands };
 };
+
+/** An optional flag: absent (an older peer) reads as `false`; anything but a boolean is malformed. */
+const parseFlag = (value: unknown): boolean | undefined =>
+  value === undefined ? false : typeof value === 'boolean' ? value : undefined;
 
 export const parseSheetResponse = (value: unknown): SheetResponse | null => {
   if (!isRecord(value)) return null;
@@ -154,7 +156,9 @@ export const parseSheetResponse = (value: unknown): SheetResponse | null => {
   const standing = value.standing === null || value.standing === undefined ? null : parseStanding(value.standing);
   const thread = parseThread(value.thread);
   const yourTrap = parseTrapCatch(value.yourTrap);
-  if (thread === undefined || yourTrap === undefined) return null;
+  // A server from before the field sends none: the player reads as not having set today's trap.
+  const trapSetToday = parseFlag(value.trapSetToday);
+  if (thread === undefined || yourTrap === undefined || trapSetToday === undefined) return null;
   // A server from before announcements sends no preview: the client falls back to the weekly template.
   const tomorrow = value.tomorrow === undefined || value.tomorrow === null ? null : parseDayPreview(value.tomorrow);
   if (tomorrow === undefined) return null;
@@ -167,6 +171,7 @@ export const parseSheetResponse = (value: unknown): SheetResponse | null => {
     todayId,
     thread,
     yourTrap,
+    trapSetToday,
     tomorrow,
   };
 };
@@ -192,8 +197,10 @@ const parseBookEntry = (value: unknown): BookEntry | null => {
   const sheet = parseSheetDescriptor(value.sheet);
   const stats = parseStats(value.stats);
   const status = BOOK_STATUSES.find((s) => s === value.status);
-  if (typeof value.inTheRunning !== 'boolean') return null;
-  return sheet && stats && status ? { sheet, stats, status, inTheRunning: value.inTheRunning } : null;
+  // A server from before ownership was marked sends none: the entry reads as someone else's.
+  const mine = parseFlag(value.mine);
+  if (typeof value.inTheRunning !== 'boolean' || mine === undefined) return null;
+  return sheet && stats && status ? { sheet, stats, status, inTheRunning: value.inTheRunning, mine } : null;
 };
 
 const parseBookEntries = (value: unknown): BookEntry[] | null => {

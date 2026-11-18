@@ -13,7 +13,8 @@ const SIGNED_IN: NextStepsInput = {
   community: true,
 };
 
-const all = (steps: ReturnType<typeof nextSteps>) => [steps.primary, ...steps.secondary, ...steps.more, ...steps.quiet];
+const all = (steps: ReturnType<typeof nextSteps>) =>
+  [steps.primary, ...steps.secondary, ...steps.more, ...steps.quiet].filter((step) => step !== null);
 
 test('someone else’s trap comes first, with setting one’s own still in sight', () => {
   const steps = nextSteps({ ...SIGNED_IN, trapToSpring: true });
@@ -50,32 +51,44 @@ test('after a trap there is no flair; without a post or a subreddit, neither is 
   assert.deepEqual(steps.quiet, []);
 });
 
-test('every step appears once, and there is always exactly one primary', () => {
+test('while the Book is still being read, no call to act is offered, so none can change under a finger', () => {
+  for (const signedIn of [true, false]) {
+    const steps = nextSteps({ ...SIGNED_IN, signedIn, trapToSpring: null });
+    assert.equal(steps.primary, null);
+    assert.deepEqual(steps.secondary, []);
+    assert.ok(steps.more.includes('book'), 'the Book stays a tap away meanwhile');
+  }
+});
+
+test('every step appears once, and once the Book is read there is always exactly one primary', () => {
   for (const signedIn of [true, false])
     for (const trap of [true, false])
       for (const setToday of [true, false]) {
-        const steps = all(nextSteps({ ...SIGNED_IN, signedIn, trapToSpring: trap, trapSetToday: setToday }));
+        const next = nextSteps({ ...SIGNED_IN, signedIn, trapToSpring: trap, trapSetToday: setToday });
+        assert.notEqual(next.primary, null);
+        const steps = all(next);
         assert.equal(new Set(steps).size, steps.length, steps.join());
       }
 });
 
 const SHEET = buildDailySheet('2026-12-03', 'seed', 'calendar', '2026-11-25');
-const trap = (id: string, author: string, status: BookStatus = 'unplayed'): BookEntry => ({
+const trap = (id: string, author: string, status: BookStatus = 'unplayed', mine = false): BookEntry => ({
   sheet: { ...SHEET, id, kind: 'trap', author, recipe: null } satisfies SheetDescriptor,
   status,
   stats: { hands: 0, cleans: 0, caught: 0 },
   inTheRunning: false,
+  mine,
 });
 
 test('the trap to spring is the newest untried one, never the sheet just played', () => {
   const traps = [trap('t3', 'reed', 'clean'), trap('t2', 'moss'), trap('t1', 'fern')];
-  assert.equal(trapToSpring(traps, 'daily', null)?.id, 't2');
-  assert.equal(trapToSpring(traps, 't2', null)?.id, 't1');
-  assert.equal(trapToSpring([trap('t3', 'reed', 'playing')], 'daily', null), null);
+  assert.equal(trapToSpring(traps, 'daily')?.id, 't2');
+  assert.equal(trapToSpring(traps, 't2')?.id, 't1');
+  assert.equal(trapToSpring([trap('t3', 'reed', 'playing')], 'daily'), null);
 });
 
-test('the player’s own traps are never offered, even older ones', () => {
-  const traps = [trap('mine-new', 'me', 'clean'), trap('mine-old', 'me'), trap('t1', 'fern')];
-  assert.equal(trapToSpring(traps, 'daily', 'mine-new')?.id, 't1');
-  assert.equal(trapToSpring([trap('mine-new', 'me')], 'daily', 'mine-new'), null);
+test('the player’s own traps are never offered, however old', () => {
+  const traps = [trap('mine-new', 'me', 'clean', true), trap('mine-old', 'me', 'unplayed', true), trap('t1', 'fern')];
+  assert.equal(trapToSpring(traps, 'daily')?.id, 't1');
+  assert.equal(trapToSpring([trap('mine-old', 'me', 'unplayed', true)], 'daily'), null);
 });

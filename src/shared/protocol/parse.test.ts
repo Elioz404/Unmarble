@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildDailySheet, dayPreview } from '../puzzle/daily.ts';
 import { recipeById, recipeTag } from '../puzzle/recipes.ts';
 import type { SheetResponse } from './api.ts';
-import { parseSheetResponse } from './parse.ts';
+import { parseBookResponse, parseSheetResponse } from './parse.ts';
 import { parseDayPreview, parsePostBinding, parseSheetDescriptor } from './post-data.ts';
 
 const SHEET = buildDailySheet('2026-12-03', 'seed', 'calendar', '2026-11-25');
@@ -25,6 +25,7 @@ const RESPONSE: SheetResponse = {
   todayId: SHEET.id,
   thread: null,
   yourTrap: null,
+  trapSetToday: false,
   tomorrow: dayPreview('calendar', '2026-12-04'),
 };
 
@@ -60,12 +61,17 @@ test('tomorrow’s preview parses, and an old server without one is still unders
   assert.equal(parseSheetResponse(roundTrip(without(RESPONSE, 'tomorrow')))?.tomorrow, null);
 });
 
-test('the player’s trap says whether it was set today, and an old server’s reads as an earlier day’s', () => {
-  const yourTrap = { sheetId: 'trap-1', caught: 1, hands: 3, setToday: true };
-  assert.deepEqual(parseSheetResponse(roundTrip({ ...RESPONSE, yourTrap }))?.yourTrap, yourTrap);
-  const old = parseSheetResponse(roundTrip({ ...RESPONSE, yourTrap: without(yourTrap, 'setToday') }));
-  assert.equal(old?.yourTrap?.setToday, false);
-  assert.equal(parseSheetResponse(roundTrip({ ...RESPONSE, yourTrap: { ...yourTrap, setToday: 'yes' } })), null);
+test('the response says whether today’s trap is spent, and an old server’s reads as not yet', () => {
+  assert.equal(parseSheetResponse(roundTrip({ ...RESPONSE, trapSetToday: true }))?.trapSetToday, true);
+  assert.equal(parseSheetResponse(roundTrip(without(RESPONSE, 'trapSetToday')))?.trapSetToday, false);
+  assert.equal(parseSheetResponse(roundTrip({ ...RESPONSE, trapSetToday: 'yes' })), null);
+});
+
+test('a Book entry says whether it is the player’s own, and an old server’s reads as someone else’s', () => {
+  const entry = { sheet: SHEET, status: 'unplayed', stats: RESPONSE.stats, inTheRunning: false, mine: true };
+  assert.equal(parseBookResponse(roundTrip({ dailies: [], traps: [entry] }))?.traps[0]?.mine, true);
+  assert.equal(parseBookResponse(roundTrip({ dailies: [], traps: [without(entry, 'mine')] }))?.traps[0]?.mine, false);
+  assert.equal(parseBookResponse(roundTrip({ dailies: [], traps: [{ ...entry, mine: 1 }] })), null);
 });
 
 test('a malformed preview is rejected', () => {

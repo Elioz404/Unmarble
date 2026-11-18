@@ -151,7 +151,7 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
     const latest = [...traps()].reverse().find((trap) => trap.dateKey >= weekAgo && trap.dateKey <= today);
     if (!latest) return null;
     const stats = statsOf(latest);
-    return { sheetId: latest.id, caught: stats.caught, hands: stats.hands, setToday: latest.dateKey === today };
+    return { sheetId: latest.id, caught: stats.caught, hands: stats.hands };
   };
 
   return {
@@ -169,6 +169,7 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
         // The lab has no Reddit posts to discuss sheets in.
         thread: null,
         yourTrap: latestTrapCatch(),
+        trapSetToday: traps().some((trap) => trap.dateKey === today),
         tomorrow: dayPreview(LAB_CALENDAR, addDays(today, 1)),
       };
     },
@@ -193,8 +194,14 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
       return { points, trap: null, hands: 1 };
     },
     loadBook: async (): Promise<BookResponse> => {
-      // Alone in the lab, no trap can gather the hands it takes to be featured.
-      const entry = (sheet: SheetDescriptor) => ({ sheet, status: statusOf(sheet), stats: statsOf(sheet), inTheRunning: false });
+      // Alone in the lab, no trap can gather the hands it takes to be featured, and every trap is the lab player's own.
+      const entry = (sheet: SheetDescriptor) => ({
+        sheet,
+        status: statusOf(sheet),
+        stats: statsOf(sheet),
+        inTheRunning: false,
+        mine: sheet.kind === 'trap',
+      });
       return {
         dailies: Array.from({ length: LAB_BOOK_DAYS }, (_, back) => entry(daily(addDays(today, -back)))),
         traps: [...traps()].reverse().map(entry),

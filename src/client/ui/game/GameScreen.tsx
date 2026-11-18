@@ -218,8 +218,8 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
 
   // Once finished: where everyone tore it, and a trap to try next. A practice sheet has neither.
   const finished = currentLesson === null && view.settled;
-  const yourTrapId = response.yourTrap?.sheetId ?? null;
-  const [nextTrap, setNextTrap] = useState<SheetDescriptor | null>(null);
+  // Undefined while the Book is being read: the card holds its call to act until this settles, once.
+  const [nextTrap, setNextTrap] = useState<SheetDescriptor | null | undefined>(undefined);
   const [scars, setScars] = useState<ScarMap | null>(null);
   useEffect(() => {
     if (!finished) return;
@@ -240,17 +240,23 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
       controller.showCommunityScars(map);
       setScars(map);
     });
+    // The first of the Book's answer, its failure or the wait running out settles the trap to offer.
+    let settled = false;
+    const settle = (trap: SheetDescriptor | null): void => {
+      if (cancelled || settled) return;
+      settled = true;
+      setNextTrap(trap);
+    };
+    const wait = window.setTimeout(() => settle(null), TIMING.bookWaitMs);
     platform
       .loadBook()
-      .then((book) => {
-        if (cancelled) return;
-        setNextTrap(trapToSpring(book.traps, sheet.id, yourTrapId));
-      })
-      .catch(() => undefined);
+      .then((book) => settle(trapToSpring(book.traps, sheet.id)))
+      .catch(() => settle(null));
     return () => {
       cancelled = true;
+      window.clearTimeout(wait);
     };
-  }, [finished, platform, sheet.kind, sheet.id, yourTrapId, controller]);
+  }, [finished, platform, sheet.kind, sheet.id, controller]);
 
   // A newcomer facing a hard sheet is offered an easier one from the Book first.
   const untouched = response.player.log.length === 0 && view.remaining === view.total && view.blots === 0;
@@ -394,6 +400,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           apprentice={controller.apprentice}
           thread={response.thread}
           yourTrap={response.yourTrap}
+          trapSetToday={response.trapSetToday}
           nextTrap={nextTrap}
           nextSheetAt={response.nextSheetAt}
           tomorrow={response.tomorrow}

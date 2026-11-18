@@ -225,6 +225,11 @@ export const TIMING = Object.freeze({
   replayStepMs: 700,
   /** A clean sheet re-marbles faster than a torn one: a flourish, not a lesson. */
   cleanReplayStepMs: 300,
+  /**
+   * How long the result card holds its call to act for the Book (to find a
+   * trap to spring); past this, it settles without one and keeps it so.
+   */
+  bookWaitMs: 2500,
 });
 
 export const ONBOARDING = Object.freeze({

@@ -143,9 +143,22 @@ export class TrapService {
       const trapId = await this.#store.hGet(keys.trapsSetOn(addDays(today, -back)), playerId);
       if (!trapId || !(await this.byId(trapId))) continue;
       const stats = await this.#attempts.stats(trapId);
-      return { sheetId: trapId, caught: stats.caught, hands: stats.hands, setToday: back === 0 };
+      return { sheetId: trapId, caught: stats.caught, hands: stats.hands };
     }
     return null;
+  }
+
+  /**
+   * Whether the player has claimed `day`'s trap: the claim, not the trap, is
+   * the one-a-day limit, so a trap taken down since still counts.
+   */
+  async claimedOn(playerId: string, day: DateKey): Promise<boolean> {
+    return (await this.#store.hGet(keys.trapsSetOn(day), playerId)) !== undefined;
+  }
+
+  /** The player id of the trap's maker, or null if it is not known. */
+  async makerOf(trapId: string): Promise<string | null> {
+    return (await this.#store.hGet(keys.trapMeta(trapId), 'maker')) ?? null;
   }
 
   /** The trap that would become next Sunday's sheet if the week ended now. */

@@ -43,12 +43,13 @@ api.get('/sheet', async (c) => {
   if (!sheet) return c.json<ErrorResponse>({ error: 'Unknown sheet' }, 404);
   const player = playerId();
   const today = services.sheets.today();
-  const [view, stats, standing, thread, yourTrap, tomorrow] = await Promise.all([
+  const [view, stats, standing, thread, yourTrap, trapSetToday, tomorrow] = await Promise.all([
     services.attempts.playerView(sheet.id, player),
     services.attempts.stats(sheet.id),
     player ? services.attempts.standing(sheet, player) : Promise.resolve(null),
     services.threadOf(sheet, context.subredditName),
     context.userId ? services.traps.catchOf(context.userId, today) : Promise.resolve(null),
+    context.userId ? services.traps.claimedOn(context.userId, today) : Promise.resolve(false),
     services.sheets.tomorrow(),
   ]);
   const now = Date.now();
@@ -61,6 +62,7 @@ api.get('/sheet', async (c) => {
     todayId: dailySheetId(today),
     thread,
     yourTrap,
+    trapSetToday,
     tomorrow,
   });
 });

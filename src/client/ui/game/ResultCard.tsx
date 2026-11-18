@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { COMMUNITY } from '../../../shared/config.ts';
 import type { ApprenticeRun } from '../../../shared/game/apprentice.ts';
-import { isPerfect, shareLine, type ShareHeading } from '../../../shared/game/scoring.ts';
+import { isPerfect } from '../../../shared/game/scoring.ts';
 import type { SessionState } from '../../../shared/game/session.ts';
 import type {
   DayPreview,
@@ -24,6 +24,7 @@ import { deckle, Fillet, Fleuron, Seal, ToolStars } from '../ornaments.tsx';
 import { apprenticeLine } from './apprentice-line.ts';
 import { Numero, RecipeTitle } from './Chrome.tsx';
 import { nextSteps, type CallStep, type LinkStep } from './next-steps.ts';
+import { shareHeadingOf, shareLine } from './share-line.ts';
 import './result-card.css';
 
 type Props = {
@@ -39,8 +40,10 @@ type Props = {
   readonly thread: SheetThread | null;
   /** How the player's latest trap is doing. */
   readonly yourTrap: TrapCatch | null;
-  /** Someone else's trap this player has not tried yet, offered as the next step. */
-  readonly nextTrap: SheetDescriptor | null;
+  /** Whether the player has already set today's trap (one a day). */
+  readonly trapSetToday: boolean;
+  /** Someone else's trap this player has not tried yet, offered as the next step; undefined while the Book is read. */
+  readonly nextTrap: SheetDescriptor | null | undefined;
   /** When the next daily sheet appears (server time, ms). */
   readonly nextSheetAt: number;
   /** What it will ask, as the server announced it (null from a server that does not). */
@@ -96,28 +99,6 @@ const standingLine = (standing: Standing): string =>
   standing.stats.hands < COMMUNITY.quietHands
     ? COPY.result.early(standing.stats.hands)
     : COPY.result.rank(standing.rank, standing.stats.hands);
-
-/** How the sheet names itself when shared: its number, or its maker for a trap. */
-const headingOf = (sheet: SheetDescriptor): string => {
-  switch (sheet.kind) {
-    case 'trap':
-      return `· a trap by u/${sheet.author ?? 'someone'}`;
-    case 'daily':
-      return `No.${sheet.number} · ${sheet.weekday}`;
-    case 'practice':
-      return `· ${COPY.practice.eyebrow}`;
-    default:
-      return assertNever(sheet.kind);
-  }
-};
-
-/** What a shared result says about its sheet: what it goes by, and the subreddit it is played in. */
-const shareHeadingOf = (sheet: SheetDescriptor, community: string | null): ShareHeading => ({
-  heading: headingOf(sheet),
-  title: sheet.name ? COPY.communityName(sheet.name) : (sheet.recipe?.title ?? null),
-  stars: sheet.spec.stars,
-  community,
-});
 
 /** The plate's stamp row: the same seals as the footer's, a size up for the screenshot. */
 const MARK_SIZE = 16;
@@ -211,10 +192,18 @@ const Teaser = ({ preview }: { readonly preview: DayPreview }) => (
   </span>
 );
 
-const SHARE_LABEL: Record<ShareOutcome, string> = {
-  shared: COPY.result.shared,
-  copied: COPY.result.copied,
-  failed: COPY.result.shareFailed,
+/** What the note says once sharing is done; a copy says where to paste it unless a link to the thread is shown. */
+const shareLabel = (outcome: ShareOutcome, thread: boolean): string => {
+  switch (outcome) {
+    case 'shared':
+      return COPY.result.shared;
+    case 'copied':
+      return thread ? COPY.result.copied : COPY.result.copiedNoThread;
+    case 'failed':
+      return COPY.result.shareFailed;
+    default:
+      return assertNever(outcome);
+  }
 };
 
 /** The Apprentice's marks are a size down from the player's: theirs is the result, this a reference. */
@@ -315,6 +304,7 @@ type SheetNextProps = Pick<
   | 'player'
   | 'thread'
   | 'yourTrap'
+  | 'trapSetToday'
   | 'nextTrap'
   | 'community'
   | 'onShare'
@@ -343,6 +333,7 @@ const SheetNext = ({
   player,
   thread,
   yourTrap,
+  trapSetToday,
   nextTrap,
   community,
   onShare,
@@ -361,8 +352,8 @@ const SheetNext = ({
   const steps = nextSteps({
     sheetKind: kind,
     signedIn: player.signedIn,
-    trapToSpring: nextTrap !== null,
-    trapSetToday: yourTrap?.setToday ?? false,
+    trapToSpring: nextTrap === undefined ? null : nextTrap !== null,
+    trapSetToday,
     thread: thread !== null,
     community: community !== null,
   });
@@ -469,7 +460,14 @@ const SheetNext = ({
   return (
     <>
       <div className="result__primary">
-        <div className="actions">{button(steps.primary, true)}</div>
+        <div className="actions">
+          {steps.primary ? (
+            button(steps.primary, true)
+          ) : (
+            // The call to act's place, kept while the Book is read so nothing shifts or changes under a finger.
+            <span className="button button--primary result__pending" aria-hidden />
+          )}
+        </div>
         <div className="actions">
           <button type="button" className="button" onClick={() => void share()}>
             {shared === 'shared' || shared === 'copied' ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
@@ -478,7 +476,7 @@ const SheetNext = ({
           {steps.secondary.map((step) => button(step, false))}
         </div>
         <p className="result__note" role="status">
-          {shared ? SHARE_LABEL[shared] : isMixedSunday(sheet) ? COPY.trap.noneQualified : COPY.book.sundayRule}
+          {shared ? shareLabel(shared, thread !== null) : isMixedSunday(sheet) ? COPY.trap.noneQualified : COPY.book.sundayRule}
         </p>
         {shared === 'copied' && thread ? (
           <button type="button" className="result__link result__paste" onClick={() => onOpenThread(thread.url)}>
@@ -519,6 +517,7 @@ export const ResultCard = ({
   apprentice,
   thread,
   yourTrap,
+  trapSetToday,
   nextTrap,
   nextSheetAt,
   tomorrow,
@@ -619,6 +618,7 @@ export const ResultCard = ({
                   player={player}
                   thread={thread}
                   yourTrap={yourTrap}
+                  trapSetToday={trapSetToday}
                   nextTrap={nextTrap}
                   community={community}
                   onShare={onShare}
