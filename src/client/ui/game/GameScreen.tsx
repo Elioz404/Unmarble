@@ -22,6 +22,8 @@ import './game-screen.css';
 
 export type GameNavigation = {
   readonly openBook: () => void;
+  /** The Book, open on its traps shelf. */
+  readonly openTraps: () => void;
   readonly compose: () => void;
   readonly play: (sheetId: string) => void;
   /** Today's daily sheet. */
@@ -275,7 +277,8 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
   const offerWarmUp = wantsWarmUp && !warmUpDismissed ? warmUp : null;
 
   // The reading guide opens only while the clock has nothing to answer for: before the first move, or once done.
-  const guideAvailable = finished || (view.untouched && view.status === 'playing' && !view.busy);
+  // (An untouched sheet is never busy: every animation follows a recorded move.)
+  const guideAvailable = finished || (view.untouched && view.status === 'playing');
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideNoted, setGuideNoted] = useState(false);
   const guideButton = useRef<HTMLButtonElement>(null);

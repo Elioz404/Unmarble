@@ -15,6 +15,7 @@ import './reading-guide.css';
 /** Where the guide's map leads: the screens it can open, and the sheet's own thread. */
 export type GuideActions = {
   readonly openBook: () => void;
+  readonly openTraps: () => void;
   readonly compose: () => void;
   readonly pickPractice: () => void;
 };
@@ -39,17 +40,26 @@ const REPLY_COPY: Record<Exclude<Reply, null>, string> = {
 };
 
 /**
+ * Each lesson's title: its reading, numbered when that reading has more
+ * than one lesson, so no two specimens share a heading or a spoken name.
+ */
+const SPECIMENS: readonly { readonly lesson: Lesson; readonly title: string }[] = LESSONS.map((lesson) => {
+  const reading = COPY.guide.readings[lesson.teaches];
+  const siblings = LESSONS.filter((other) => other.teaches === lesson.teaches);
+  return { lesson, title: siblings.length > 1 ? COPY.guide.numbered(reading, siblings.indexOf(lesson) + 1) : reading };
+});
+
+/**
  * One lesson as a live specimen: the same sheet, the same ghost finger,
  * read by the same rules, but nothing tears and nothing is kept. Undo it
  * to bare water, then lay it out again.
  */
-const LessonSpecimen = ({ lesson }: { readonly lesson: Lesson }) => {
+const LessonSpecimen = ({ lesson, title }: { readonly lesson: Lesson; readonly title: string }) => {
   const sheetRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const playerRef = useRef<SpecimenPlayer | null>(null);
   const [reply, setReply] = useState<Reply>(null);
-  const reading = COPY.guide.readings[lesson.teaches];
 
   useEffect(() => {
     const sheet = sheetRef.current;
@@ -99,13 +109,13 @@ const LessonSpecimen = ({ lesson }: { readonly lesson: Lesson }) => {
   return (
     <li className="guide__lesson">
       <span className="guide__mount">
-        <div ref={sheetRef} className="guide__sheet" role="img" aria-label={COPY.guide.specimen(reading)}>
+        <div ref={sheetRef} className="guide__sheet" role="img" aria-label={COPY.guide.specimen(title)}>
           <canvas ref={canvasRef} className="guide__canvas" />
           <canvas ref={overlayRef} className="guide__canvas" />
         </div>
       </span>
       <div className="guide__lesson-text">
-        <h4 className="guide__reading label">{reading}</h4>
+        <h4 className="guide__reading label">{title}</h4>
         <p className="guide__prompt">{lesson.prompt}</p>
         <p className="guide__reply" data-reply={reply ?? undefined} aria-live="polite">
           {reply ? REPLY_COPY[reply] : null}
@@ -152,7 +162,7 @@ export const ReadingGuide = ({ actions, namingThread, onOpenThread, onClose }: P
   const here = COPY.guide.here;
   const destinations: readonly Destination[] = [
     { key: 'trap', copy: here.trap, go: actions.compose },
-    { key: 'sunday', copy: here.sunday, go: actions.openBook },
+    { key: 'sunday', copy: here.sunday, go: actions.openTraps },
     { key: 'name', copy: here.name, go: namingThread ? () => onOpenThread(namingThread.url) : null },
     { key: 'book', copy: here.book, go: actions.openBook },
     { key: 'practice', copy: here.practice, go: actions.pickPractice },
@@ -163,7 +173,7 @@ export const ReadingGuide = ({ actions, namingThread, onOpenThread, onClose }: P
       <div className="guide__page">
         <header className="guide__header">
           <div className="plaque">
-            <p className="plaque__wordmark label">{COPY.guide.eyebrow}</p>
+            <p className="plaque__wordmark label">{COPY.wordmark}</p>
             <h2 id={titleId} className="plaque__title">
               <span className="plaque__day">{COPY.guide.title}</span>
             </h2>
@@ -180,8 +190,8 @@ export const ReadingGuide = ({ actions, namingThread, onOpenThread, onClose }: P
             {COPY.guide.readingsHead}
           </h3>
           <ol className="guide__lessons">
-            {LESSONS.map((lesson) => (
-              <LessonSpecimen key={lesson.id} lesson={lesson} />
+            {SPECIMENS.map(({ lesson, title }) => (
+              <LessonSpecimen key={lesson.id} lesson={lesson} title={title} />
             ))}
           </ol>
           <p className="guide__exact">{COPY.guide.exact}</p>

@@ -7,7 +7,7 @@ import { practiceShelf, type PracticeChoice } from '../game/practice-shelf.ts';
 import { assertNever } from '../lib/assert-never.ts';
 import { localPrefs } from '../lib/local-prefs.ts';
 import type { Platform } from '../platform/platform.ts';
-import { BookScreen } from './book/BookScreen.tsx';
+import { BookScreen, type BookShelf } from './book/BookScreen.tsx';
 import { COPY } from './copy.ts';
 import { ComposerScreen } from './compose/ComposerScreen.tsx';
 import { GameScreen, type GameNavigation } from './game/GameScreen.tsx';
@@ -18,7 +18,7 @@ import { StatusScreen } from './StatusScreen.tsx';
 type Route =
   /** A sheet: the post's own (null) or one picked from the Book. */
   | { readonly screen: 'sheet'; readonly sheetId: string | null }
-  | { readonly screen: 'book' }
+  | { readonly screen: 'book'; readonly shelf: BookShelf }
   /** Setting a trap on today's paper. */
   | { readonly screen: 'compose' }
   /** Choosing a practice sheet, opened on a choice (the last one) or on the player's usual difficulty. */
@@ -176,7 +176,8 @@ export const GameApp = ({ platform, practice = null }: Props) => {
   const practiceChoice = route.screen === 'practice' ? route.choice : null;
   const navigation = useMemo<GameNavigation>(
     () => ({
-      openBook: () => go({ screen: 'book' }),
+      openBook: () => go({ screen: 'book', shelf: 'dailies' }),
+      openTraps: () => go({ screen: 'book', shelf: 'traps' }),
       compose: () => go({ screen: 'compose' }),
       play: (sheetId: string) => go({ screen: 'sheet', sheetId }),
       today: () => (meta ? go({ screen: 'sheet', sheetId: meta.todayId }) : home()),
@@ -222,6 +223,7 @@ export const GameApp = ({ platform, practice = null }: Props) => {
           onPlay={navigation.play}
           onCompose={navigation.compose}
           onPractice={navigation.pickPractice}
+          initialShelf={route.shelf}
         />
       );
     case 'practice-pick':

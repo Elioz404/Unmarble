@@ -4,6 +4,9 @@ import type { Reading } from '../../shared/puzzle/tutorial.ts';
 
 const FORM_NAMES: Record<MoveKind, string> = { drop: 'drop', stroke: 'fold', swirl: 'swirl' };
 
+/** How Sunday's trap is chosen, said the same wherever it is said. */
+const SUNDAY_RULE = 'The week’s most-played trap becomes Sunday’s sheet, if enough signed-in players tried it and it is neither too easy nor too hard.';
+
 /**
  * Every word the player reads, in one place. Written by hand, kept short:
  * one line per moment, never a wall of text.
@@ -104,7 +107,7 @@ export const COPY = Object.freeze({
     noTraps: 'No traps yet. Set the first one on today’s paper.',
     beFirst: 'No hands yet — be the first',
     inTheRunning: 'In the running for Sunday',
-    sundayRule: 'The week’s best fair trap becomes Sunday’s sheet.',
+    sundayRule: SUNDAY_RULE,
     label: 'Book',
     hands: (n: number) => `${n} ${n === 1 ? 'hand' : 'hands'}`,
     status: { unplayed: 'Not played', playing: 'In progress', clean: 'Clean', torn: 'Torn' },
@@ -133,7 +136,7 @@ export const COPY = Object.freeze({
     signIn: 'Sign in to set traps',
     publishing: 'Setting…',
     published: 'Your trap is set.',
-    publishedNote: 'Everyone in the subreddit can now try it. Its post keeps count of who it catches, and the week’s best fair trap becomes Sunday’s sheet.',
+    publishedNote: `Everyone in the subreddit can now try it. Its post keeps count of who it catches. ${SUNDAY_RULE}`,
     seePost: 'See it in the feed',
     backToSheet: 'Back to today’s sheet',
     ready: (stars: number, moves: number) => `Fair. ${'★'.repeat(stars)} · ${moves} moves — ready to set.`,
@@ -209,13 +212,14 @@ export const COPY = Object.freeze({
     open: 'Reading guide',
     /** Why the "?" waits: it opens only while the clock has nothing to answer for. */
     unavailable: 'The guide opens before your first move, or once the sheet is done.',
-    eyebrow: 'Unmarble',
     title: 'Reading guide',
     rule: 'Every sheet is read backwards: undo the move that came last, then the one before it, until the stripes run straight.',
     readingsHead: 'The readings',
     readings: { drop: 'Drops', stroke: 'Folds', swirl: 'Swirls', twins: 'Twins' } satisfies Record<Reading, string>,
+    /** A specimen's title when its reading has more than one lesson: "Drops, 2". */
+    numbered: (reading: string, n: number) => `${reading}, ${n}`,
     /** How each specimen is read aloud: "Specimen: Folds". */
-    specimen: (reading: string) => `Specimen: ${reading}`,
+    specimen: (title: string) => `Specimen: ${title}`,
     right: 'Undone.',
     solved: 'Bare water again.',
     wrong: 'Not that one: something came after it.',
@@ -231,12 +235,12 @@ export const COPY = Object.freeze({
       },
       sunday: {
         title: 'Sunday’s trap',
-        note: 'The week’s best fair trap becomes Sunday’s sheet, credited to its maker. The Book marks the one in the running.',
+        note: `${SUNDAY_RULE} It is credited to its maker, and the Book marks the one in the running.`,
         action: 'See the traps',
       },
       name: {
         title: 'Name the sheet',
-        note: 'Each daily post’s pinned comment asks what the sheet looks like. The best-voted reply of up to three words names it.',
+        note: 'Each daily post’s pinned comment asks what the sheet looks like. Once it has enough upvotes, the best-voted reply of up to three words names it.',
         action: 'Open the thread',
       },
       book: {

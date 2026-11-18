@@ -11,7 +11,8 @@ import { StatusScreen } from '../StatusScreen.tsx';
 import { useThumbnail } from './thumbnails.ts';
 import './book-screen.css';
 
-type Shelf = 'dailies' | 'traps';
+/** The Book's two shelves: the daily sheets, and the community's traps. */
+export type BookShelf = 'dailies' | 'traps';
 
 /** The seal struck beside each entry: blind until played, half while under way. */
 const STATUS_SEAL: Record<BookEntry['status'], SealState> = { unplayed: 'empty', playing: 'lens', clean: 'gilt', torn: 'split' };
@@ -143,13 +144,15 @@ type Props = {
   readonly onPlay: (sheetId: string) => void;
   readonly onCompose: () => void;
   readonly onPractice: () => void;
+  /** The shelf it opens on. */
+  readonly initialShelf: BookShelf;
 };
 
 /** The Book: the last month of sheets and the newest traps, each playable again; and the way to practice sheets. */
-export const BookScreen = ({ platform, onBack, onPlay, onCompose, onPractice }: Props) => {
+export const BookScreen = ({ platform, onBack, onPlay, onCompose, onPractice, initialShelf }: Props) => {
   const [book, setBook] = useState<BookResponse | null>(null);
   const [failed, setFailed] = useState(false);
-  const [shelf, setShelf] = useState<Shelf>('dailies');
+  const [shelf, setShelf] = useState<BookShelf>(initialShelf);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {

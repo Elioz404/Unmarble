@@ -29,6 +29,22 @@ export type SpecimenOptions = {
 const MAX_RATIO = 2;
 
 /**
+ * How a specimen reads one touch, judged by the shared reducer: undoing the
+ * top move is right; a tear on the top move itself is the right mark the
+ * wrong way (a fold or swirl undone with its grain); any other tear is an
+ * earlier mark, with something laid on it after.
+ */
+export const answerFor = (spec: SheetSpec, state: SessionState, action: PlayerAction | null): SpecimenAnswer => {
+  if (!action) return 'none';
+  const verdict = judgeAction(spec, state, action);
+  if (verdict === 'ignored') return 'none';
+  if (verdict === 'correct') return 'right';
+  const onTop = action.type !== 'magnify' && action.move === state.remaining - 1;
+  // A drop has no way to go: only a fold or a swirl can be the right one the wrong way.
+  return onTop && action.type !== 'absorb' ? 'wrong-way' : 'wrong';
+};
+
+/**
  * A tiny, rule-free sheet: read by the same rules as a real one (the shared
  * reducer judges every touch), but nothing tears, nothing is scored and
  * nothing is kept. Drawn on the CPU, so a page can hold several.
@@ -124,12 +140,8 @@ export class SpecimenPlayer {
   #read(action: PlayerAction | null): SpecimenAnswer {
     // The animator also runs the ghost finger, so it being busy says nothing about the sheet.
     if (!action || this.solved || this.#undoing) return 'none';
-    const verdict = judgeAction(this.#spec, this.#state, action);
-    if (verdict === 'ignored') return 'none';
-    if (verdict === 'blot') {
-      const wrongWay = action.type !== 'magnify' && action.type !== 'absorb' && action.move === this.#state.remaining - 1;
-      return wrongWay ? 'wrong-way' : 'wrong';
-    }
+    const answer = answerFor(this.#spec, this.#state, action);
+    if (answer !== 'right') return answer;
     // Specimens keep no clock: the reducer only ever sees them at time zero.
     this.#state = applyAction(this.#spec, this.#state, action, 0).state;
     this.#undoing = true;
