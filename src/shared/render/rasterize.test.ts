@@ -15,7 +15,7 @@ const TOLERANCE = 2;
 const SHARE = 0.995;
 
 const SHEETS: readonly { name: string; spec: SheetSpec }[] = [
-  { name: 'the round-is-last lesson', spec: LESSONS[1]?.spec as SheetSpec },
+  { name: 'the round-is-last lesson', spec: LESSONS.find((lesson) => lesson.id === 'round-is-last')?.spec as SheetSpec },
   {
     // A fold beside a drop: the water stagnates in two wedges either side of it, where rules crowd.
     name: 'a fold past a drop',

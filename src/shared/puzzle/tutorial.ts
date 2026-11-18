@@ -9,6 +9,11 @@ export type Reading = MoveKind | 'twins';
  * Hand-made teaching sheets. Each introduces exactly one reading, is played
  * the first time that reading appears in a player's sheet, and is held
  * to the same fairness contract as generated sheets (see `tutorial.test.ts`).
+ * One lesson per reading keeps a newcomer's way to the real sheet short.
+ *
+ * Ids are what a device remembers as seen, so a lesson keeps its id for good.
+ * A retired id (the old 'one-drop', now folded into 'round-is-last') is
+ * simply never asked about again.
  */
 export type Lesson = {
   readonly id: string;
@@ -23,20 +28,9 @@ const GROUND = { family: 'bands', period: 1.3, angle: 0, amplitude: 0, wavelengt
 
 export const LESSONS: readonly Lesson[] = [
   {
-    id: 'one-drop',
-    teaches: 'drop',
-    prompt: 'Tap the drop to draw it back into the water.',
-    spec: {
-      paletteId: 'harbor-cobalt',
-      ground: GROUND,
-      stars: 1,
-      moves: [{ kind: 'drop', x: 6, y: 8, size: 'L', ink: 0 }],
-    },
-  },
-  {
     id: 'round-is-last',
     teaches: 'drop',
-    prompt: 'The perfectly round drop fell last. Undo it first. A drop inside another fell after it.',
+    prompt: 'Tap a drop to draw it back. The perfectly round one fell last: undo it first.',
     spec: {
       paletteId: 'harbor-cobalt',
       ground: GROUND,

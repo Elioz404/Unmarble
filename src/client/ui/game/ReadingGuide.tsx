@@ -40,14 +40,13 @@ const REPLY_COPY: Record<Exclude<Reply, null>, string> = {
 };
 
 /**
- * Each lesson's title: its reading, numbered when that reading has more
- * than one lesson, so no two specimens share a heading or a spoken name.
+ * Each lesson's title: its reading. One lesson per reading (see
+ * `tutorial.test.ts`), so no two specimens share a heading or a spoken name.
  */
-const SPECIMENS: readonly { readonly lesson: Lesson; readonly title: string }[] = LESSONS.map((lesson) => {
-  const reading = COPY.guide.readings[lesson.teaches];
-  const siblings = LESSONS.filter((other) => other.teaches === lesson.teaches);
-  return { lesson, title: siblings.length > 1 ? COPY.guide.numbered(reading, siblings.indexOf(lesson) + 1) : reading };
-});
+const SPECIMENS: readonly { readonly lesson: Lesson; readonly title: string }[] = LESSONS.map((lesson) => ({
+  lesson,
+  title: COPY.guide.readings[lesson.teaches],
+}));
 
 /**
  * One lesson as a live specimen: the same sheet, the same ghost finger,

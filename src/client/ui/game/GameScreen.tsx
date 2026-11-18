@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ONBOARDING, TIMING } from '../../../shared/config.ts';
 import type { BookEntry, ScarMap, SheetDescriptor, SheetResponse } from '../../../shared/protocol/api.ts';
 import { lessonsFor } from '../../../shared/puzzle/tutorial.ts';
@@ -13,7 +13,7 @@ import type { Platform } from '../../platform/platform.ts';
 import { blotLine, COPY } from '../copy.ts';
 import { BookIcon, CloseIcon, GuideIcon } from '../icons.tsx';
 import { useStore } from '../hooks/use-store.ts';
-import { LensButton, MessageLine, Plaque, SealRow, SheetPlaque, SoundToggle, TearMeter } from './Chrome.tsx';
+import { LensButton, LessonDots, MessageLine, Plaque, SealRow, SheetPlaque, SoundToggle, TearMeter } from './Chrome.tsx';
 import { ReadingGuide } from './ReadingGuide.tsx';
 import { ResultCard } from './ResultCard.tsx';
 import { SheetStage } from './SheetStage.tsx';
@@ -190,24 +190,25 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
   const controller = useGame(setup, sound);
   const view = useStore(controller.view);
 
+  // A lesson is left the same way whether it was finished or skipped: seen for good, and on to the next.
+  const leaveLesson = useCallback(
+    (index: number): void => {
+      const lesson = lessons[index];
+      if (lesson) localPrefs.markLessonSeen(lesson.id);
+      setLessonIndex(index + 1);
+    },
+    [lessons],
+  );
+
   // Lessons advance on a clean sheet and retry on a torn one.
   useEffect(() => {
     if (!currentLesson || !view.settled) return;
     const timer = window.setTimeout(() => {
-      if (view.status === 'torn') {
-        setLessonAttempt((n) => n + 1);
-        return;
-      }
-      localPrefs.markLessonSeen(currentLesson.id);
-      setLessonIndex((i) => i + 1);
+      if (view.status === 'torn') setLessonAttempt((n) => n + 1);
+      else leaveLesson(lessonIndex);
     }, LESSON_PAUSE_MS);
     return () => window.clearTimeout(timer);
-  }, [currentLesson, view.settled, view.status]);
-
-  const skipLessons = (): void => {
-    lessons.forEach((lesson) => localPrefs.markLessonSeen(lesson.id));
-    setLessonIndex(lessons.length);
-  };
+  }, [currentLesson, lessonIndex, leaveLesson, view.settled, view.status]);
 
   // The attempt changed elsewhere (another device or tab): show the truth.
   useEffect(() => {
@@ -310,9 +311,9 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
         {currentLesson ? (
           <Plaque
             number={null}
-            weekday="First sheets"
+            weekday={COPY.lessonsTitle}
             stars={1}
-            detail={COPY.lessonOf(lessonIndex + 1, lessons.length)}
+            detail={<LessonDots index={lessonIndex} total={lessons.length} />}
             eyebrow={COPY.wordmark}
           />
         ) : (
@@ -413,8 +414,13 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           />
           <SealRow total={view.total} remaining={view.remaining} />
           {currentLesson ? (
-            <button type="button" className="game__skip" onClick={skipLessons}>
-              {COPY.skipLessons}
+            <button
+              type="button"
+              className="game__skip"
+              onClick={() => leaveLesson(lessonIndex)}
+              aria-label={COPY.skipLessonLabel(lessonIndex + 1, lessons.length)}
+            >
+              {COPY.skipLesson}
             </button>
           ) : (
             <TearMeter blots={view.blots} />

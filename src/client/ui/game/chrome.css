@@ -66,6 +66,30 @@
   font-style: italic;
 }
 
+/* Lesson progress on the plaque: done filled, the one on screen ringed, the rest hollow. */
+.lesson-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lesson-dots__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--ink-faint);
+}
+
+.lesson-dots__dot[data-state='done'] {
+  border-color: var(--gilt);
+  background: var(--gilt);
+}
+
+.lesson-dots__dot[data-state='current'] {
+  border-color: var(--gilt);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--gilt) 30%, transparent);
+}
+
 /* Buttons */
 .icon-button {
   display: inline-grid;

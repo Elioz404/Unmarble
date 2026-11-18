@@ -35,6 +35,10 @@ export const COPY = Object.freeze({
   /** Before anyone has played, the card says what the sheet asks: "An early fold, bent by two drops." */
   cardPromise: (promise: string) =>
     `${promise.charAt(0).toUpperCase()}${promise.slice(1)}${/[.?!]$/.test(promise) ? '' : '.'}`,
+  /** The plaque's title while lessons come before the first sheet. */
+  lessonsTitle: 'First sheets',
+  /** Beside the lesson dots on the plaque. */
+  lessons: 'Lessons',
   lessonOf: (n: number, total: number) => `Lesson ${n} of ${total}`,
   lessonsDone: 'Now today’s sheet.',
   warmUp: {
@@ -42,7 +46,9 @@ export const COPY = Object.freeze({
     action: (weekday: string) => `Warm up on ${weekday}’s sheet`,
     dismiss: 'Take on today’s',
   },
-  skipLessons: 'Skip',
+  skipLesson: 'Skip',
+  /** The skip button read aloud: it skips the lesson on screen, not the rest. */
+  skipLessonLabel: (n: number, total: number) => `Skip lesson ${n} of ${total}`,
   lens: 'Lens',
   lensUsed: 'Lens used',
   sound: 'Sound',
@@ -216,8 +222,6 @@ export const COPY = Object.freeze({
     rule: 'Every sheet is read backwards: undo the move that came last, then the one before it, until the stripes run straight.',
     readingsHead: 'The readings',
     readings: { drop: 'Drops', stroke: 'Folds', swirl: 'Swirls', twins: 'Twins' } satisfies Record<Reading, string>,
-    /** A specimen's title when its reading has more than one lesson: "Drops, 2". */
-    numbered: (reading: string, n: number) => `${reading}, ${n}`,
     /** How each specimen is read aloud: "Specimen: Folds". */
     specimen: (title: string) => `Specimen: ${title}`,
     right: 'Undone.',

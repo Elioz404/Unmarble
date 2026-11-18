@@ -119,6 +119,25 @@ export const SheetPlaque = ({ sheet, eyebrow }: { readonly sheet: SheetDescripto
   }
 };
 
+/**
+ * How far through the lessons a newcomer is: one dot per lesson, the ones
+ * done filled and the one on screen ringed, so the way to the real sheet
+ * shows its end. Read aloud as "Lesson 1 of 2".
+ */
+export const LessonDots = ({ index, total }: { readonly index: number; readonly total: number }) => (
+  <span className="lesson-dots" role="img" aria-label={COPY.lessonOf(index + 1, total)}>
+    <span aria-hidden>{COPY.lessons}</span>
+    {Array.from({ length: total }, (_, i) => (
+      <span
+        key={i}
+        className="lesson-dots__dot"
+        aria-hidden
+        data-state={i < index ? 'done' : i === index ? 'current' : 'next'}
+      />
+    ))}
+  </span>
+);
+
 export const SoundToggle = ({ muted, onToggle }: { readonly muted: boolean; readonly onToggle: () => void }) => (
   <button
     type="button"

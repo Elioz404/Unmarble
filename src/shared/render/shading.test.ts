@@ -11,7 +11,7 @@ import { INK_FLOOR, inkAtDensity, LOOK, paperFinish, shadeSample, shadingPalette
 const close = (a: number, b: number, eps: number, what: string) => assert.ok(Math.abs(a - b) <= eps + 1e-12, `${what}: ${a} ≠ ${b}`);
 
 /** The 'round is last' lesson: a deep drop pushed into a crescent by a round light one. */
-const LESSON = LESSONS[1]?.spec;
+const LESSON = LESSONS.find((lesson) => lesson.id === 'round-is-last')?.spec;
 assert.ok(LESSON);
 const OPS = opsForPrefix(LESSON.moves, LESSON.moves.length);
 const PALETTE = shadingPaletteOf(getPalette(LESSON.paletteId));
