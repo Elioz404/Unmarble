@@ -143,7 +143,7 @@ export class TrapService {
       const trapId = await this.#store.hGet(keys.trapsSetOn(addDays(today, -back)), playerId);
       if (!trapId || !(await this.byId(trapId))) continue;
       const stats = await this.#attempts.stats(trapId);
-      return { sheetId: trapId, caught: stats.caught, hands: stats.hands };
+      return { sheetId: trapId, caught: stats.caught, hands: stats.hands, setToday: back === 0 };
     }
     return null;
   }

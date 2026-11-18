@@ -151,7 +151,7 @@ export const createLabPlatform = (search: URLSearchParams, hooks: LabHooks): Pla
     const latest = [...traps()].reverse().find((trap) => trap.dateKey >= weekAgo && trap.dateKey <= today);
     if (!latest) return null;
     const stats = statsOf(latest);
-    return { sheetId: latest.id, caught: stats.caught, hands: stats.hands };
+    return { sheetId: latest.id, caught: stats.caught, hands: stats.hands, setToday: latest.dateKey === today };
   };
 
   return {

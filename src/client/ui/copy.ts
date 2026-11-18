@@ -91,9 +91,17 @@ export const COPY = Object.freeze({
     tomorrowPromise: (promise: string) => `: ${promise}.`,
     share: 'Share result',
     shared: 'Ready to share',
-    copied: 'Copied — paste it in the comments',
+    copied: 'Copied.',
+    /** After copying: a way to the sheet's post. The app never posts for the player. */
+    pasteInThread: 'Paste it in the thread',
     shareFailed: 'Could not share. Try again.',
     join: (community: string) => `Join r/${community}`,
+    /** The one call to act, when someone else's trap is waiting. */
+    spring: (author: string) => `Spring u/${author}’s trap`,
+    /** The call to act once there is no trap to spring or set. */
+    tryBook: 'Try a sheet from the Book',
+    /** Opens the rest of the next steps. */
+    more: 'More',
     login: 'Sign in to set traps and show your streak',
     nameIt: 'Name this sheet',
     nameHow: 'Reply to the pinned comment with a name of up to three words. The best-voted one sticks.',
@@ -170,7 +178,6 @@ export const COPY = Object.freeze({
     caught: (caught: number, hands: number) => `Caught ${caught} of ${hands} ${hands === 1 ? 'hand' : 'hands'}`,
     sawThrough: 'You saw through it.',
     gotCaught: 'It caught you.',
-    next: (author: string) => `Next: a trap by u/${author}`,
     cardPlay: 'Spring the trap',
     /** On a trap's card before anyone has tried it. */
     beFirst: 'Be the first to spring it',

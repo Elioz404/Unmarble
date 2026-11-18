@@ -15,6 +15,7 @@ import { BookIcon, CloseIcon, GuideIcon } from '../icons.tsx';
 import { useStore } from '../hooks/use-store.ts';
 import { LensButton, LessonDots, MessageLine, Plaque, SealRow, SheetPlaque, SoundToggle, TearMeter } from './Chrome.tsx';
 import { ReadingGuide } from './ReadingGuide.tsx';
+import { trapToSpring } from './next-steps.ts';
 import { ResultCard } from './ResultCard.tsx';
 import { SheetStage } from './SheetStage.tsx';
 import { useGame } from './use-game.ts';
@@ -217,7 +218,8 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
 
   // Once finished: where everyone tore it, and a trap to try next. A practice sheet has neither.
   const finished = currentLesson === null && view.settled;
-  const [nextTrap, setNextTrap] = useState<BookEntry | null>(null);
+  const yourTrapId = response.yourTrap?.sheetId ?? null;
+  const [nextTrap, setNextTrap] = useState<SheetDescriptor | null>(null);
   const [scars, setScars] = useState<ScarMap | null>(null);
   useEffect(() => {
     if (!finished) return;
@@ -242,13 +244,13 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
       .loadBook()
       .then((book) => {
         if (cancelled) return;
-        setNextTrap(book.traps.find((entry) => entry.status === 'unplayed' && entry.sheet.id !== sheet.id) ?? null);
+        setNextTrap(trapToSpring(book.traps, sheet.id, yourTrapId));
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [finished, platform, sheet.kind, sheet.id, controller]);
+  }, [finished, platform, sheet.kind, sheet.id, yourTrapId, controller]);
 
   // A newcomer facing a hard sheet is offered an easier one from the Book first.
   const untouched = response.player.log.length === 0 && view.remaining === view.total && view.blots === 0;
@@ -392,12 +394,13 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           apprentice={controller.apprentice}
           thread={response.thread}
           yourTrap={response.yourTrap}
-          nextTrap={nextTrap?.sheet ?? null}
+          nextTrap={nextTrap}
           nextSheetAt={response.nextSheetAt}
           tomorrow={response.tomorrow}
           community={platform.community}
           onPlay={navigation.play}
           onCompose={navigation.compose}
+          onOpenBook={navigation.openBook}
           practice={navigation}
           onShare={(text, postId) => platform.share(text, postId)}
           onOpenThread={(url) => platform.openPost(url)}

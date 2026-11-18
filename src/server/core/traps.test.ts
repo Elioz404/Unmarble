@@ -7,6 +7,7 @@ import type { Move } from '../../shared/puzzle/moves.ts';
 import { readSheet } from '../../shared/puzzle/analysis.ts';
 import type { PlayerAction } from '../../shared/game/session.ts';
 import type { SheetDescriptor } from '../../shared/protocol/api.ts';
+import { addDays } from '../../shared/time/calendar.ts';
 
 /** A Reddit stand-in that records what the app asked it to do. */
 const fakeReddit = () => {
@@ -210,7 +211,13 @@ test('the maker sees how their trap is doing, and the leader for Sunday is marke
   const published = await services.traps.publish({ playerId: 't2_m', username: 'mossmaker' }, FAIR_TRAP, today, 'unmarble');
   if (published.kind !== 'published') throw new Error('trap not published');
   for (const [i, clean] of [true, true, false].entries()) await solve(services, published.sheet, `t2_p${i}`, clean);
-  assert.deepEqual(await services.traps.catchOf('t2_m', today.dateKey), { sheetId: published.sheet.id, caught: 1, hands: 3 });
+  assert.deepEqual(await services.traps.catchOf('t2_m', today.dateKey), {
+    sheetId: published.sheet.id,
+    caught: 1,
+    hands: 3,
+    setToday: true,
+  });
+  assert.equal((await services.traps.catchOf('t2_m', addDays(today.dateKey, 1)))?.setToday, false);
   assert.equal(await services.traps.catchOf('t2_p0', today.dateKey), null);
   const book = await services.book.forPlayer('t2_reader');
   assert.equal(book.traps[0]?.inTheRunning, true);

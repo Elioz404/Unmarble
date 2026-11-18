@@ -60,6 +60,14 @@ test('tomorrow’s preview parses, and an old server without one is still unders
   assert.equal(parseSheetResponse(roundTrip(without(RESPONSE, 'tomorrow')))?.tomorrow, null);
 });
 
+test('the player’s trap says whether it was set today, and an old server’s reads as an earlier day’s', () => {
+  const yourTrap = { sheetId: 'trap-1', caught: 1, hands: 3, setToday: true };
+  assert.deepEqual(parseSheetResponse(roundTrip({ ...RESPONSE, yourTrap }))?.yourTrap, yourTrap);
+  const old = parseSheetResponse(roundTrip({ ...RESPONSE, yourTrap: without(yourTrap, 'setToday') }));
+  assert.equal(old?.yourTrap?.setToday, false);
+  assert.equal(parseSheetResponse(roundTrip({ ...RESPONSE, yourTrap: { ...yourTrap, setToday: 'yes' } })), null);
+});
+
 test('a malformed preview is rejected', () => {
   const preview = RESPONSE.tomorrow;
   assert.ok(preview);

@@ -135,7 +135,9 @@ const parseTrapCatch = (value: unknown): TrapCatch | null | undefined => {
   if (value === null) return null;
   if (!isRecord(value) || typeof value.sheetId !== 'string') return undefined;
   if (typeof value.caught !== 'number' || typeof value.hands !== 'number') return undefined;
-  return { sheetId: value.sheetId, caught: value.caught, hands: value.hands };
+  // A server from before the field sends none: the trap is treated as an earlier day's.
+  if (value.setToday !== undefined && typeof value.setToday !== 'boolean') return undefined;
+  return { sheetId: value.sheetId, caught: value.caught, hands: value.hands, setToday: value.setToday === true };
 };
 
 export const parseSheetResponse = (value: unknown): SheetResponse | null => {

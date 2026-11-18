@@ -94,6 +94,8 @@ export type TrapCatch = {
   readonly sheetId: string;
   readonly caught: number;
   readonly hands: number;
+  /** Whether it was set on today's paper: a player sets one trap a day. */
+  readonly setToday: boolean;
 };
 
 export type SheetResponse = {

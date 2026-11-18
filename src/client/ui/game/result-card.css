@@ -165,28 +165,6 @@
   color: var(--ink-soft);
 }
 
-.result__next-trap {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: var(--touch-target);
-  padding: var(--space-2) var(--space-4);
-  border: var(--hairline) solid color-mix(in oklab, var(--gilt) 55%, transparent);
-  border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--gilt) 8%, transparent);
-  color: var(--ink);
-  font-size: var(--text-md);
-  font-style: italic;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--duration-quick);
-}
-
-.result__next-trap:hover {
-  background: color-mix(in oklab, var(--gilt) 16%, transparent);
-}
-
 .result__stars {
   display: inline-flex;
   font-size: 0.8em;
@@ -375,4 +353,56 @@
   color: var(--ink-soft);
   font-style: italic;
   text-align: center;
+}
+
+/* After copying: the way to the thread, centred under the note. */
+.result__paste {
+  justify-self: center;
+}
+
+/* The rest of the next steps, one tap further: a quiet gilt toggle, then the same links as ever. */
+.result__more {
+  display: grid;
+}
+
+.result__more-toggle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  color: var(--gilt);
+  font-style: italic;
+  list-style: none;
+  cursor: pointer;
+}
+
+.result__more-toggle::-webkit-details-marker {
+  display: none;
+}
+
+/* A small chevron that turns as the steps open. */
+.result__more-toggle::after {
+  content: '';
+  width: 0.4em;
+  height: 0.4em;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: translateY(-0.15em) rotate(45deg);
+  transition: transform var(--duration-quick);
+}
+
+.result__more[open] > .result__more-toggle::after {
+  transform: translateY(0.1em) rotate(225deg);
+}
+
+.result__more-body {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.result__more-body .result__thread {
+  justify-self: stretch;
 }
