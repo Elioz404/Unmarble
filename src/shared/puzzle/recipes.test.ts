@@ -150,4 +150,16 @@ test('a bullseye needs every drop wholly within the one before', () => {
   assert.ok(!hasNestedInk([drop(6, 'L', 0), drop(8, 'M', 1), drop(8, 'S', 2)]));
   // Two rings are not yet a bullseye.
   assert.ok(!hasNestedInk([drop(6, 'L', 0), drop(6.5, 'M', 1)]));
+  // Three rings of two inks, the outer ink again at the heart, are not three inks.
+  assert.ok(!hasNestedInk([drop(6, 'L', 0), drop(6.5, 'M', 1), drop(6.5, 'S', 0)]));
+});
+
+test('Stone’s Tuesday siblings marble the test seeds’ sheets as before they forbade a bullseye', () => {
+  for (const sibling of RECIPES.filter((r) => r.weekday === TUESDAY && r.id !== 'stone')) {
+    assert.ok(sibling.forbid.includes('nested-ink'), `${sibling.id} forbids a bullseye`);
+    const before: Recipe = { ...sibling, forbid: sibling.forbid.filter((f) => f !== 'nested-ink') };
+    for (const [k, seed] of SEEDS.entries()) {
+      assert.deepEqual(sheetsOf(sibling)[k], generateSheet(seed, before, PALETTES[0]?.id ?? ''), `${sibling.id} ${seed}`);
+    }
+  }
 });

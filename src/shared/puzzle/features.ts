@@ -215,23 +215,27 @@ const fellWithin = (ops: readonly FieldOp[], earlier: DropMove, i: number, later
   return Math.hypot(p.x - earlier.x, p.y - earlier.y) + dropRadius(later.size) <= dropRadius(earlier.size);
 };
 
-/** Whether `GENERATION.nestSizes.length` drops of different inks each fell within the one before: a bullseye. */
+/**
+ * Whether `GENERATION.nestSizes.length` drops, no two of the same ink, each
+ * fell within the one before: a bullseye. A ring of the outer ink inside the
+ * middle one does not make a third ink.
+ */
 export const hasNestedInk = (moves: readonly Move[]): boolean => {
   const ops = opsForPrefix(moves, moves.length);
   const depth = GENERATION.nestSizes.length;
-  // Deepest nest ending at each drop: 1 for a drop that fell within no other ink.
-  const nest = new Map<number, number>();
-  for (const [j, later] of moves.entries()) {
-    if (later.kind !== 'drop') continue;
-    let deepest = 1;
-    for (const [i, earlier] of moves.slice(0, j).entries()) {
-      if (earlier.kind !== 'drop' || earlier.ink === later.ink) continue;
-      if (fellWithin(ops, earlier, i, later, j)) deepest = Math.max(deepest, (nest.get(i) ?? 1) + 1);
-    }
-    if (deepest >= depth) return true;
-    nest.set(j, deepest);
-  }
-  return false;
+  const drops = [...moves.entries()].filter((entry): entry is [number, DropMove] => entry[1].kind === 'drop');
+  // The drops each drop fell wholly within, of another ink than its own.
+  const within = new Map<number, readonly [number, DropMove][]>(
+    drops.map(([j, later]) => [
+      j,
+      drops.filter(([i, earlier]) => i < j && earlier.ink !== later.ink && fellWithin(ops, earlier, i, later, j)),
+    ]),
+  );
+  // Whether a chain of `rings` more drops, of inks not yet in `inks`, lies around drop `j`.
+  const nestsIn = (j: number, inks: ReadonlySet<number>, rings: number): boolean =>
+    rings === 0 ||
+    (within.get(j) ?? []).some(([i, outer]) => !inks.has(outer.ink) && nestsIn(i, new Set([...inks, outer.ink]), rings - 1));
+  return drops.some(([j, drop]) => nestsIn(j, new Set([drop.ink]), depth - 1));
 };
 
 /** Whether some drop of the finished sheet is squeezed into a pronounced crescent. */
