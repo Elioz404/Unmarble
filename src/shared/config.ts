@@ -205,6 +205,8 @@ export const RULES = Object.freeze({
 });
 
 export const TIMING = Object.freeze({
+  /** How long the message line says why the reading guide waits, after a tap on its button mid-sheet. */
+  guideNoteMs: 3200,
   /** One pass of the ghost finger that shows a lesson's gesture, and the rest between passes. */
   demoStrokeMs: 1500,
   demoRestMs: 650,

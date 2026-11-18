@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { SHEET } from '../../../shared/config.ts';
 import { cardSample } from '../../../shared/puzzle/tutorial.ts';
 import { SpecimenPlayer } from '../../game/specimen.ts';
 import { COPY } from '../copy.ts';
@@ -19,7 +20,11 @@ export const SampleQuestion = ({ paletteId }: { readonly paletteId: string }) =>
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const player = new SpecimenPlayer(canvas, cardSample(paletteId), prefersReducedMotion);
+    const player = new SpecimenPlayer(canvas, cardSample(paletteId), {
+      reducedMotion: prefersReducedMotion,
+      undoable: 1,
+      ghost: null,
+    });
     playerRef.current = player;
     return () => {
       player.dispose();
@@ -29,7 +34,10 @@ export const SampleQuestion = ({ paletteId }: { readonly paletteId: string }) =>
 
   const onClick = (event: MouseEvent<HTMLCanvasElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const result = playerRef.current?.tap((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
+    const result = playerRef.current?.tap({
+      x: ((event.clientX - rect.left) / rect.width) * SHEET.cols,
+      y: ((event.clientY - rect.top) / rect.height) * SHEET.rows,
+    });
     if (result === 'right' || result === 'wrong') setAnswer(result);
   };
 

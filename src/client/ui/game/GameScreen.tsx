@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ONBOARDING } from '../../../shared/config.ts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ONBOARDING, TIMING } from '../../../shared/config.ts';
 import type { BookEntry, ScarMap, SheetDescriptor, SheetResponse } from '../../../shared/protocol/api.ts';
 import { lessonsFor } from '../../../shared/puzzle/tutorial.ts';
 import type { SoundBank } from '../../audio/sound.ts';
@@ -11,9 +11,10 @@ import { assertNever } from '../../lib/assert-never.ts';
 import { localPrefs } from '../../lib/local-prefs.ts';
 import type { Platform } from '../../platform/platform.ts';
 import { blotLine, COPY } from '../copy.ts';
-import { BookIcon, CloseIcon } from '../icons.tsx';
+import { BookIcon, CloseIcon, GuideIcon } from '../icons.tsx';
 import { useStore } from '../hooks/use-store.ts';
 import { LensButton, MessageLine, Plaque, SealRow, SheetPlaque, SoundToggle, TearMeter } from './Chrome.tsx';
+import { ReadingGuide } from './ReadingGuide.tsx';
 import { ResultCard } from './ResultCard.tsx';
 import { SheetStage } from './SheetStage.tsx';
 import { useGame } from './use-game.ts';
@@ -273,10 +274,32 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
   }, [wantsWarmUp, platform, response.todayId]);
   const offerWarmUp = wantsWarmUp && !warmUpDismissed ? warmUp : null;
 
+  // The reading guide opens only while the clock has nothing to answer for: before the first move, or once done.
+  const guideAvailable = finished || (view.untouched && view.status === 'playing' && !view.busy);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideNoted, setGuideNoted] = useState(false);
+  const guideButton = useRef<HTMLButtonElement>(null);
+  // While the guide covers an untouched sheet, its clock and hints wait too.
+  useEffect(() => (guideOpen ? controller.holdClock() : undefined), [guideOpen, controller]);
+  useEffect(() => {
+    if (!guideNoted) return;
+    const timer = window.setTimeout(() => setGuideNoted(false), TIMING.guideNoteMs);
+    return () => window.clearTimeout(timer);
+  }, [guideNoted]);
+  const onGuide = (): void => {
+    if (guideAvailable) setGuideOpen(true);
+    else setGuideNoted(true);
+  };
+  const closeGuide = (): void => {
+    setGuideOpen(false);
+    guideButton.current?.focus();
+  };
+  const namingThread = sheet.kind === 'daily' && response.thread?.naming ? response.thread : null;
+
   const special = sheet.recipe?.special ? sheet.recipe : null;
   const opening = special ? COPY.specialPrompt(special.title, special.promise) : COPY.dailyPrompt;
   const fallback = currentLesson?.prompt ?? (view.remaining === view.total ? opening : '');
-  const message = messageFor(view, fallback);
+  const message: Message = guideNoted ? { text: COPY.guide.unavailable, tone: 'quiet' } : messageFor(view, fallback);
 
   return (
     <main className="game" data-phase={finished ? 'result' : 'play'}>
@@ -296,6 +319,18 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           <button type="button" className="game__book" onClick={navigation.openBook} aria-label={COPY.book.open}>
             <BookIcon size={18} />
             <span>{COPY.book.label}</span>
+          </button>
+          <button
+            ref={guideButton}
+            type="button"
+            className="icon-button game__guide"
+            onClick={onGuide}
+            aria-label={COPY.guide.open}
+            aria-haspopup="dialog"
+            aria-disabled={guideAvailable ? undefined : true}
+            title={guideAvailable ? COPY.guide.open : COPY.guide.unavailable}
+          >
+            <GuideIcon />
           </button>
           <SoundToggle muted={muted} onToggle={onToggleMute} />
           {platform.kind === 'reddit' ? (
@@ -383,6 +418,14 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           )}
         </footer>
       )}
+      {guideOpen ? (
+        <ReadingGuide
+          actions={navigation}
+          namingThread={namingThread}
+          onOpenThread={(url) => platform.openPost(url)}
+          onClose={closeGuide}
+        />
+      ) : null}
     </main>
   );
 };

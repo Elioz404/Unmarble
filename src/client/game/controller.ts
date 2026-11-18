@@ -1,4 +1,4 @@
-import { COMMUNITY, EVIDENCE, INPUT, RULES, TIMING } from '../../shared/config.ts';
+import { COMMUNITY, EVIDENCE, RULES, TIMING } from '../../shared/config.ts';
 import { apprenticeRun, compareWithApprentice, type ApprenticeRun } from '../../shared/game/apprentice.ts';
 import { explainBlot, type BlotExplanation } from '../../shared/game/explain.ts';
 import { resolveDrag, resolveTap } from '../../shared/game/gestures.ts';
@@ -9,7 +9,7 @@ import {
   type SessionState,
   type SheetPoint,
 } from '../../shared/game/session.ts';
-import { dropOutline, seamPath, seamSegment, swirlEye } from '../../shared/puzzle/evidence.ts';
+import { dropOutline, seamPath, swirlEye } from '../../shared/puzzle/evidence.ts';
 import { dropRadius, opsForPrefix, strokeOp, swirlOp } from '../../shared/puzzle/moves.ts';
 import type { SheetSpec } from '../../shared/puzzle/sheet.ts';
 import type { LoggedAction, ScarMap, Standing } from '../../shared/protocol/api.ts';
@@ -17,6 +17,7 @@ import type { SoundBank } from '../audio/sound.ts';
 import { Animator, ease } from '../lib/animator.ts';
 import { Store } from '../lib/store.ts';
 import type { SheetRenderer } from '../render/renderer.ts';
+import { demoPath, playGhostFinger } from './ghost-finger.ts';
 import { groundTracing } from './ghost-paths.ts';
 import {
   emptyOverlay,
@@ -53,18 +54,14 @@ export type HintPolicy = {
 
 /** How long feedback stays on the message line; blots linger to be read. */
 const FEEDBACK_MS = { correct: 2200, miss: 2200, blot: 4500 } as const;
-/** Points along the ghost finger's path. */
-const DEMO_POINTS = 28;
-/** Radius (cells) of the ghost finger's circle around a swirl's eye. */
-const DEMO_CIRCLE_RADIUS = 1.6;
-/** How far (cells) the ghost finger swipes along a fold. */
-const DEMO_SWIPE_LENGTH = INPUT.minSwipeLength + 2;
 
 export type GameView = {
   readonly status: SessionState['status'];
   readonly total: number;
   readonly remaining: number;
   readonly blots: number;
+  /** Nothing recorded yet (no undo, no tear, no Lens): the attempt's clock has nothing to answer for. */
+  readonly untouched: boolean;
   readonly lensLeft: number;
   /** True while an animation owns the sheet; input is ignored. */
   readonly busy: boolean;
@@ -158,6 +155,7 @@ export class GameController implements StageController {
       total: state.total,
       remaining: state.remaining,
       blots: state.blots,
+      untouched: state.history.length === 0,
       lensLeft: state.magnified ? 0 : RULES.magnifiers,
       busy: false,
       feedback: null,
@@ -232,6 +230,23 @@ export class GameController implements StageController {
     this.#overlay.community = [...map.points];
     this.#requestDraw();
     if (map.trap) void this.#pulse(map.trap.move, TIMING.communityPulseMs);
+  }
+
+  /**
+   * Stops the attempt's clock and its hint countdown while the sheet is out
+   * of sight (the reading guide covers it), and returns what starts them
+   * again. Only an untouched attempt can be held: once anything is recorded,
+   * every second counts.
+   */
+  holdClock(): () => void {
+    if (this.#state.history.length > 0 || this.#state.status !== 'playing') return () => undefined;
+    const heldAt = performance.now();
+    this.#clearTimer('hint');
+    return () => {
+      if (this.#disposed || this.#state.history.length > 0) return;
+      this.#startedAt += performance.now() - heldAt;
+      this.#armHint();
+    };
   }
 
   tap(point: SheetPoint): void {
@@ -544,64 +559,24 @@ export class GameController implements StageController {
     }, hints.delayMs);
   }
 
-  /** The drag that undoes the top move, as a finger would draw it (folds and swirls only). */
-  #demoPath(): SheetPoint[] | null {
-    const index = this.#state.remaining - 1;
-    const top = this.#spec.moves[index];
-    if (top?.kind === 'stroke') {
-      const op = strokeOp(top, index);
-      const segment = seamSegment(op);
-      if (!segment) return null;
-      const mid = { x: (segment.from.x + segment.to.x) / 2, y: (segment.from.y + segment.to.y) / 2 };
-      const half = DEMO_SWIPE_LENGTH / 2;
-      // Against the fold's point: from ahead of it, back past it.
-      return Array.from({ length: DEMO_POINTS }, (_, i) => {
-        const t = half - (2 * half * i) / (DEMO_POINTS - 1);
-        return { x: mid.x + op.ux * t, y: mid.y + op.uy * t };
-      });
-    }
-    if (top?.kind === 'swirl') {
-      // Against the turn, most of the way round the eye.
-      const sweep = -top.turn * Math.PI * 1.4;
-      return Array.from({ length: DEMO_POINTS }, (_, i) => {
-        const a = -Math.PI / 2 + (sweep * i) / (DEMO_POINTS - 1);
-        return { x: top.x + DEMO_CIRCLE_RADIUS * Math.cos(a), y: top.y + DEMO_CIRCLE_RADIUS * Math.sin(a) };
-      });
-    }
-    return null;
-  }
-
   /**
    * Draws the gesture with a ghost finger, over and over, until the player
-   * touches the sheet. With reduced motion, the whole gesture is drawn once
-   * and stays (a loop of instant tweens would never yield).
+   * touches the sheet.
    */
   async #runDemo(): Promise<void> {
-    const path = this.#demoPath();
+    const path = demoPath(this.#spec, this.#state.remaining);
     if (!path || this.#demoing) return;
     const run = ++this.#demoRun;
     this.#demoing = true;
-    const current = (): boolean => run === this.#demoRun && !this.#disposed;
-    if (this.#reducedMotion()) {
-      this.#overlay.trail = path;
-      this.#requestDraw();
-      return;
-    }
-    while (current()) {
-      await this.#animator.play({
-        duration: TIMING.demoStrokeMs,
-        easing: ease.inOutCubic,
-        update: (t) => {
-          if (current()) this.#overlay.trail = path.slice(0, Math.max(2, Math.round(t * path.length)));
-        },
-      });
-      if (!current()) break;
-      await this.#animator.wait(TIMING.demoRestMs);
-      if (!current()) break;
-      this.#overlay.trail = [];
-      this.#requestDraw();
-      await this.#animator.wait(TIMING.demoRestMs / 2);
-    }
+    await playGhostFinger(path, {
+      animator: this.#animator,
+      reducedMotion: this.#reducedMotion,
+      alive: () => run === this.#demoRun && !this.#disposed,
+      show: (trail) => {
+        this.#overlay.trail = trail;
+        this.#requestDraw();
+      },
+    });
   }
 
   /** Any touch ends the demo for this sheet, for good. */
@@ -623,7 +598,7 @@ export class GameController implements StageController {
 
   #publish(patch: Partial<GameView>): void {
     const s = this.#state;
-    this.view.update({ status: s.status, remaining: s.remaining, blots: s.blots, ...patch });
+    this.view.update({ status: s.status, remaining: s.remaining, blots: s.blots, untouched: s.history.length === 0, ...patch });
   }
 
   /** Coalesces overlay-only updates (e.g. a dragging finger) into one paint per frame. */

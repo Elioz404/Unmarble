@@ -98,6 +98,17 @@
   color: var(--ink);
 }
 
+/* The reading guide's "?": dimmed mid-sheet, where a tap only says when it opens. */
+.game__guide[aria-disabled='true'] {
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+.game__guide[aria-disabled='true']:hover {
+  background: transparent;
+  color: var(--ink-faint);
+}
+
 .game__banner {
   margin: 0;
   color: var(--ink-soft);

@@ -85,6 +85,15 @@ export const BookIcon = (props: IconProps) => (
   </Svg>
 );
 
+/** A question mark in a pen ring: the pocket reading guide. */
+export const GuideIcon = (props: IconProps) => (
+  <Svg {...props}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M9.6 9.6a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8v.4" />
+    <path d="M12 17v.01" />
+  </Svg>
+);
+
 /** A quill: making a sheet for someone else. */
 export const QuillIcon = (props: IconProps) => (
   <Svg {...props}>

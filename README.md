@@ -24,6 +24,7 @@ Misread the sheet and the paper tears: you keep a small scar, and the sheet show
 - The first time you meet a form, a short lesson teaches it — the first visit covers drops and folds, and the first sheet with a swirl teaches swirls. A ghost finger shows each gesture until you try it.
 - New here and today's sheet is a ★★★★ or ★★★★★? The game offers an easier sheet from the Book to warm up on first (or a ★ practice sheet), and its hints come sooner for your first few sheets.
 - **Tap** a drop to draw it back. **Drag** along a fold to undo it. **Circle** a swirl's eye, against its turn.
+- The **?** in the header opens a pocket reading guide: the order rule, every lesson as a live specimen to play again (ghost finger included), and a map of what else is here (traps, Sunday's trap, naming, the Book, practice), each a tap away. It opens before your first move or once the sheet is done, never mid-sheet, and while it covers an untouched sheet that sheet's clock waits.
 - The **Lens** (once per sheet) briefly shows where the water moved. Using it is marked on your result.
 - A clean sheet lifts out of the bath and marbles itself again, quickly: what you just undid. Your result card shows your marks (● correct, ○ tear), your time, your standing among everyone who played today, your streak, and what tomorrow's sheet will ask (its recipe, or on Sunday: a mixed sheet or the week's best trap).
 

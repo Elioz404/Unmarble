@@ -1,5 +1,6 @@
 import type { BlotReason } from '../../shared/game/explain.ts';
 import type { MoveKind } from '../../shared/puzzle/moves.ts';
+import type { Reading } from '../../shared/puzzle/tutorial.ts';
 
 const FORM_NAMES: Record<MoveKind, string> = { drop: 'drop', stroke: 'fold', swirl: 'swirl' };
 
@@ -199,6 +200,56 @@ export const COPY = Object.freeze({
   flair: {
     toggle: 'Show my streak as flair',
     note: 'Shown next to your name here. Untick to get your old flair back.',
+  },
+  /**
+   * The pocket reading guide: the rule, the lessons as specimens to play
+   * again, and a map of everything else the app offers.
+   */
+  guide: {
+    open: 'Reading guide',
+    /** Why the "?" waits: it opens only while the clock has nothing to answer for. */
+    unavailable: 'The guide opens before your first move, or once the sheet is done.',
+    eyebrow: 'Unmarble',
+    title: 'Reading guide',
+    rule: 'Every sheet is read backwards: undo the move that came last, then the one before it, until the stripes run straight.',
+    readingsHead: 'The readings',
+    readings: { drop: 'Drops', stroke: 'Folds', swirl: 'Swirls', twins: 'Twins' } satisfies Record<Reading, string>,
+    /** How each specimen is read aloud: "Specimen: Folds". */
+    specimen: (reading: string) => `Specimen: ${reading}`,
+    right: 'Undone.',
+    solved: 'Bare water again.',
+    wrong: 'Not that one: something came after it.',
+    wrongWay: 'Right one, wrong way: go against it.',
+    again: 'Again',
+    exact: 'Every mark UNMARBLE uses can be undone exactly.',
+    hereHead: 'What’s here',
+    here: {
+      trap: {
+        title: 'Set a trap',
+        note: 'Marble a sheet of your own on today’s paper, to catch other players. It is checked for fairness first.',
+        action: 'Set a trap',
+      },
+      sunday: {
+        title: 'Sunday’s trap',
+        note: 'The week’s best fair trap becomes Sunday’s sheet, credited to its maker. The Book marks the one in the running.',
+        action: 'See the traps',
+      },
+      name: {
+        title: 'Name the sheet',
+        note: 'Each daily post’s pinned comment asks what the sheet looks like. The best-voted reply of up to three words names it.',
+        action: 'Open the thread',
+      },
+      book: {
+        title: 'The Book',
+        note: 'The last month of daily sheets and the newest traps, each with your result. Old sheets stay playable.',
+        action: 'Open the Book',
+      },
+      practice: {
+        title: 'Practice',
+        note: 'As many sheets as you like, marbled on your device. Unranked, no streak.',
+        action: 'Practice sheets',
+      },
+    },
   },
   oldSheet: 'This is an earlier sheet.',
   goToToday: 'Today’s sheet',
