@@ -13,15 +13,19 @@ export type Wake =
 
 /**
  * Everything drawn over the marbled sheet in paper space: scars left by
- * blots, the outline of the move that gave the order away, a ripple where a
- * tap found no ink, the wake of an undo, the trail of a swipe in progress,
+ * blots, the outline of the move that gave the order away (or, in its own
+ * dotted ink, of the move the Apprentice fell for), a ripple where a tap
+ * found no ink, the wake of an undo, the trail of a swipe in progress,
  * and the Lens tracing. Only the highlight may close, and only along an
  * outline the sheet already has: on this sheet, a round mark means "fell last".
  */
+/** Whose reading an outline shows: the move that gave the order away, or the one the Apprentice fell for. */
+export type HighlightStyle = 'culprit' | 'apprentice';
+
 export type OverlayModel = {
   scars: SheetPoint[];
-  /** Outline of a culprit move (closed for drops, open for seams) and its opacity. */
-  highlight: { points: readonly SheetPoint[]; closed: boolean; opacity: number } | null;
+  /** Outline of a move (closed for drops, open for seams), whose reading it shows, and its opacity. */
+  highlight: { points: readonly SheetPoint[]; closed: boolean; style: HighlightStyle; opacity: number } | null;
   ripple: { at: SheetPoint; progress: number } | null;
   wake: Wake | null;
   trail: SheetPoint[];
@@ -108,6 +112,9 @@ const MARK = Object.freeze({
   highlightUnderAlpha: 0.7,
   highlightDash: 0.18,
   highlightGap: 0.22,
+  /** The Apprentice's outline: round ink dots, never gilt, so it can't pass for the sheet's own answer. */
+  apprenticeDot: 0.01,
+  apprenticeGap: 0.26,
   /** Water marks: a darker rim this many pixels each side of a light core. */
   waterShadePx: 1,
   waterShadeAlpha: 0.18,
@@ -243,14 +250,20 @@ export class OverlayPainter {
     ctx.restore();
   }
 
-  /** The culprit's outline in dashed gilt over a pale under-stroke, so it reads on paper and ink alike. */
+  /**
+   * An outline over a pale under-stroke, so it reads on paper and ink alike:
+   * the culprit in dashed gilt, the Apprentice's pick in dotted ink.
+   */
   #paintHighlight(highlight: NonNullable<OverlayModel['highlight']>, colors: OverlayColors): void {
     const ctx = this.#context;
     const s = this.#scale;
-    const { points, closed, opacity } = highlight;
+    const { points, closed, style, opacity } = highlight;
     const core = Math.max(1.5, MARK.highlightCore * s);
+    const apprentice = style === 'apprentice';
     ctx.save();
-    ctx.setLineDash([MARK.highlightDash * s, MARK.highlightGap * s]);
+    ctx.setLineDash(
+      apprentice ? [MARK.apprenticeDot * s, MARK.apprenticeGap * s] : [MARK.highlightDash * s, MARK.highlightGap * s],
+    );
     ctx.beginPath();
     points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x * s, p.y * s) : ctx.lineTo(p.x * s, p.y * s)));
     if (closed) ctx.closePath();
@@ -258,7 +271,7 @@ export class OverlayPainter {
     ctx.globalAlpha = opacity * MARK.highlightUnderAlpha;
     ctx.lineWidth = Math.max(core + 2, MARK.highlightUnder * s);
     ctx.stroke();
-    ctx.strokeStyle = colors.accent;
+    ctx.strokeStyle = apprentice ? colors.ink : colors.accent;
     ctx.globalAlpha = opacity;
     ctx.lineWidth = core;
     ctx.stroke();

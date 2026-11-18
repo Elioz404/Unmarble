@@ -57,6 +57,10 @@ export const dayPreview = (calendarSeed: string, dateKey: DateKey): DayPreview =
   return { dateKey, weekday: weekdayNameOf(dateKey), stars: recipe.stars, recipe: recipeTag(recipe), promise: recipe.promise };
 };
 
+/** A Sunday that no trap qualified for: the mixed sheet the generator made instead of a featured trap. */
+export const isMixedSunday = (sheet: SheetDescriptor): boolean =>
+  sheet.kind === 'daily' && sheet.author === null && weekdayOf(sheet.dateKey) === SUNDAY;
+
 /**
  * A Sunday sheet chosen from the community: the week's best trap, republished
  * as the daily sheet with its maker credited.

@@ -1,4 +1,5 @@
 import { COMMUNITY, EVIDENCE, INPUT, RULES, TIMING } from '../../shared/config.ts';
+import { apprenticeRun, compareWithApprentice, type ApprenticeRun } from '../../shared/game/apprentice.ts';
 import { explainBlot, type BlotExplanation } from '../../shared/game/explain.ts';
 import { resolveDrag, resolveTap } from '../../shared/game/gestures.ts';
 import {
@@ -17,7 +18,15 @@ import { Animator, ease } from '../lib/animator.ts';
 import { Store } from '../lib/store.ts';
 import type { SheetRenderer } from '../render/renderer.ts';
 import { groundTracing } from './ghost-paths.ts';
-import { emptyOverlay, LENS, type OverlayColors, type OverlayModel, type OverlayPainter, type Wake } from './overlay.ts';
+import {
+  emptyOverlay,
+  LENS,
+  type HighlightStyle,
+  type OverlayColors,
+  type OverlayModel,
+  type OverlayPainter,
+  type Wake,
+} from './overlay.ts';
 import { AttemptConflictError, type AttemptSink } from './attempt-sink.ts';
 import { SheetScene } from './scene.ts';
 import type { StageController } from './stage.ts';
@@ -103,6 +112,7 @@ export class GameController implements StageController {
   readonly #overlay: OverlayModel = emptyOverlay();
   readonly #animator: Animator;
   #state: SessionState;
+  #apprentice: ApprenticeRun | null = null;
   #startedAt: number;
   #feedbackId = 0;
   #renderer: SheetRenderer | null = null;
@@ -168,6 +178,12 @@ export class GameController implements StageController {
     return this.#state;
   }
 
+  /** How the Apprentice, the house reader, plays this sheet: read once, on the device, when first asked. */
+  get apprentice(): ApprenticeRun {
+    this.#apprentice ??= apprenticeRun(this.#spec);
+    return this.#apprentice;
+  }
+
   /** Connects drawing surfaces. Call `resize` whenever their CSS size changes. */
   attach(renderer: SheetRenderer, painter: OverlayPainter): void {
     this.#disposed = false;
@@ -204,10 +220,15 @@ export class GameController implements StageController {
   /**
    * Shows where everyone else tore the sheet (only after finishing), and,
    * once enough hands have played, pulses the move that caught the most.
+   * Until then, it pulses the move the Apprentice fell for instead.
    */
   showCommunityScars(map: ScarMap): void {
     // A handful of hands says nothing about "everyone": until then only the player's own scars show.
-    if (map.hands < COMMUNITY.quietHands) return;
+    if (map.hands < COMMUNITY.quietHands) {
+      const comparison = compareWithApprentice(this.#state, this.apprentice);
+      if (comparison.kind !== 'unfooled') void this.#pulse(comparison.tear.fellFor, TIMING.apprenticePulseMs, 'apprentice');
+      return;
+    }
     this.#overlay.community = [...map.points];
     this.#requestDraw();
     if (map.trap) void this.#pulse(map.trap.move, TIMING.communityPulseMs);
@@ -387,7 +408,7 @@ export class GameController implements StageController {
   }
 
   /** Outlines one move as the sheet now shows it, glowing once. */
-  async #pulse(move: number, duration: number): Promise<void> {
+  async #pulse(move: number, duration: number, style: HighlightStyle = 'culprit'): Promise<void> {
     const outline = this.#outlineOf(move);
     if (!outline) return;
     await this.#animator.play({
@@ -395,7 +416,7 @@ export class GameController implements StageController {
       easing: ease.linear,
       update: (t) => {
         const pulse = Math.sin(Math.min(1, t * 1.25) * Math.PI);
-        this.#overlay.highlight = { ...outline, opacity: pulse };
+        this.#overlay.highlight = { ...outline, style, opacity: pulse };
       },
     });
     this.#overlay.highlight = null;

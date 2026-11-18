@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { recipeForDay } from '../../shared/puzzle/calendar-recipes.ts';
+import { featuredDailySheet, isMixedSunday } from '../../shared/puzzle/daily.ts';
 import { SUNDAY_PROMISE } from '../../shared/puzzle/recipes.ts';
 import { addDays, weekdayOf, type DateKey } from '../../shared/time/calendar.ts';
 import { keys } from './keys.ts';
@@ -55,4 +56,17 @@ test('a special day is announced with its own stars', async () => {
   assert.ok(preview.recipe?.special, 'announced as a special');
   assert.deepEqual(preview.recipe, sheet.recipe);
   assert.equal(preview.stars, sheet.spec.stars);
+});
+
+test('a Sunday no trap qualified for is a mixed Sunday; a featured one is not', async () => {
+  const start = '2026-11-30';
+  const { clock, sheets } = await setup(start);
+  for (let i = 0; i < 7; i++) {
+    clock.now = noon(addDays(start, i));
+    const sheet = await sheets.todaySheet();
+    assert.equal(isMixedSunday(sheet), weekdayOf(sheet.dateKey) === SUNDAY, sheet.dateKey);
+    if (weekdayOf(sheet.dateKey) !== SUNDAY) continue;
+    const trap = { ...sheet, kind: 'trap' as const, author: 'marbler' };
+    assert.equal(isMixedSunday(featuredDailySheet(sheet.dateKey, trap, start)), false);
+  }
 });

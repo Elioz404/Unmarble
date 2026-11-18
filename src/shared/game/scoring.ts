@@ -38,15 +38,19 @@ export const rankScore = (result: Result): number =>
   (result.magnified ? 1 : 0) * 1e8 +
   Math.min(Math.round(result.durationMs / 100), DURATION_CAP_DS);
 
+/** One mark per action, the Lens aside: ● an undo, ○ a tear. */
+export const marksOf = (state: SessionState): string =>
+  state.history
+    .filter((h) => h.action.type !== 'magnify')
+    .map((h) => (h.verdict === 'correct' ? '●' : '○'))
+    .join('');
+
 /**
  * Spoiler-free text a player can paste in a comment: one mark per action.
  * `heading` names the sheet ("No.12 · Saturday", or "a trap by u/someone").
  */
 export const shareLine = (heading: string, stars: number, state: SessionState): string => {
-  const marks = state.history
-    .filter((h) => h.action.type !== 'magnify')
-    .map((h) => (h.verdict === 'correct' ? '●' : '○'))
-    .join('');
+  const marks = marksOf(state);
   const result = resultOf(state);
   const seconds = Math.round(result.durationMs / 1000);
   const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;

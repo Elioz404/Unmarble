@@ -1,5 +1,7 @@
 import { useMemo, useRef, type CSSProperties, type MouseEvent } from 'react';
 import { COMMUNITY } from '../../../shared/config.ts';
+import { apprenticeRun } from '../../../shared/game/apprentice.ts';
+import { isMixedSunday } from '../../../shared/puzzle/daily.ts';
 import { opsForPrefix } from '../../../shared/puzzle/moves.ts';
 import type { SheetDescriptor, SheetStats } from '../../../shared/protocol/api.ts';
 import { shadingPaletteOf } from '../../../shared/render/shading.ts';
@@ -29,11 +31,27 @@ const CTA: Record<CardProgress, string> = {
   finished: COPY.cardDone,
 };
 
-/** The line under the button: how a trap is catching people, how many have played, or the motto. */
-const metaLine = (sheet: SheetDescriptor, stats: SheetStats | null): string => {
-  if (!stats || stats.hands === 0) return COPY.tagline;
-  if (sheet.kind === 'trap' && stats.hands >= COMMUNITY.quietHands) return COPY.trap.caught(stats.caught, stats.hands);
-  return COPY.cardHands(stats.hands);
+/** Before anyone has played: what the sheet asks (or why a Sunday is mixed), a trap's invitation, or the motto. */
+const untouchedLine = (sheet: SheetDescriptor): string => {
+  if (sheet.kind === 'trap') return COPY.trap.beFirst;
+  if (isMixedSunday(sheet)) return COPY.trap.noneQualified;
+  return sheet.recipe ? COPY.cardPromise(sheet.recipe.promise) : COPY.tagline;
+};
+
+/** How the sheet has fared: how a trap is catching people, or how many have played. */
+const playedLine = (sheet: SheetDescriptor, stats: SheetStats): string =>
+  sheet.kind === 'trap' && stats.hands >= COMMUNITY.quietHands
+    ? COPY.trap.caught(stats.caught, stats.hands)
+    : COPY.cardHands(stats.hands);
+
+/**
+ * The line under the button. Until enough hands have played, it also says how
+ * often the Apprentice is fooled: a count only, never which move.
+ */
+const metaLine = (sheet: SheetDescriptor, stats: SheetStats | null, apprenticeTears: number): string => {
+  const hands = stats?.hands ?? 0;
+  const fared = stats && hands > 0 ? playedLine(sheet, stats) : untouchedLine(sheet);
+  return hands < COMMUNITY.quietHands && apprenticeTears > 0 ? `${COPY.apprentice.fools(apprenticeTears)} · ${fared}` : fared;
 };
 
 /**
@@ -53,6 +71,7 @@ export const FeedCard = ({ sheet, progress, stats, atelier, onPlay }: Props) => 
     [sheet],
   );
   useCpuSheet(canvasRef, frame);
+  const apprenticeTears = useMemo(() => apprenticeRun(sheet.spec).tears.length, [sheet]);
   const glint = useGlintOnce(leafRef);
   // The backing leaf is the colourway's darker stock, so its deckle reads against the paper.
   const leaf = { '--leaf': getPalette(sheet.spec.paletteId).band } as CSSProperties;
@@ -78,7 +97,7 @@ export const FeedCard = ({ sheet, progress, stats, atelier, onPlay }: Props) => 
         <button type="button" className="spine" onClick={onPlay}>
           {sheet.kind === 'trap' && progress === 'fresh' ? COPY.trap.cardPlay : CTA[progress]}
         </button>
-        <p className="card__meta">{metaLine(sheet, stats)}</p>
+        <p className="card__meta">{metaLine(sheet, stats, apprenticeTears)}</p>
       </div>
     </main>
   );

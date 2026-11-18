@@ -28,6 +28,8 @@ export const COPY = Object.freeze({
   /** A name the community gave a sheet, set apart from the colourway's name. */
   communityName: (name: string) => `“${name}”`,
   cardHands: (hands: number) => `${hands} ${hands === 1 ? 'hand has' : 'hands have'} worked this sheet`,
+  /** Before anyone has played, the card says what the sheet asks: "An early fold, bent by two drops." */
+  cardPromise: (promise: string) => `${promise.charAt(0).toUpperCase()}${promise.slice(1)}.`,
   lessonOf: (n: number, total: number) => `Lesson ${n} of ${total}`,
   lessonsDone: 'Now today’s sheet.',
   warmUp: {
@@ -88,7 +90,6 @@ export const COPY = Object.freeze({
     comments: 'See what others made of it',
     tellMaker: (author: string) => `Tell u/${author} how it went`,
     scars: (hands: number) => `Where hands tore it · ${hands} hands so far`,
-    scarsQuiet: 'Everyone’s tears will show on the sheet once a few more hands have played.',
     caughtOn: (share: number, form: MoveKind) => `${Math.round(share * 100)}% tore on this ${FORM_NAMES[form]}`,
     yourTrap: (caught: number, hands: number) =>
       hands === 0 ? 'Your trap is set. No one has sprung it yet.' : `Your trap has caught ${caught} of ${hands} ${hands === 1 ? 'hand' : 'hands'}.`,
@@ -161,6 +162,28 @@ export const COPY = Object.freeze({
     gotCaught: 'It caught you.',
     next: (author: string) => `Next: a trap by u/${author}`,
     cardPlay: 'Spring the trap',
+    /** On a trap's card before anyone has tried it. */
+    beFirst: 'Be the first to spring it',
+    /** A Sunday without a featured trap says why. */
+    noneQualified: 'No trap qualified this week. Set one for next Sunday.',
+  },
+  /**
+   * The house reader, a bot that only trusts the roundest drop. Always "the
+   * Apprentice", never a hand or a player. Before play it says only how often
+   * it is fooled, never where.
+   */
+  apprentice: {
+    name: 'The Apprentice',
+    fools: (times: number) => `Fools the Apprentice ${times}×`,
+    marksLabel: (tears: number) =>
+      tears === 0 ? 'The Apprentice’s marks: no tears' : `The Apprentice’s marks: ${tears} ${tears === 1 ? 'tear' : 'tears'}`,
+    outread: (step: number, missed: MoveKind) => `The Apprentice tore on move ${step}. You read the ${FORM_NAMES[missed]} it missed.`,
+    bothTore: (step: number, missed: MoveKind) =>
+      `You and the Apprentice both tore on move ${step}: the ${FORM_NAMES[missed]} on top hid well.`,
+    unreached: (step: number, missed: MoveKind) => `The Apprentice tore on move ${step}, where a ${FORM_NAMES[missed]} lay on top.`,
+    restDay: 'Even the Apprentice reads a rest day.',
+    unfooled: 'Even the Apprentice reads this one: no drop pretends to have fallen last.',
+    who: 'The house reader: it only trusts the roundest drop.',
   },
   flair: {
     toggle: 'Show my streak as flair',

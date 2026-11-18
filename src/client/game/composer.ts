@@ -219,7 +219,7 @@ export class ComposerController implements StageController {
         : move.kind === 'swirl'
           ? swirlEye(ops, problem.move, ops.length)
           : seamPath(ops, problem.move, ops.length);
-    return { points, closed: move.kind !== 'stroke', opacity: 0.85 };
+    return { points, closed: move.kind !== 'stroke', style: 'culprit', opacity: 0.85 };
   }
 
   #draw(): void {

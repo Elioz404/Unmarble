@@ -210,6 +210,8 @@ export const TIMING = Object.freeze({
   demoRestMs: 650,
   /** The pulse on the move that caught the most hands. */
   communityPulseMs: 1600,
+  /** While the sheet is quiet, the pulse on the move the Apprentice fell for. */
+  apprenticePulseMs: 1600,
   absorbMs: 650,
   tearPreviewMs: 1200,
   tearRevertMs: 520,

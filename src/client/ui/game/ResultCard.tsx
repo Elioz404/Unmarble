@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { COMMUNITY } from '../../../shared/config.ts';
+import { compareWithApprentice, type ApprenticeRun } from '../../../shared/game/apprentice.ts';
 import { isPerfect, shareLine } from '../../../shared/game/scoring.ts';
 import type { SessionState } from '../../../shared/game/session.ts';
 import type {
@@ -11,6 +12,7 @@ import type {
   Standing,
   TrapCatch,
 } from '../../../shared/protocol/api.ts';
+import { isMixedSunday } from '../../../shared/puzzle/daily.ts';
 import { templatePreview } from '../../../shared/puzzle/templates.ts';
 import { getPalette } from '../../../shared/sheet/palettes.ts';
 import { dateKeyOf, msUntilNextDay } from '../../../shared/time/calendar.ts';
@@ -29,6 +31,8 @@ type Props = {
   readonly player: PlayerView;
   /** Where everyone tore this sheet, once it has arrived. */
   readonly scars: ScarMap | null;
+  /** How the Apprentice played it: the comparison while the sheet is quiet. */
+  readonly apprentice: ApprenticeRun;
   /** This sheet's post, where it is discussed and named. */
   readonly thread: SheetThread | null;
   /** How the player's latest trap is doing. */
@@ -202,9 +206,75 @@ const SHARE_LABEL: Record<ShareOutcome, string> = {
   failed: COPY.result.shareFailed,
 };
 
-/** Where everyone tore the sheet, and the move that caught the most, once enough hands have played. */
-const CommunityScars = ({ sheet, scars }: { readonly sheet: SheetDescriptor; readonly scars: ScarMap }) => {
-  if (scars.hands < COMMUNITY.quietHands) return <p className="result__scars">{COPY.result.scarsQuiet}</p>;
+/** The Apprentice's marks are a size down from the player's: theirs is the result, this a reference. */
+const APPRENTICE_MARK_SIZE = 12;
+
+/** One line setting the player's reading against the Apprentice's, about the tear that tells the most. */
+const apprenticeLine = (sheet: SheetDescriptor, state: SessionState, run: ApprenticeRun): string => {
+  const comparison = compareWithApprentice(state, run);
+  if (comparison.kind === 'unfooled') return sheet.recipe?.special === 'ink-only' ? COPY.apprentice.restDay : COPY.apprentice.unfooled;
+  const { step, missedKind: form } = comparison.tear;
+  switch (comparison.kind) {
+    case 'outread':
+      return COPY.apprentice.outread(step, form);
+    case 'both-tore':
+      return COPY.apprentice.bothTore(step, form);
+    case 'unreached':
+      return COPY.apprentice.unreached(step, form);
+    default:
+      return assertNever(comparison);
+  }
+};
+
+/**
+ * Before a few hands have played, the house reader stands in for everyone:
+ * how the Apprentice, who only trusts the roundest drop, fared against you.
+ * Never counted as a hand, and named as what it is.
+ */
+const ApprenticeReading = ({
+  sheet,
+  state,
+  run,
+}: {
+  readonly sheet: SheetDescriptor;
+  readonly state: SessionState;
+  readonly run: ApprenticeRun;
+}) => {
+  const marks = run.state.history.filter((h) => h.action.type !== 'magnify');
+  return (
+    <div className="result__apprentice">
+      <p className="result__apprentice-line">{apprenticeLine(sheet, state, run)}</p>
+      <p className="result__apprentice-marks" role="img" aria-label={COPY.apprentice.marksLabel(run.tears.length)}>
+        <span className="label" aria-hidden>
+          {COPY.apprentice.name}
+        </span>
+        <span className="result__marks" aria-hidden>
+          {marks.map((m, i) => (
+            <Seal key={i} state={m.verdict === 'correct' ? 'gilt' : 'split'} size={APPRENTICE_MARK_SIZE} />
+          ))}
+        </span>
+      </p>
+      <p className="result__apprentice-who">{COPY.apprentice.who}</p>
+    </div>
+  );
+};
+
+/**
+ * Where everyone tore the sheet, and the move that caught the most, once
+ * enough hands have played; until then, the Apprentice's reading.
+ */
+const CommunityScars = ({
+  sheet,
+  state,
+  scars,
+  apprentice,
+}: {
+  readonly sheet: SheetDescriptor;
+  readonly state: SessionState;
+  readonly scars: ScarMap;
+  readonly apprentice: ApprenticeRun;
+}) => {
+  if (scars.hands < COMMUNITY.quietHands) return <ApprenticeReading sheet={sheet} state={state} run={apprentice} />;
   const move = scars.trap ? sheet.spec.moves[scars.trap.move] : undefined;
   const ink = move?.kind === 'drop' ? getPalette(sheet.spec.paletteId).inks[move.ink] : null;
   return (
@@ -256,6 +326,7 @@ export const ResultCard = ({
   standing,
   player,
   scars,
+  apprentice,
   thread,
   yourTrap,
   nextTrap,
@@ -353,7 +424,7 @@ export const ResultCard = ({
           ) : null}
         </p>
 
-        {scars ? <CommunityScars sheet={sheet} scars={scars} /> : null}
+        {scars ? <CommunityScars sheet={sheet} state={state} scars={scars} apprentice={apprentice} /> : null}
       </article>
 
       <div className="result__after">
@@ -377,7 +448,7 @@ export const ResultCard = ({
                       </button>
                     </div>
                     <p className="result__note" role="status">
-                      {shared ? SHARE_LABEL[shared] : COPY.book.sundayRule}
+                      {shared ? SHARE_LABEL[shared] : isMixedSunday(sheet) ? COPY.trap.noneQualified : COPY.book.sundayRule}
                     </p>
                   </div>
 

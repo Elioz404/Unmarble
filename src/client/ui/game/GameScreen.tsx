@@ -350,6 +350,7 @@ export const GameScreen = ({ platform, response, sound, muted, onToggleMute, onR
           standing={view.standing}
           player={response.player}
           scars={scars}
+          apprentice={controller.apprentice}
           thread={response.thread}
           yourTrap={response.yourTrap}
           nextTrap={nextTrap?.sheet ?? null}
