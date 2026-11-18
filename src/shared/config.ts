@@ -86,6 +86,14 @@ export const GENERATION = Object.freeze({
   foldsOnlyLean: Object.freeze({ min: 25, max: 55 }),
   /** Opposite swirls: their eyes stay at least this far apart (cells), so each turn reads on its own. */
   stormEyeSpacing: 3,
+  /** Stone: the bullseye's drops, outermost first, each falling wholly within the one before. */
+  nestSizes: Object.freeze(['L', 'M', 'S'] as const),
+  /**
+   * Stone: each inner drop lands this share of the outer drop's radius off its centre. A centred
+   * drop pushes the ring out still round, so its order would not read; off centre, the ring bends.
+   * The top of the range keeps the inner disk within the outer one (M in L, S in M).
+   */
+  nestOffset: Object.freeze({ min: 0.15, max: 0.3 }),
 });
 
 /**
@@ -99,6 +107,12 @@ export const ROTATION = Object.freeze({
   maxAgeWeight: 8,
   /** Special days come one per block of this many days (length drawn per block from the secret): about 1 in 10. */
   specialBlock: Object.freeze({ min: 8, max: 12 }),
+  /**
+   * December's shorter blocks (`calendar-recipes.ts`): specials as often as the other rules allow,
+   * about one a week instead of one in ten days. The shortest block must stay longer than
+   * `2 * specialInset + 1`, so each block keeps a day that may hold one.
+   */
+  decemberSpecialBlock: Object.freeze({ min: 4, max: 5 }),
   /** A special never falls on its block's first or last day, which keeps specials `specialGap` days apart. */
   specialInset: 1,
   /**

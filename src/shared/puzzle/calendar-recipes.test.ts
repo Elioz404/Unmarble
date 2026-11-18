@@ -15,6 +15,8 @@ const YEAR = 365;
 const SPECIAL_SHARE = Object.freeze({ min: 0.08, max: 0.12 });
 /** Today's specials spread over the four weekdays that have them: none takes more than a third. */
 const MAX_WEEKDAY_SPECIALS = 1 / 3;
+/** A version with shorter blocks shows at least this many times the specials of the usual cadence. */
+const DENSE_GAIN = 1.25;
 
 const FIRST = CALENDAR_VERSIONS[0] as CalendarVersion;
 
@@ -124,6 +126,36 @@ test('a catalogue change keeps every rule across the boundary', () => {
     assert.ok(after.some((d) => d.id === 'new-monday'), 'the new id arrives');
     // The first version's days do not change when a later version is appended.
     const before = days.filter((d) => d.key < v2.from);
-    assert.deepEqual(before, daysFrom(seed, FIRST.from, before.length));
+    assert.deepEqual(before, daysFrom(seed, FIRST.from, before.length, [FIRST]));
   }
+});
+
+test('a version that starts later never changes a day before it', () => {
+  for (const [k, version] of CALENDAR_VERSIONS.entries()) {
+    if (k === 0) continue;
+    const earlier = CALENDAR_VERSIONS.slice(0, k);
+    const count = dayNumberOf(version.from) - dayNumberOf(FIRST.from);
+    for (const seed of SEEDS) assert.deepEqual(daysFrom(seed, FIRST.from, count), daysFrom(seed, FIRST.from, count, earlier));
+  }
+});
+
+test('every version’s blocks keep a day that may hold a special, and specials stay apart', () => {
+  for (const { specialBlock = ROTATION.specialBlock } of CALENDAR_VERSIONS) {
+    assert.ok(specialBlock.min > 2 * ROTATION.specialInset + 1, 'a block longer than its two inset ends');
+    assert.ok(specialBlock.min <= specialBlock.max);
+  }
+  assert.ok(2 * ROTATION.specialInset + 1 >= ROTATION.specialGap, 'specials of neighbouring blocks stay specialGap apart');
+});
+
+test('shorter blocks bring specials more often, within the rules', () => {
+  const dense = CALENDAR_VERSIONS.find((v) => v.specialBlock);
+  assert.ok(dense, 'a version with its own blocks');
+  const k = CALENDAR_VERSIONS.indexOf(dense);
+  const plain = CALENDAR_VERSIONS.map(({ specialBlock: _, ...v }): CalendarVersion => v);
+  const days = dayNumberOf(CALENDAR_VERSIONS[k + 1]?.from ?? addDays(dense.from, YEAR)) - dayNumberOf(dense.from);
+  const seeds = Array.from({ length: 40 }, (_, i) => `dense-${i}`);
+  const count = (versions: readonly CalendarVersion[]) =>
+    seeds.reduce((sum, seed) => sum + daysFrom(seed, dense.from, days, versions).filter((d) => isSpecial(d.id)).length, 0);
+  assert.ok(count(CALENDAR_VERSIONS) > count(plain) * DENSE_GAIN, 'more specials than the usual cadence');
+  for (const seed of seeds) assertRotation(daysFrom(seed, FIRST.from, YEAR), `dense ${seed}`);
 });

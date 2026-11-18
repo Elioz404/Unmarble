@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EVIDENCE } from '../config.ts';
+import { EVIDENCE, GENERATION } from '../config.ts';
 import { PALETTES } from '../sheet/palettes.ts';
 import { readSheet } from './analysis.ts';
-import { FEATURES, hasTwinInks, matchesSignature } from './features.ts';
+import { FEATURES, hasNestedInk, hasTwinInks, matchesSignature } from './features.ts';
 import { generateSheet, validateSheet, type GeneratedSheet } from './generator.ts';
 import { gesturesAreSeparable } from './gesture-contract.ts';
 import {
@@ -19,6 +19,7 @@ import {
 import { parseSheetSpec } from './sheet.ts';
 
 const SUNDAY = 0;
+const TUESDAY = 2;
 const SEEDS = ['alpha', 'beta', 'gamma', 's8', 's10', 's12', 'q18', 'r21', 'k3', 'z9'];
 /** Two recipes of a weekday are distinct when few of one's sheets would pass for the other. */
 const MAX_OVERLAP = 0.3;
@@ -31,15 +32,21 @@ const sheets = new Map<string, readonly GeneratedSheet[]>(
 );
 const sheetsOf = (r: Recipe): readonly GeneratedSheet[] => sheets.get(r.id) ?? [];
 
+const recipe = (id: string): Recipe => {
+  const found = recipeById(id);
+  if (!found) throw new Error(`missing recipe ${id}`);
+  return found;
+};
+
 test('recipe ids are unique and found by id', () => {
   assert.equal(new Set(RECIPES.map((r) => r.id)).size, RECIPES.length);
   for (const r of RECIPES) assert.equal(recipeById(r.id), r);
   assert.equal(recipeById('no-such-recipe'), null);
 });
 
-test('Monday to Saturday rotate 4 recipes, Sunday 5', () => {
+test('Monday to Saturday rotate 4 recipes, Sunday 5, and Tuesday 5 with Stone', () => {
   for (let weekday = 0; weekday < 7; weekday++) {
-    assert.equal(weekdayRecipes.filter((r) => r.weekday === weekday).length, weekday === SUNDAY ? 5 : 4);
+    assert.equal(weekdayRecipes.filter((r) => r.weekday === weekday).length, weekday === SUNDAY || weekday === TUESDAY ? 5 : 4);
   }
 });
 
@@ -81,7 +88,7 @@ test('specials never fall on a Sunday, and each has a tier', () => {
 
 test('practice pools by difficulty: weekday recipes first, then specials', () => {
   const sizes = [1, 2, 3, 4, 5].map((stars) => recipesForStars(stars as 1 | 2 | 3 | 4 | 5).length);
-  assert.deepEqual(sizes, [5, 8, 10, 5, 5]);
+  assert.deepEqual(sizes, [5, 9, 10, 5, 5]);
   const threeStars = recipesForStars(3).map((r) => r.id);
   assert.deepEqual(threeStars.slice(0, 4), RECIPES.filter((r) => r.weekday === 4 && !r.special).map((r) => r.id));
   assert.equal(threeStars.at(-1), 'folds-only');
@@ -121,4 +128,26 @@ test('recipes of the same weekday are distinct', () => {
       }
     }
   }
+});
+
+test('Stone: a bullseye of three inks, each drop within the one before, under a fold', () => {
+  for (const { spec } of sheetsOf(recipe('stone'))) {
+    const nest = spec.moves.slice(0, GENERATION.nestSizes.length);
+    assert.deepEqual(
+      nest.map((m) => (m.kind === 'drop' ? m.size : m.kind)),
+      [...GENERATION.nestSizes],
+      'the bullseye falls first, outermost first',
+    );
+    assert.equal(new Set(nest.map((m) => (m.kind === 'drop' ? m.ink : -1))).size, nest.length, 'one ink per ring');
+    assert.equal(spec.moves.at(-1)?.kind, 'stroke');
+  }
+});
+
+test('a bullseye needs every drop wholly within the one before', () => {
+  const drop = (x: number, size: 'S' | 'M' | 'L', ink: 0 | 1 | 2) => ({ kind: 'drop', x, y: 8, size, ink }) as const;
+  assert.ok(hasNestedInk([drop(6, 'L', 0), drop(6.5, 'M', 1), drop(6.5, 'S', 2)]));
+  // The same drops, the middle one only overlapping the edge: a crescent, not a ring.
+  assert.ok(!hasNestedInk([drop(6, 'L', 0), drop(8, 'M', 1), drop(8, 'S', 2)]));
+  // Two rings are not yet a bullseye.
+  assert.ok(!hasNestedInk([drop(6, 'L', 0), drop(6.5, 'M', 1)]));
 });

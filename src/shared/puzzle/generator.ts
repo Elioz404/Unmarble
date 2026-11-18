@@ -14,6 +14,7 @@ import {
   snapToHalfCell,
   strokeOp,
   type DropMove,
+  type DropSize,
   type InkSlot,
   type Move,
   type StrokeMove,
@@ -102,6 +103,8 @@ const planShapes = (rng: Random, recipe: SheetTemplate, count: number): Map<numb
   if (TOP_NOT_A_FOLD.some((f) => has(recipe, f)) || forbids(recipe, 'top-seam')) reserved.add(last);
   if (has(recipe, 'mid-seam') || forbids(recipe, 'deep-seam')) reserved.add(1);
   if (has(recipe, 'split-folds')) reserved.add(last - 1);
+  // Stone: the bullseye's drops fall first, one straight after the other.
+  if (has(recipe, 'nested-ink')) for (const i of slotRange(1, GENERATION.nestSizes.length - 1)) reserved.add(i);
   const slots = new Set<number>();
   if (has(recipe, 'top-seam') || has(recipe, 'fold-pair') || has(recipe, 'split-folds')) slots.add(last);
   if (has(recipe, 'fold-pair')) slots.add(last - 1);
@@ -176,8 +179,10 @@ const seamAnchor = (rng: Random, move: StrokeMove): { x: number; y: number } => 
 const anchorOf = (rng: Random, move: Move): { x: number; y: number } =>
   move.kind === 'stroke' ? seamAnchor(rng, move) : { x: move.x, y: move.y };
 
-const placeDrop = (rng: Random, previous: Move | undefined, ink: InkSlot): DropMove | null => {
-  const size = rng.pick(DROP_SIZES);
+const placeDrop = (rng: Random, previous: Move | undefined, ink: InkSlot): DropMove | null =>
+  placeDropOfSize(rng, previous, ink, rng.pick(DROP_SIZES));
+
+const placeDropOfSize = (rng: Random, previous: Move | undefined, ink: InkSlot, size: DropSize): DropMove | null => {
   const r = dropRadius(size);
   const margin = r + VISIBILITY.dropEdgeMargin;
   for (let attempt = 0; attempt < GENERATION.placementRetries; attempt++) {
@@ -209,6 +214,32 @@ const placeDrop = (rng: Random, previous: Move | undefined, ink: InkSlot): DropM
     if (insideSheet(x, y, margin)) return { kind: 'drop', x, y, size, ink };
   }
   return null;
+};
+
+/** Stone: a drop of `size` fallen inside `outer`, off its centre so the ring it pushes out bends. */
+const placeNestedDrop = (rng: Random, outer: DropMove, size: DropSize, ink: InkSlot): DropMove => {
+  const { min, max } = GENERATION.nestOffset;
+  const offset = dropRadius(outer.size) * rng.range(min, max);
+  const angle = rng.range(0, Math.PI * 2);
+  return {
+    kind: 'drop',
+    x: snapToHalfCell(outer.x + Math.cos(angle) * offset),
+    y: snapToHalfCell(outer.y + Math.sin(angle) * offset),
+    size,
+    ink,
+  };
+};
+
+/**
+ * The next drop of a candidate. Stone's bullseye takes the first moves (its
+ * slots are kept for drops): the outermost drop falls anywhere, each later
+ * one inside the drop before it.
+ */
+const nextDrop = (rng: Random, recipe: SheetTemplate, moves: readonly Move[], ink: InkSlot): DropMove | null => {
+  const nestSize = has(recipe, 'nested-ink') ? GENERATION.nestSizes[moves.length] : undefined;
+  if (nestSize === undefined) return placeDrop(rng, moves.at(-1), ink);
+  const outer = moves.at(-1);
+  return outer?.kind === 'drop' ? placeNestedDrop(rng, outer, nestSize, ink) : placeDropOfSize(rng, outer, ink, nestSize);
 };
 
 /** Where a stroke may run: near which point, how far from it, and on which heading. */
@@ -309,7 +340,7 @@ const buildCandidate = (rng: Random, recipe: SheetTemplate, ground: Ground): Mov
       const first = moves.find((m) => m.kind === 'swirl');
       move = placeSwirl(rng, previous, has(recipe, 'opposite-swirls') && first ? first : null);
     } else {
-      move = placeDrop(rng, previous, inks[dropIndex++] as InkSlot);
+      move = nextDrop(rng, recipe, moves, inks[dropIndex++] as InkSlot);
     }
     if (!move) return null;
     moves.push(move);

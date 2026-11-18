@@ -104,6 +104,9 @@ export const bandForWeekday = (weekday: number): Band => {
 /** Twins are a reading of their own: only recipes that feature them allow them. */
 const NO_TWINS: readonly Feature[] = ['twin-inks'];
 
+/** A bullseye is Stone's reading: its Tuesday siblings never show one. */
+const NO_TWINS_OR_STONE: readonly Feature[] = [...NO_TWINS, 'nested-ink'];
+
 type Overrides = Pick<Recipe, 'title' | 'promise' | 'features'> & Partial<Omit<Recipe, 'id' | 'weekday' | 'special'>>;
 
 /** A weekday recipe: its band, overridden only where the catalogue says (always inside the band). */
@@ -137,14 +140,36 @@ export const RECIPES: readonly Recipe[] = [
   }),
 
   // The crescent is honest but not what sets it apart: the mid-depth fold under a round top does.
-  recipe(2, 'crescent', { title: 'Crescent', promise: 'a drop squeezed into a crescent', features: ['top-drop', 'mid-seam', 'crescent'] }),
-  recipe(2, 'deep-fold', { title: 'Deep Fold', promise: 'an early fold, bent by three drops', features: ['top-drop', 'deep-seam'] }),
-  recipe(2, 'fold-last', { title: 'Fold Last', promise: 'a fold drawn over everything', features: ['top-seam'] }),
+  recipe(2, 'crescent', {
+    title: 'Crescent',
+    promise: 'a drop squeezed into a crescent',
+    features: ['top-drop', 'mid-seam', 'crescent'],
+    forbid: NO_TWINS_OR_STONE,
+  }),
+  recipe(2, 'deep-fold', {
+    title: 'Deep Fold',
+    promise: 'an early fold, bent by three drops',
+    features: ['top-drop', 'deep-seam'],
+    forbid: NO_TWINS_OR_STONE,
+  }),
+  recipe(2, 'fold-last', {
+    title: 'Fold Last',
+    promise: 'a fold drawn over everything',
+    features: ['top-seam'],
+    forbid: NO_TWINS_OR_STONE,
+  }),
   recipe(2, 'first-swirl', {
     title: 'First Swirl',
     promise: 'one gentle swirl, turned last',
     swirls: [1, 1],
     features: ['top-swirl', 'buried-seam'],
+    forbid: NO_TWINS_OR_STONE,
+  }),
+  // A bullseye of three inks is round all through, yet the fold on top fell last: the naive reader still falls.
+  recipe(2, 'stone', {
+    title: 'Stone',
+    promise: 'three inks, one inside another, under a fold',
+    features: ['nested-ink', 'top-seam'],
   }),
 
   recipe(3, 'crossed-folds', {

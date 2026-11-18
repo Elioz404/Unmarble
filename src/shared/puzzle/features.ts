@@ -4,7 +4,16 @@ import type { FieldOp, Point, StrokeOp } from '../marbling/field-ops.ts';
 import { groundCrossPhase, groundPhase, type Ground } from '../sheet/ground.ts';
 import type { SheetReading } from './analysis.ts';
 import { seamSegment } from './evidence.ts';
-import { dropRadius, opsForPrefix, strokeOp, type Move, type MoveKind, type StrokeMove, type SwirlMove } from './moves.ts';
+import {
+  dropRadius,
+  opsForPrefix,
+  strokeOp,
+  type DropMove,
+  type Move,
+  type MoveKind,
+  type StrokeMove,
+  type SwirlMove,
+} from './moves.ts';
 
 /**
  * Detectors for the design features a recipe asks for (or forbids). Each
@@ -52,7 +61,9 @@ export type Feature =
   /** Every move is a drop. */
   | 'ink-only'
   /** The ink fell first (at least two drops), then only strokes. */
-  | 'folds-only';
+  | 'folds-only'
+  /** A bullseye: drops of different inks, each fallen within the one before (`GENERATION.nestSizes`). */
+  | 'nested-ink';
 
 /** Every feature, for checks that a catalogue only names features the detectors know. */
 export const FEATURES: readonly Feature[] = [
@@ -76,6 +87,7 @@ export const FEATURES: readonly Feature[] = [
   'opposite-swirls',
   'ink-only',
   'folds-only',
+  'nested-ink',
 ];
 
 /** Folds Only needs this many drops before its folds, so each fold has ink to bend. */
@@ -192,6 +204,36 @@ export const hasTwinInks = (moves: readonly Move[]): boolean => {
   return false;
 };
 
+/**
+ * Whether a later drop fell wholly inside an earlier one: where it landed,
+ * pulled back to the bath just after the earlier one fell, its disk lies in
+ * the earlier disk. A drop that only overlaps the edge makes a crescent, not a ring.
+ */
+const fellWithin = (ops: readonly FieldOp[], earlier: DropMove, i: number, later: DropMove, j: number): boolean => {
+  const p = { x: later.x, y: later.y };
+  if (!pullThrough(ops, i + 1, j, p)) return false;
+  return Math.hypot(p.x - earlier.x, p.y - earlier.y) + dropRadius(later.size) <= dropRadius(earlier.size);
+};
+
+/** Whether `GENERATION.nestSizes.length` drops of different inks each fell within the one before: a bullseye. */
+export const hasNestedInk = (moves: readonly Move[]): boolean => {
+  const ops = opsForPrefix(moves, moves.length);
+  const depth = GENERATION.nestSizes.length;
+  // Deepest nest ending at each drop: 1 for a drop that fell within no other ink.
+  const nest = new Map<number, number>();
+  for (const [j, later] of moves.entries()) {
+    if (later.kind !== 'drop') continue;
+    let deepest = 1;
+    for (const [i, earlier] of moves.slice(0, j).entries()) {
+      if (earlier.kind !== 'drop' || earlier.ink === later.ink) continue;
+      if (fellWithin(ops, earlier, i, later, j)) deepest = Math.max(deepest, (nest.get(i) ?? 1) + 1);
+    }
+    if (deepest >= depth) return true;
+    nest.set(j, deepest);
+  }
+  return false;
+};
+
 /** Whether some drop of the finished sheet is squeezed into a pronounced crescent. */
 const hasCrescent = (reading: SheetReading): boolean => {
   const full = reading.steps[0];
@@ -260,6 +302,8 @@ export const hasFeature = (
     }
     case 'ink-only':
       return moves.every((m) => m.kind === 'drop');
+    case 'nested-ink':
+      return hasNestedInk(moves);
     case 'folds-only': {
       const firstFold = moves.findIndex((m) => m.kind !== 'drop');
       return firstFold >= FOLDS_ONLY_MIN_DROPS && moves.slice(firstFold).every((m) => isStroke(m));

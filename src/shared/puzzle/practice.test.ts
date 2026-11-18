@@ -10,7 +10,7 @@ import { STARS, type Stars } from './sheet.ts';
 /** Random sheets checked per difficulty: enough to meet the rare slow or unlucky seed (about 20 s in all). */
 const SHEETS_PER_LEVEL = 200;
 /** Recipes each difficulty draws on: its weekdays' own, then the specials shown with its stars. */
-const POOL_SIZES: Readonly<Record<Stars, number>> = { 1: 5, 2: 8, 3: 10, 4: 5, 5: 5 };
+const POOL_SIZES: Readonly<Record<Stars, number>> = { 1: 5, 2: 9, 3: 10, 4: 5, 5: 5 };
 const TODAY = '2026-12-03';
 const roundTrip = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 

@@ -14,12 +14,12 @@ import { recipeById, specialTier, type Recipe, type SpecialId } from './recipes.
  *    repeating one within 3 consecutive weeks, and favouring the ones it
  *    has not seen for longest.
  *  - Special days fall one per block of 8–12 days (the lengths come from the
- *    seed), never on a Sunday, never on a block's first or last day (so at
- *    least 3 days apart), never the same special twice in a row, and never
- *    on a weekday that showed the same special within 3 weeks. Weekdays
- *    behind on specials are favoured, so specials spread evenly over their
- *    weekdays. A special overrides its day without consuming the weekday's
- *    chain.
+ *    seed; a version may set shorter ones), never on a Sunday, never on a
+ *    block's first or last day (so at least 3 days apart), never the same
+ *    special twice in a row, and never on a weekday that showed the same
+ *    special within 3 weeks. Weekdays behind on specials are favoured, so
+ *    specials spread evenly over their weekdays. A special overrides its day
+ *    without consuming the weekday's chain.
  *
  * The catalogue can change without breaking those rules: a change appends a
  * version starting at least two days after its deploy (so an announced
@@ -33,6 +33,24 @@ export type CalendarVersion = {
   /** Recipe ids per weekday (0 = Sunday … 6 = Saturday), in this order. */
   readonly weekdays: Readonly<Record<number, readonly string[]>>;
   readonly specials: readonly SpecialId[];
+  /** Lengths of this version's special blocks, when they are not `ROTATION.specialBlock`. */
+  readonly specialBlock?: { readonly min: number; readonly max: number };
+};
+
+const NOVEMBER_WEEKDAYS: CalendarVersion['weekdays'] = {
+  0: ['mixed', 'mixed-old-fold', 'mixed-swirl-last', 'mixed-fold-last', 'mixed-twins'],
+  1: ['buried-fold', 'old-fold', 'fold-on-top', 'two-of-a-kind'],
+  2: ['crescent', 'deep-fold', 'fold-last', 'first-swirl'],
+  3: ['crossed-folds', 'old-and-new-fold', 'two-buried-folds', 'parallel-folds'],
+  4: ['false-round', 'swirl-false-round', 'under-two-folds', 'oldest-fold'],
+  5: ['twins', 'swirl-on-top', 'fold-over-swirl', 'buried-swirl'],
+  6: ['full-set', 'swirl-crown', 'two-last-folds', 'saturday-twins'],
+};
+
+/** From December, Stone joins the Tuesdays. */
+const DECEMBER_WEEKDAYS: CalendarVersion['weekdays'] = {
+  ...NOVEMBER_WEEKDAYS,
+  2: [...(NOVEMBER_WEEKDAYS[2] ?? []), 'stone'],
 };
 
 /**
@@ -41,19 +59,16 @@ export type CalendarVersion = {
  * `npm run deploy` refuses to upload one that starts sooner (`tools/check-calendar.ts`).
  */
 export const CALENDAR_VERSIONS: readonly CalendarVersion[] = [
+  { from: '2026-11-18', weekdays: NOVEMBER_WEEKDAYS, specials: ['ink-only', 'folds-only', 'storm'] },
+  // December: Stone arrives, and specials come as often as the rules allow for the month.
   {
-    from: '2026-11-18',
-    weekdays: {
-      0: ['mixed', 'mixed-old-fold', 'mixed-swirl-last', 'mixed-fold-last', 'mixed-twins'],
-      1: ['buried-fold', 'old-fold', 'fold-on-top', 'two-of-a-kind'],
-      2: ['crescent', 'deep-fold', 'fold-last', 'first-swirl'],
-      3: ['crossed-folds', 'old-and-new-fold', 'two-buried-folds', 'parallel-folds'],
-      4: ['false-round', 'swirl-false-round', 'under-two-folds', 'oldest-fold'],
-      5: ['twins', 'swirl-on-top', 'fold-over-swirl', 'buried-swirl'],
-      6: ['full-set', 'swirl-crown', 'two-last-folds', 'saturday-twins'],
-    },
+    from: '2026-12-01',
+    weekdays: DECEMBER_WEEKDAYS,
     specials: ['ink-only', 'folds-only', 'storm'],
+    specialBlock: ROTATION.decemberSpecialBlock,
   },
+  // January: back to about one special in ten days.
+  { from: '2027-01-01', weekdays: DECEMBER_WEEKDAYS, specials: ['ink-only', 'folds-only', 'storm'] },
 ];
 
 const WEEK = 7;
@@ -220,11 +235,11 @@ const blocksOf = (seed: string, versions: readonly CalendarVersion[], k: number,
     return last ? last.start + last.length : versionStart(versions, k);
   };
   const window = WEEK * ROTATION.noRepeat;
-  const { specials } = versions[k] as CalendarVersion;
+  const { specials, specialBlock = ROTATION.specialBlock } = versions[k] as CalendarVersion;
   while (nextStart() <= until && nextStart() < end) {
     const start = nextStart();
     const rng = new Random(`${seed}:specials:${k}:${blocks.length}`);
-    const length = rng.int(ROTATION.specialBlock.min, ROTATION.specialBlock.max);
+    const length = rng.int(specialBlock.min, specialBlock.max);
     const recent = specialsSince(seed, versions, k, blocks, start - window);
     const previous = recent[0] ?? null;
     const options: SpecialOption[] = [];
