@@ -40,7 +40,7 @@ const folded = specOf([
   { kind: 'stroke', x: 6, y: 8, heading: 90 },
 ]);
 
-test('it names the dotted drop the Apprentice trusted, and the fold on top', () => {
+test('it names the drop the Apprentice trusted, and the fold on top', () => {
   const run = apprenticeRun(folded);
   const fell = COPY.apprentice.fellFor(1, 'stroke', true);
   const outread = play(folded, [

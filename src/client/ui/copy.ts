@@ -213,14 +213,14 @@ export const COPY = Object.freeze({
     marksLabel: (tears: number) =>
       tears === 0 ? 'The Apprentice’s marks: no tears' : `The Apprentice’s marks: ${tears} ${tears === 1 ? 'tear' : 'tears'}`,
     /**
-     * The move it fell for, which the sheet outlines in dots: a drop it
-     * trusted while another move lay on top, or the top move itself, undone
-     * with its grain when no drop was left.
+     * The move it fell for: a drop it trusted while another move lay on top,
+     * or the top move itself, undone with its grain when no drop was left.
+     * Named in words, since the sheet's dotted outline only pulses once.
      */
     fellFor: (step: number, missed: MoveKind, trustedDrop: boolean) =>
       trustedDrop
-        ? `On move ${step} the Apprentice trusted the dotted drop, but ${missed === 'drop' ? 'another drop' : `a ${FORM_NAMES[missed]}`} lay on top`
-        : `On move ${step} the Apprentice undid the dotted ${FORM_NAMES[missed]} the wrong way`,
+        ? `On move ${step} the Apprentice trusted a drop that looked round, but ${missed === 'drop' ? 'another drop' : `a ${FORM_NAMES[missed]}`} lay on top`
+        : `On move ${step} the Apprentice undid the ${FORM_NAMES[missed]} on top the wrong way`,
     outread: (fell: string) => `${fell}. You read it right.`,
     bothTore: (fell: string) => `${fell}. You tore there too.`,
     unreached: (fell: string) => `${fell}. Your sheet had given way before.`,
