@@ -126,7 +126,7 @@ export const SheetPlaque = ({ sheet, eyebrow }: { readonly sheet: SheetDescripto
  */
 export const LessonDots = ({ index, total }: { readonly index: number; readonly total: number }) => (
   <span className="lesson-dots" role="img" aria-label={COPY.lessonOf(index + 1, total)}>
-    <span aria-hidden>{COPY.lessons}</span>
+    <span aria-hidden>{COPY.lessonDotsLabel}</span>
     {Array.from({ length: total }, (_, i) => (
       <span
         key={i}

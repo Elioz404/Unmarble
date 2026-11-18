@@ -21,7 +21,7 @@ Misread the sheet and the paper tears: you keep a small scar, and the sheet show
 ## How to play
 
 - Open today's post (or the pinned **Atelier** post, which always shows today's sheet).
-- The first time you meet a form, a short lesson teaches it — the first visit is two lessons (drops, then folds) before today's sheet, and the first sheet with a swirl or with twin drops adds one for that. Dots on the plaque show how many are left, **Skip** passes the lesson on screen, and a ghost finger shows each gesture until you try it.
+- The first time you meet a form, a short lesson teaches it — the first visit is two lessons (drops, then folds) before today's sheet, and the first sheet with a swirl, or with twin drops, adds a lesson for each. Dots on the plaque show how many are left, **Skip** passes the lesson on screen, and a ghost finger shows each gesture until you try it.
 - New here and today's sheet is a ★★★★ or ★★★★★? The game offers an easier sheet from the Book to warm up on first (or a ★ practice sheet), and its hints come sooner for your first few sheets.
 - **Tap** a drop to draw it back. **Drag** along a fold to undo it. **Circle** a swirl's eye, against its turn.
 - The **?** in the header opens a pocket reading guide: the order rule, every lesson as a live specimen to play again (ghost finger included), and a map of what else is here (traps, Sunday's trap, naming, the Book, practice), each a tap away. It opens before your first move or once the sheet is done, never mid-sheet, and while it covers an untouched sheet that sheet's clock waits.

@@ -30,7 +30,7 @@ export const LESSONS: readonly Lesson[] = [
   {
     id: 'round-is-last',
     teaches: 'drop',
-    prompt: 'Tap a drop to draw it back. The perfectly round one fell last: undo it first.',
+    prompt: 'The perfectly round drop fell last: tap it to draw it back first.',
     spec: {
       paletteId: 'harbor-cobalt',
       ground: GROUND,

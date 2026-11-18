@@ -38,9 +38,8 @@ export const COPY = Object.freeze({
   /** The plaque's title while lessons come before the first sheet. */
   lessonsTitle: 'First sheets',
   /** Beside the lesson dots on the plaque. */
-  lessons: 'Lessons',
+  lessonDotsLabel: 'Lessons',
   lessonOf: (n: number, total: number) => `Lesson ${n} of ${total}`,
-  lessonsDone: 'Now today’s sheet.',
   warmUp: {
     note: (stars: number) => `Today’s sheet is ${'★'.repeat(stars)}. New here? Warm up on an easier one first.`,
     action: (weekday: string) => `Warm up on ${weekday}’s sheet`,
