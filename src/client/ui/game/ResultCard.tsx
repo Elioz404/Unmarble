@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { COMMUNITY } from '../../../shared/config.ts';
-import { compareWithApprentice, type ApprenticeRun } from '../../../shared/game/apprentice.ts';
+import type { ApprenticeRun } from '../../../shared/game/apprentice.ts';
 import { isPerfect, shareLine } from '../../../shared/game/scoring.ts';
 import type { SessionState } from '../../../shared/game/session.ts';
 import type {
@@ -21,6 +21,7 @@ import type { ShareOutcome } from '../../platform/platform.ts';
 import { COPY } from '../copy.ts';
 import { CheckIcon, CopyIcon, QuillIcon } from '../icons.tsx';
 import { deckle, Fillet, Fleuron, Seal, ToolStars } from '../ornaments.tsx';
+import { apprenticeLine } from './apprentice-line.ts';
 import { Numero, RecipeTitle } from './Chrome.tsx';
 import './result-card.css';
 
@@ -208,23 +209,6 @@ const SHARE_LABEL: Record<ShareOutcome, string> = {
 
 /** The Apprentice's marks are a size down from the player's: theirs is the result, this a reference. */
 const APPRENTICE_MARK_SIZE = 12;
-
-/** One line setting the player's reading against the Apprentice's, about the tear that tells the most. */
-const apprenticeLine = (sheet: SheetDescriptor, state: SessionState, run: ApprenticeRun): string => {
-  const comparison = compareWithApprentice(state, run);
-  if (comparison.kind === 'unfooled') return sheet.recipe?.special === 'ink-only' ? COPY.apprentice.restDay : COPY.apprentice.unfooled;
-  const { step, missedKind: form } = comparison.tear;
-  switch (comparison.kind) {
-    case 'outread':
-      return COPY.apprentice.outread(step, form);
-    case 'both-tore':
-      return COPY.apprentice.bothTore(step, form);
-    case 'unreached':
-      return COPY.apprentice.unreached(step, form);
-    default:
-      return assertNever(comparison);
-  }
-};
 
 /**
  * Before a few hands have played, the house reader stands in for everyone:

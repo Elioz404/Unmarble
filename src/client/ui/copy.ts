@@ -29,7 +29,8 @@ export const COPY = Object.freeze({
   communityName: (name: string) => `“${name}”`,
   cardHands: (hands: number) => `${hands} ${hands === 1 ? 'hand has' : 'hands have'} worked this sheet`,
   /** Before anyone has played, the card says what the sheet asks: "An early fold, bent by two drops." */
-  cardPromise: (promise: string) => `${promise.charAt(0).toUpperCase()}${promise.slice(1)}.`,
+  cardPromise: (promise: string) =>
+    `${promise.charAt(0).toUpperCase()}${promise.slice(1)}${/[.?!]$/.test(promise) ? '' : '.'}`,
   lessonOf: (n: number, total: number) => `Lesson ${n} of ${total}`,
   lessonsDone: 'Now today’s sheet.',
   warmUp: {
@@ -175,12 +176,22 @@ export const COPY = Object.freeze({
   apprentice: {
     name: 'The Apprentice',
     fools: (times: number) => `Fools the Apprentice ${times}×`,
+    /** When it is fooled so often that the sheet gives way under it. */
+    tears: 'Tears the sheet under the Apprentice',
     marksLabel: (tears: number) =>
       tears === 0 ? 'The Apprentice’s marks: no tears' : `The Apprentice’s marks: ${tears} ${tears === 1 ? 'tear' : 'tears'}`,
-    outread: (step: number, missed: MoveKind) => `The Apprentice tore on move ${step}. You read the ${FORM_NAMES[missed]} it missed.`,
-    bothTore: (step: number, missed: MoveKind) =>
-      `You and the Apprentice both tore on move ${step}: the ${FORM_NAMES[missed]} on top hid well.`,
-    unreached: (step: number, missed: MoveKind) => `The Apprentice tore on move ${step}, where a ${FORM_NAMES[missed]} lay on top.`,
+    /**
+     * The move it fell for, which the sheet outlines in dots: a drop it
+     * trusted while another move lay on top, or the top move itself, undone
+     * with its grain when no drop was left.
+     */
+    fellFor: (step: number, missed: MoveKind, trustedDrop: boolean) =>
+      trustedDrop
+        ? `On move ${step} the Apprentice trusted the dotted drop, but ${missed === 'drop' ? 'another drop' : `a ${FORM_NAMES[missed]}`} lay on top`
+        : `On move ${step} the Apprentice undid the dotted ${FORM_NAMES[missed]} the wrong way`,
+    outread: (fell: string) => `${fell}. You read it right.`,
+    bothTore: (fell: string) => `${fell}. You tore there too.`,
+    unreached: (fell: string) => `${fell}. Your sheet had given way before.`,
     restDay: 'Even the Apprentice reads a rest day.',
     unfooled: 'Even the Apprentice reads this one: no drop pretends to have fallen last.',
     who: 'The house reader: it only trusts the roundest drop.',

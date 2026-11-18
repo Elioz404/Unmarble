@@ -4,7 +4,7 @@ import { RULES } from '../config.ts';
 import { readSheet } from '../puzzle/analysis.ts';
 import { generateSheet } from '../puzzle/generator.ts';
 import type { Move } from '../puzzle/moves.ts';
-import { recipeById } from '../puzzle/recipes.ts';
+import { RECIPES } from '../puzzle/recipes.ts';
 import type { SheetSpec } from '../puzzle/sheet.ts';
 import { PALETTES } from '../sheet/palettes.ts';
 import { apprenticeRun, compareWithApprentice } from './apprentice.ts';
@@ -24,6 +24,10 @@ const folded = specOf([
   { kind: 'drop', x: 7.5, y: 8, size: 'M', ink: 1 },
   { kind: 'stroke', x: 6, y: 8, heading: 90 },
 ]);
+
+/** Generated sheets checked per recipe, and per Ink Only tier, whose promise is that it never fools anyone. */
+const SEEDS_PER_RECIPE = 3;
+const INK_ONLY_SEEDS = 12;
 
 const play = (spec: SheetSpec, actions: readonly PlayerAction[]) =>
   actions.reduce((state, action, i) => applyAction(spec, state, action, (i + 1) * 1000).state, startSession(spec));
@@ -73,15 +77,17 @@ test('with no drop left to trust, it drags the top fold with its grain', () => {
 
 test('generated sheets: Ink Only never fools it, every other recipe does', () => {
   const palette = PALETTES[0]?.id ?? '';
-  for (const id of ['ink-only', 'fold-on-top', 'storm-4']) {
-    const recipe = recipeById(id);
-    assert.ok(recipe, id);
-    const { spec, reading } = generateSheet(`apprentice-${id}`, recipe, palette);
-    const run = apprenticeRun(spec);
-    assert.equal(run.tears.length, Math.min(reading.naiveFailures, RULES.maxBlots), id);
-    assert.equal(run.state.status === 'clean', reading.naiveFailures < RULES.maxBlots, id);
-    if (id === 'ink-only') assert.equal(run.tears.length, 0, 'the rest day');
-    else assert.ok(run.tears.length > 0, `${id} fools it`);
+  for (const recipe of RECIPES) {
+    const restDay = recipe.special === 'ink-only';
+    for (let seed = 0; seed < (restDay ? INK_ONLY_SEEDS : SEEDS_PER_RECIPE); seed++) {
+      const label = `${recipe.id} #${seed}`;
+      const { spec, reading } = generateSheet(`apprentice-${recipe.id}-${seed}`, recipe, palette);
+      const run = apprenticeRun(spec);
+      assert.equal(run.tears.length, Math.min(reading.naiveFailures, RULES.maxBlots), label);
+      assert.equal(run.state.status === 'clean', reading.naiveFailures < RULES.maxBlots, label);
+      if (restDay) assert.equal(run.tears.length, 0, `${label}: the rest day`);
+      else assert.ok(run.tears.length > 0, `${label} fools it`);
+    }
   }
 });
 

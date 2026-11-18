@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tearPath } from './overlay.ts';
+import { EVIDENCE } from '../../shared/config.ts';
+import { brokenOutline, tearPath } from './overlay.ts';
 
 /** Length over width of the box aligned with the polyline's principal axis. */
 const aspectOf = (points: readonly { x: number; y: number }[]): number => {
@@ -40,4 +41,25 @@ test('every tear is an open slit at least three times longer than wide: never a 
 
 test('a tear keeps its shape for a given seed', () => {
   assert.deepEqual(tearPath(12.5, 0.5, 1), tearPath(12.5, 0.5, 1));
+});
+
+test("the Apprentice's outline of a round mark is broken into open runs: it never closes", () => {
+  for (const samples of [EVIDENCE.outlineSamples, 12, 7]) {
+    const ring = Array.from({ length: samples }, (_, i) => {
+      const a = (i / samples) * 2 * Math.PI;
+      return { x: Math.cos(a), y: Math.sin(a) };
+    });
+    const runs = brokenOutline(ring);
+    assert.ok(runs.length > 1, `${samples} samples: more than one run`);
+    // Where each run starts and stops on the ring.
+    const ends = runs.map((run) => {
+      const [first, last] = [run[0], run[run.length - 1]];
+      assert.ok(first && last);
+      return { first: ring.indexOf(first), last: ring.indexOf(last) };
+    });
+    ends.forEach(({ last }, i) => {
+      const next = ends[(i + 1) % ends.length]?.first ?? 0;
+      assert.ok((next - last + samples) % samples >= 1, `${samples} samples: run ${i} stops short of the next one`);
+    });
+  }
 });

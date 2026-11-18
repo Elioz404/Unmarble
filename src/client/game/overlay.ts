@@ -11,17 +11,19 @@ export type Wake =
   | { kind: 'line'; points: readonly SheetPoint[]; progress: number }
   | { kind: 'arc'; at: SheetPoint; radius: number; turn: 1 | -1; progress: number };
 
+/** Whose reading an outline shows: the move that gave the order away, or the one the Apprentice fell for. */
+export type HighlightStyle = 'culprit' | 'apprentice';
+
 /**
  * Everything drawn over the marbled sheet in paper space: scars left by
  * blots, the outline of the move that gave the order away (or, in its own
  * dotted ink, of the move the Apprentice fell for), a ripple where a tap
  * found no ink, the wake of an undo, the trail of a swipe in progress,
- * and the Lens tracing. Only the highlight may close, and only along an
- * outline the sheet already has: on this sheet, a round mark means "fell last".
+ * and the Lens tracing. Only the culprit's highlight may close, and only
+ * along an outline the sheet already has: on this sheet, a round mark means
+ * "fell last". The Apprentice's pick is no such move, so its outline is
+ * always broken into open runs (see `brokenOutline`).
  */
-/** Whose reading an outline shows: the move that gave the order away, or the one the Apprentice fell for. */
-export type HighlightStyle = 'culprit' | 'apprentice';
-
 export type OverlayModel = {
   scars: SheetPoint[];
   /** Outline of a move (closed for drops, open for seams), whose reading it shows, and its opacity. */
@@ -112,7 +114,10 @@ const MARK = Object.freeze({
   highlightUnderAlpha: 0.7,
   highlightDash: 0.18,
   highlightGap: 0.22,
-  /** The Apprentice's outline: round ink dots, never gilt, so it can't pass for the sheet's own answer. */
+  /**
+   * The Apprentice's outline: round ink dots, never gilt, so it can't pass
+   * for the sheet's own answer, broken like a ring (`brokenArcs`) so it never closes.
+   */
   apprenticeDot: 0.01,
   apprenticeGap: 0.26,
   /** Water marks: a darker rim this many pixels each side of a light core. */
@@ -169,6 +174,21 @@ export const tearPath = (seed: number, length: number, angle: number): SheetPoin
     const wobble = jitter(seed * 13 + i) * MARK.tearRagged * length;
     return { x: ux * t * length - uy * wobble, y: uy * t * length + ux * wobble };
   });
+};
+
+/**
+ * A closed outline broken the way a broken ring is: `brokenArcs` open runs,
+ * each the share of its stretch that `brokenArcSpan` is of a ring's, so it
+ * can never read as a round mark.
+ */
+export const brokenOutline = (points: readonly SheetPoint[]): SheetPoint[][] => {
+  const period = points.length / MARK.brokenArcs;
+  const share = (MARK.brokenArcSpan * MARK.brokenArcs) / (2 * Math.PI);
+  const start = (arc: number): number => Math.round(arc * period);
+  // Each run stops at least one point short of the next, however few points the outline has.
+  return Array.from({ length: MARK.brokenArcs }, (_, i) =>
+    points.slice(start(i), Math.min(Math.round((i + share) * period), start(i + 1) - 1) + 1),
+  ).filter((run) => run.length > 1);
 };
 
 type CanvasPath = readonly (readonly [number, number])[];
@@ -252,7 +272,8 @@ export class OverlayPainter {
 
   /**
    * An outline over a pale under-stroke, so it reads on paper and ink alike:
-   * the culprit in dashed gilt, the Apprentice's pick in dotted ink.
+   * the culprit in dashed gilt, the Apprentice's pick in dotted ink, broken
+   * open where the culprit's would close.
    */
   #paintHighlight(highlight: NonNullable<OverlayModel['highlight']>, colors: OverlayColors): void {
     const ctx = this.#context;
@@ -260,13 +281,14 @@ export class OverlayPainter {
     const { points, closed, style, opacity } = highlight;
     const core = Math.max(1.5, MARK.highlightCore * s);
     const apprentice = style === 'apprentice';
+    const runs = apprentice && closed ? brokenOutline(points) : [points];
     ctx.save();
     ctx.setLineDash(
       apprentice ? [MARK.apprenticeDot * s, MARK.apprenticeGap * s] : [MARK.highlightDash * s, MARK.highlightGap * s],
     );
     ctx.beginPath();
-    points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x * s, p.y * s) : ctx.lineTo(p.x * s, p.y * s)));
-    if (closed) ctx.closePath();
+    for (const run of runs) run.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x * s, p.y * s) : ctx.lineTo(p.x * s, p.y * s)));
+    if (closed && !apprentice) ctx.closePath();
     ctx.strokeStyle = colors.paper;
     ctx.globalAlpha = opacity * MARK.highlightUnderAlpha;
     ctx.lineWidth = Math.max(core + 2, MARK.highlightUnder * s);
